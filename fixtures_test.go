@@ -26,6 +26,7 @@ import (
 // TestAddMetadata tests that *TestVM.AddMetadata succeeds and that it
 // populates the instance.Metadata map.
 func TestAddMetadata(t *testing.T) {
+	t.Fail()
 	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
 	tvm, err := twf.CreateTestVM("vm")
 	if err != nil {
