@@ -51,6 +51,7 @@ FAIL
 )
 
 func TestConvertToTestSuite(t *testing.T) {
+	t.Fail()
 	tests := []struct {
 		results []string
 		ts      junit.Testsuite
