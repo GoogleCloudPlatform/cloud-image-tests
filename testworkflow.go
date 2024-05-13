@@ -920,6 +920,9 @@ func parseResult(res testResult, localPath string) junit.Testsuite {
 	}
 
 	ret.Name = name
+	if ret.Time == "" {
+		ret.Time = "0.000"
+	}
 	return ret
 }
 

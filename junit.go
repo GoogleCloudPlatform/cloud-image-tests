@@ -17,6 +17,7 @@ package imagetest
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/jstemmer/go-junit-report/v2/parser/gotest"
@@ -25,6 +26,7 @@ import (
 // converts `go test` outputs to a jUnit testSuite
 func convertToTestSuite(results []string, classname string) junit.Testsuite {
 	ts := junit.Testsuite{}
+	var runtime float64
 	for _, testResult := range results {
 		tcs, err := convertToTestCase(testResult)
 		if err != nil {
@@ -33,6 +35,9 @@ func convertToTestSuite(results []string, classname string) junit.Testsuite {
 		ts.Testcases = append(ts.Testcases, tcs...)
 		for _, tc := range tcs {
 			tc.Classname = classname
+			if i, err := strconv.ParseFloat(tc.Time, 64); err == nil {
+				runtime += i
+			}
 
 			ts.Tests++
 			if tc.Skipped != nil {
@@ -43,6 +48,7 @@ func convertToTestSuite(results []string, classname string) junit.Testsuite {
 			}
 		}
 	}
+	ts.Time = fmt.Sprintf("%.3f", runtime)
 	return ts
 }
 

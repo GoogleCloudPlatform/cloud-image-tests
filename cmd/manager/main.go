@@ -374,6 +374,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to marshall result: %v", err)
 	}
+	bytes = []byte(fmt.Sprintf("%s%s", xml.Header, bytes))
 	var outFile *os.File
 	if artifacts := os.Getenv("ARTIFACTS"); artifacts != "" {
 		outFile, err = os.Create(artifacts + "/junit.xml")

@@ -23,9 +23,9 @@ import (
 var (
 	testPass = `
 === RUN   TestUpdateNSSwitchConfig
---- PASS: TestUpdateNSSwitchConfig (0.00s)
+--- PASS: TestUpdateNSSwitchConfig (0.01s)
 === RUN   TestUpdateSSHConfig
---- PASS: TestUpdateSSHConfig (0.00s)
+--- PASS: TestUpdateSSHConfig (0.02s)
 === RUN   TestUpdatePAMsshd
 --- PASS: TestUpdatePAMsshd (0.00s)
 === RUN   TestUpdateGroupConf
@@ -52,69 +52,79 @@ FAIL
 
 func TestConvertToTestSuite(t *testing.T) {
 	tests := []struct {
-		results []string
-		ts      junit.Testsuite
+		name   string
+		input  []string
+		output junit.Testsuite
 	}{
 		{
-			[]string{testPass},
-			junit.Testsuite{Tests: 4},
+			name:   "parse_passing_results",
+			input:  []string{testPass},
+			output: junit.Testsuite{Tests: 4, Time: "0.030"},
 		},
 		{
-			[]string{testFail},
-			junit.Testsuite{Tests: 5, Failures: 1},
+			name:   "parse_failing_results",
+			input:  []string{testFail},
+			output: junit.Testsuite{Tests: 5, Failures: 1, Time: "0.000"},
 		},
 		{
-			[]string{testPass, testPass},
-			junit.Testsuite{Tests: 8},
+			name:   "parse_passing_results_twice",
+			input:  []string{testPass, testPass},
+			output: junit.Testsuite{Tests: 8, Time: "0.060"},
 		},
 		{
-			[]string{testPass, testFail},
-			junit.Testsuite{Tests: 9, Failures: 1},
+			name:   "parse_passing_and_failing_results",
+			input:  []string{testPass, testFail},
+			output: junit.Testsuite{Tests: 9, Failures: 1, Time: "0.030"},
 		},
 	}
-	for idx, tt := range tests {
-		ts := convertToTestSuite(tt.results, "")
-		switch {
-		case ts.Name != tt.ts.Name:
-			t.Errorf("test %d Name got: %+v, want: %+v", idx, ts.Name, tt.ts.Name)
-		case ts.Tests != tt.ts.Tests:
-			t.Errorf("test %d Tests got: %+v, want: %+v", idx, ts.Tests, tt.ts.Tests)
-		case ts.Failures != tt.ts.Failures:
-			t.Errorf("test %d Failures got: %+v, want: %+v", idx, ts.Failures, tt.ts.Failures)
-		case ts.Errors != tt.ts.Errors:
-			t.Errorf("test %d Errors got: %+v, want: %+v", idx, ts.Errors, tt.ts.Errors)
-		case ts.Disabled != tt.ts.Disabled:
-			t.Errorf("test %d Disabled got: %+v, want: %+v", idx, ts.Disabled, tt.ts.Disabled)
-		case ts.Skipped != tt.ts.Skipped:
-			t.Errorf("test %d Skipped got: %+v, want: %+v", idx, ts.Skipped, tt.ts.Skipped)
-		case ts.Time != tt.ts.Time:
-			t.Errorf("test %d Time got: %+v, want: %+v", idx, ts.Time, tt.ts.Time)
-		case ts.SystemOut != tt.ts.SystemOut:
-			t.Errorf("test %d SystemOut got: %+v, want: %+v", idx, ts.SystemOut, tt.ts.SystemOut)
-		case ts.SystemErr != tt.ts.SystemErr:
-			t.Errorf("test %d SystemErr got: %+v, want: %+v", idx, ts.SystemErr, tt.ts.SystemErr)
-		case len(ts.Testcases) != tt.ts.Tests:
-			t.Errorf("test %d test length got: %+v, want: %+v", idx, ts.Tests, tt.ts.Tests)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertToTestSuite(tt.input, "")
+			switch {
+			case got.Name != tt.output.Name:
+				t.Errorf("unexpected Name got: %+v, want: %+v", got.Name, tt.output.Name)
+			case got.Tests != tt.output.Tests:
+				t.Errorf("unexpected Tests got: %+v, want: %+v", got.Tests, tt.output.Tests)
+			case got.Failures != tt.output.Failures:
+				t.Errorf("unexpected Failures got: %+v, want: %+v", got.Failures, tt.output.Failures)
+			case got.Errors != tt.output.Errors:
+				t.Errorf("unexpected Errors got: %+v, want: %+v", got.Errors, tt.output.Errors)
+			case got.Disabled != tt.output.Disabled:
+				t.Errorf("unexpected Disabled got: %+v, want: %+v", got.Disabled, tt.output.Disabled)
+			case got.Skipped != tt.output.Skipped:
+				t.Errorf("unexpected Skipped got: %+v, want: %+v", got.Skipped, tt.output.Skipped)
+			case got.Time != tt.output.Time:
+				t.Errorf("unexpected Time got: %+v, want: %+v", got.Time, tt.output.Time)
+			case got.SystemOut != tt.output.SystemOut:
+				t.Errorf("unexpected SystemOut got: %+v, want: %+v", got.SystemOut, tt.output.SystemOut)
+			case got.SystemErr != tt.output.SystemErr:
+				t.Errorf("unexpected SystemErr got: %+v, want: %+v", got.SystemErr, tt.output.SystemErr)
+			case len(got.Testcases) != tt.output.Tests:
+				t.Errorf("unexpected test length got: %+v, want: %+v", got.Tests, tt.output.Tests)
+			}
+		})
 	}
 }
 
 func TestConvertToTestCase(t *testing.T) {
 	tests := []struct {
-		result string
-		tcs    []junit.Testcase
+		name   string
+		input  string
+		output []junit.Testcase
 	}{
 		{
-			testPass,
-			[]junit.Testcase{
-				{Name: "TestUpdateNSSwitchConfig", Time: "0.000"},
-				{Name: "TestUpdateSSHConfig", Time: "0.000"},
+			name:  "parse_passing_results",
+			input: testPass,
+			output: []junit.Testcase{
+				{Name: "TestUpdateNSSwitchConfig", Time: "0.010"},
+				{Name: "TestUpdateSSHConfig", Time: "0.020"},
 				{Name: "TestUpdatePAMsshd", Time: "0.000"},
 				{Name: "TestUpdateGroupConf", Time: "0.000"}},
 		},
 		{
-			testFail,
-			[]junit.Testcase{
+			name:  "parse_failing_results",
+			input: testFail,
+			output: []junit.Testcase{
 				{Time: "0.000", Name: "TestAlwaysFails", Failure: &junit.Result{
 					Data: "    main_test.go:47: failed, message: heh\n    main_test.go:47: failed, message: heh2\n    main_test.go:47: failed, message: heh again"},
 				},
@@ -125,33 +135,33 @@ func TestConvertToTestCase(t *testing.T) {
 		},
 	}
 
-	for idx, tt := range tests {
-		tcs, err := convertToTestCase(tt.result)
-		if err != nil {
-			t.Errorf("test %d error parsing: %v", idx, err)
-			continue
-		}
-		if len(tcs) != len(tt.tcs) {
-			t.Errorf("test %d expected: %v got: %v", idx, tt.tcs, tcs)
-			continue
-		}
-		for i := 0; i < len(tt.tcs); i++ {
-			switch {
-			case tcs[i].Classname != tt.tcs[i].Classname:
-				t.Errorf("test %d mismatched Classname in test case %d. got: %v but want: %v", idx, i, tcs[i].Classname, tt.tcs[i].Classname)
-			case tcs[i].Name != tt.tcs[i].Name:
-				t.Errorf("test %d mismatched Name in test case %d. got: %v but want: %v", idx, i, tcs[i].Name, tt.tcs[i].Name)
-			case tcs[i].Time != tt.tcs[i].Time:
-				t.Errorf("test %d mismatched Time test case %d. got: %v but want: %v", idx, i, tcs[i].Time, tt.tcs[i].Time)
-			case tcs[i].Skipped != tt.tcs[i].Skipped:
-				t.Errorf("test %d mismatched Skipped in test case %d. got: %v but want: %v", idx, i, tcs[i].Skipped, tt.tcs[i].Skipped)
-			case (tcs[i].Failure != nil && tt.tcs[i].Failure == nil) || (tcs[i].Failure == nil && tt.tcs[i].Failure != nil):
-				t.Errorf("test %d mismatched Failure status in test case %d. got: %v but want: %v", idx, i, tcs[i].Failure, tt.tcs[i].Failure)
-			case tcs[i].Failure != nil && tcs[i].Failure.Data != tt.tcs[i].Failure.Data:
-				t.Errorf("test %d mismatched Failure Data in test case %d. got: %v but want: %v", idx, i, tcs[i].Failure.Data, tt.tcs[i].Failure.Data)
-			case tcs[i].SystemOut != tt.tcs[i].SystemOut:
-				t.Errorf("test %d mismatched SystemOut in test case %d. got: %v but want: %v", idx, i, tcs[i].SystemOut, tt.tcs[i].SystemOut)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tcs, err := convertToTestCase(tt.input)
+			if err != nil {
+				t.Fatalf("unexpected error parsing: %v", err)
 			}
-		}
+			if len(tcs) != len(tt.output) {
+				t.Errorf("unexpected expected: %v got: %v", tt.output, tcs)
+			}
+			for i := 0; i < len(tt.output); i++ {
+				switch {
+				case tcs[i].Classname != tt.output[i].Classname:
+					t.Errorf("unexpected mismatched Classname got: %v but want: %v", tcs[i].Classname, tt.output[i].Classname)
+				case tcs[i].Name != tt.output[i].Name:
+					t.Errorf("unexpected mismatched Name got: %v but want: %v", tcs[i].Name, tt.output[i].Name)
+				case tcs[i].Time != tt.output[i].Time:
+					t.Errorf("unexpected mismatched Time got: %v but want: %v", tcs[i].Time, tt.output[i].Time)
+				case tcs[i].Skipped != tt.output[i].Skipped:
+					t.Errorf("unexpected mismatched Skipped got: %v but want: %v", tcs[i].Skipped, tt.output[i].Skipped)
+				case (tcs[i].Failure != nil && tt.output[i].Failure == nil) || (tcs[i].Failure == nil && tt.output[i].Failure != nil):
+					t.Errorf("unexpected mismatched Failure status got: %v but want: %v", tcs[i].Failure, tt.output[i].Failure)
+				case tcs[i].Failure != nil && tcs[i].Failure.Data != tt.output[i].Failure.Data:
+					t.Errorf("unexpected mismatched Failure Data got: %v but want: %v", tcs[i].Failure.Data, tt.output[i].Failure.Data)
+				case tcs[i].SystemOut != tt.output[i].SystemOut:
+					t.Errorf("unexpected mismatched SystemOut got: %v but want: %v", tcs[i].SystemOut, tt.output[i].SystemOut)
+				}
+			}
+		})
 	}
 }
