@@ -16,12 +16,38 @@ package sql
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
+
+type buildVersionBounds struct {
+	upper int
+	lower int
+}
+
+var serverVersionBuildNumber = map[string]buildVersionBounds{
+	"2016": {upper: 17763, lower: 14392},
+	"2019": {upper: 20348, lower: 17762},
+	"2022": {upper: 26000, lower: 20347},
+	// TODO change this to an actual upper bound when possible.
+	"2025": {upper: 99999, lower: 25999},
+}
+
+func buildNumberIsOk(sqlOutput, serverExpectedVersion string) bool {
+	bounds, ok := serverVersionBuildNumber[serverExpectedVersion]
+	if !ok || (bounds.upper == 0 && bounds.lower == 0) {
+		return false
+	}
+	buildNumString := regexp.MustCompile(`build [0-9]+:`).FindString(sqlOutput)
+	if buildnumber, err := strconv.Atoi(regexp.MustCompile(`[0-9]+`).FindString(buildNumString)); err == nil {
+		return buildnumber < bounds.upper && buildnumber > bounds.lower
+	}
+	return false
+}
 
 func TestSqlVersion(t *testing.T) {
 	utils.WindowsOnly(t)
@@ -59,8 +85,8 @@ func TestSqlVersion(t *testing.T) {
 	}
 
 	serverVerString := "on windows server " + serverExpectedVer
-	if !strings.Contains(sqlOutput, serverVerString) {
-		t.Fatalf("Installed Windows Server version does not match image version: %s not found in %s", serverVerString, sqlOutput)
+	if !strings.Contains(sqlOutput, serverVerString) && !buildNumberIsOk(sqlOutput, serverExpectedVer) {
+		t.Fatalf("Installed Windows Server version does not match image version: year %s or build number between %d and %d not found in %s", serverVerString, serverVersionBuildNumber[serverExpectedVer].lower, serverVersionBuildNumber[serverExpectedVer].upper, sqlOutput)
 	}
 }
 
