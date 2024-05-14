@@ -777,6 +777,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 	wg.Wait()
 
 	var suites junit.Testsuites
+	var runtime float64
 	for i := 0; i < len(testWorkflows); i++ {
 		suites.Suites = append(suites.Suites, parseResult(<-testResults, localPath))
 	}
@@ -786,8 +787,11 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 		suites.Tests += suite.Tests
 		suites.Disabled += suite.Disabled
 		suites.Skipped += suite.Skipped
-		suites.Time += suite.Time
+		if i, err := strconv.ParseFloat(suite.Time, 64); err == nil {
+			runtime += i
+		}
 	}
+	suites.Time = fmt.Sprintf("%.3f", runtime)
 
 	return suites, nil
 }
