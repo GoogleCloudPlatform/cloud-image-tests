@@ -44,7 +44,7 @@ func TestSqlVersion(t *testing.T) {
 	command := fmt.Sprintf("Sqlcmd -Q \"select @@version\"")
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Unable to query SQL Server version: %v", err)
+		t.Fatalf("Unable to query SQL Server version: %v %v %v", output.Stdout, output.Stderr, err)
 	}
 
 	sqlOutput := strings.ToLower(strings.TrimSpace(output.Stdout))

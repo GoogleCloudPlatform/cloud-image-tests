@@ -104,6 +104,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
+		vm1.AddMetadata("windows-startup-script-ps1", `(Get-Service 'MSSQLSERVER').WaitForStatus('Running', '00:10:00')`)
 		vm1.RunTests("TestSqlVersion|TestPowerPlan")
 		clientVM.RunTests("TestRemoteConnectivity")
 		serverVM.RunTests("TestPowerPlan")
