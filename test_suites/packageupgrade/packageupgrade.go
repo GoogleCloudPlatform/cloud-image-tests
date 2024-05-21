@@ -21,7 +21,7 @@ func ChangeRepo(t *testing.T) {
 	command = fmt.Sprintf("%s available", googet)
 	err := utils.CheckPowershellReturnCode(command, 1)
 	if err != nil {
-		t.Fatal("googet available: %v", err)
+		t.Fatal(err)
 	}
 
 	command = fmt.Sprintf("%s addrepo gce-stable %s", googet, stagingRepo)
