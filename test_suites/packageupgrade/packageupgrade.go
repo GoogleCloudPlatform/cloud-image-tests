@@ -68,15 +68,15 @@ func TestPackageUpgrade(t *testing.T) {
 		"google-osconfig-agent",
 	}
 
-	for _, package := range packages {
-		command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, package)
+	for _, agent := range packages {
+		command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, agent)
 		output, err := utils.RunPowershellCmd(command)
 		if err != nil {
-			t.Fatalf("Error reinstalling '%s': %v", package, err)
+			t.Fatalf("Error reinstalling '%s': %v", agent, err)
 		}
-		reString := fmt.Sprintf("Reinstallation of %s completed", package)
+		reString := fmt.Sprintf("Reinstallation of %s completed", agent)
 		if !strings.Contains(output.Stdout, reString) {
-			t.Fatalf("Reinstall of '%s' returned unexpected result: %s", package, output.Stdout)
+			t.Fatalf("Reinstall of '%s' returned unexpected result: %s", agent, output.Stdout)
 		}
 	}
 }
