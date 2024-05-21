@@ -31,7 +31,7 @@ import (
 	"sync"
 
 	"cloud.google.com/go/storage"
-	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	imagetest "github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/guestagent"
@@ -46,6 +46,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkperf"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/oslogin"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packageupgrade"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/security"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/shapevalidation"
@@ -217,6 +218,10 @@ func main() {
 		{
 			shapevalidation.Name,
 			shapevalidation.TestSetup,
+		},
+		{
+			packageupgrade.Name,
+			packageupgrade.TestSetup,
 		},
 		{
 			packagevalidation.Name,
