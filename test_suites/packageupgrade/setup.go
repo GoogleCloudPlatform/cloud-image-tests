@@ -18,7 +18,7 @@ package packageupgrade
 
 import (
 	imagetest "github.com/GoogleCloudPlatform/cloud-image-tests"
-	// "github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -27,18 +27,18 @@ var Name = "packageupgrade"
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	// These tests are against googet which is only used on Windows
-	//if utils.HasFeature(t.Image, "WINDOWS") {
-	vm1, err := t.CreateTestVM("installDrivers")
-	if err != nil {
-		return err
-	}
-	vm1.RunTests("TestDriverUpgrade")
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		vm1, err := t.CreateTestVM("installDrivers")
+		if err != nil {
+			return err
+		}
+		vm1.RunTests("TestDriverUpgrade")
 
-	vm2, err := t.CreateTestVM("installPackages")
-	if err != nil {
-		return err
+		vm2, err := t.CreateTestVM("installPackages")
+		if err != nil {
+			return err
+		}
+		vm2.RunTests("TestPackageUpgrade")
 	}
-	vm2.RunTests("TestPackageUpgrade")
-	//}
 	return nil
 }
