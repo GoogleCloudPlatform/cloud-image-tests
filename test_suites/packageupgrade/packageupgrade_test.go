@@ -14,7 +14,6 @@ const (
 )
 
 func ChangeRepo(t *testing.T) {
-	utils.WindowsOnly(t)
 	command := fmt.Sprintf("cmd.exe /c del /Q C:\\ProgramData\\GooGet\\repos\\*")
 	utils.FailOnPowershellFail(command, "Error deleting stable repo", t)
 
@@ -29,7 +28,7 @@ func ChangeRepo(t *testing.T) {
 }
 
 func TestDriverUpgrade(t *testing.T) {
-	utils.WindowsOnly(t)
+	//utils.WindowsOnly(t)
 	ChangeRepo(t)
 	drivers := []string{
 		"google-compute-engine-driver-pvpanic",
@@ -54,7 +53,7 @@ func TestDriverUpgrade(t *testing.T) {
 }
 
 func TestPackageUpgrade(t *testing.T) {
-	utils.WindowsOnly(t)
+	//utils.WindowsOnly(t)
 	ChangeRepo(t)
 	packages := []string{
 		"certgen",
