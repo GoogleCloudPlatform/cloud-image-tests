@@ -129,6 +129,9 @@ func TestFQDN(t *testing.T) {
 		// Zonal DNS change is breaking EL9.
 		t.Skip("Broken on EL9")
 	}
+	if strings.Contains(image, "debian-12") {
+		t.Skip("debian-12 does not support hostname exit hook")
+	}
 
 	metadataHostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
