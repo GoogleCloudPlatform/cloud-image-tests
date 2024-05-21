@@ -262,6 +262,10 @@ func TestHostsFile(t *testing.T) {
 		// Does not have dhclient or the dhclient exit hook.
 		t.Skip("Not supported on EL9")
 	}
+	if strings.Contains(image, "cos") {
+		// Does not have dhclient or the dhclient exit hook.
+		t.Skip("Not supported on cos")
+	}
 	if strings.Contains(image, "centos-stream-9") {
 		// Does not have dhclient or the dhclient exit hook.
 		t.Skip("Not supported on EL9")
