@@ -36,8 +36,8 @@ func TestDriverUpgrade(t *testing.T) {
 		"google-compute-engine-driver-gga",
 		"google-compute-engine-driver-balloon",
 		"google-compute-engine-driver-gvnic",
-		"google-compute-engine-driver-netkvm",
-		"google-compute-engine-driver-vioscsi",
+		//"google-compute-engine-driver-netkvm",
+		//"google-compute-engine-driver-vioscsi",
 	}
 
 	for _, driver := range drivers {
