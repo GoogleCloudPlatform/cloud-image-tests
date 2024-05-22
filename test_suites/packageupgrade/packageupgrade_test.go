@@ -2,6 +2,7 @@ package packageupgrade
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -73,8 +74,9 @@ func TestPackageUpgrade(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Error reinstalling '%s': %v", agent, err)
 		}
-		reString := fmt.Sprintf("Reinstallation of %s completed", agent)
-		if !strings.Contains(output.Stdout, reString) {
+		reString := fmt.Sprintf("Reinstallation of %s.* completed", agent)
+		matched, err := regexp.MatchString(reString, output.Stdout)
+		if !matched {
 			t.Fatalf("Reinstall of '%s' returned unexpected result: %s", agent, output.Stdout)
 		}
 	}
