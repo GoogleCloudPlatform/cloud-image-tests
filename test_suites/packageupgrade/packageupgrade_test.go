@@ -74,7 +74,7 @@ func TestPackageUpgrade(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Error getting package status for '%s'", agent)
 		}
-		inString := fmt.Sprintf("No package matching filter \"%s\" installed.")
+		inString := fmt.Sprintf("No package matching filter \"%s\" installed.", agent)
 		if !strings.Contains(output.Stdout, inString) {
 			command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, agent)
 			output, err := utils.RunPowershellCmd(command)
