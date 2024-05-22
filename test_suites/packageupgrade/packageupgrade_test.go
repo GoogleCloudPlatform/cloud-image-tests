@@ -41,14 +41,34 @@ func TestDriverUpgrade(t *testing.T) {
 	}
 
 	for _, driver := range drivers {
-		command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, driver)
+		command := fmt.Sprintf("%s installed %s", googet, driver)
 		output, err := utils.RunPowershellCmd(command)
 		if err != nil {
-			t.Fatalf("Error reinstalling '%s': %v", driver, err)
+			t.Fatalf("Error getting package status for '%s'", driver)
 		}
-		reString := fmt.Sprintf("Reinstallation of %s completed", driver)
-		if !strings.Contains(output.Stdout, reString) {
-			t.Fatalf("Reinstall of '%s' returned unexpected result: %s", driver, output.Stdout)
+		inString := fmt.Sprintf("No package matching filter \"%s\" installed.", driver)
+		if !strings.Contains(output.Stdout, inString) {
+			command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, driver)
+			output, err := utils.RunPowershellCmd(command)
+			if err != nil {
+				t.Fatalf("Error reinstalling '%s': %v", driver, err)
+			}
+			reString := fmt.Sprintf("Reinstallation of %s.* completed", driver)
+			matched, err := regexp.MatchString(reString, output.Stdout)
+			if !matched {
+				t.Fatalf("Reinstall of '%s' returned unexpected result: %s", driver, output.Stdout)
+			}
+		} else {
+			command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+			output, err := utils.RunPowershellCmd(command)
+			if err != nil {
+				t.Fatalf("Error installing '%s': %v", driver, err)
+			}
+			reString := fmt.Sprintf("Installation of %s.* and all dependencies completed", driver)
+			matched, err := regexp.MatchString(reString, output.Stdout)
+			if !matched {
+				t.Fatalf("Install of '%s' returned unexpected result: %s", driver, output.Stdout)
+			}
 		}
 	}
 }
@@ -59,6 +79,7 @@ func TestPackageUpgrade(t *testing.T) {
 	packages := []string{
 		"certgen",
 		"googet",
+		//"google-cloud-ops-agent",
 		"google-compute-engine-diagnostics",
 		"google-compute-engine-metadata-scripts",
 		"google-compute-engine-powershell",
