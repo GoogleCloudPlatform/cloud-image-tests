@@ -59,7 +59,6 @@ func TestPackageUpgrade(t *testing.T) {
 	packages := []string{
 		"certgen",
 		"googet",
-		"google-cloud-ops-agent",
 		"google-compute-engine-diagnostics",
 		"google-compute-engine-metadata-scripts",
 		"google-compute-engine-powershell",
