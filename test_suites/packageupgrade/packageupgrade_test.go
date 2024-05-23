@@ -22,7 +22,7 @@ func ChangeRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	command = fmt.Sprintf("%s addrepo gce-stable %s", googet, stagingRepo)
+	command = fmt.Sprintf("%s addrepo gce-staging %s", googet, stagingRepo)
 	utils.FailOnPowershellFail(command, "Error adding staging repo", t)
 }
 
