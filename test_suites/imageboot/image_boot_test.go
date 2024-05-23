@@ -39,6 +39,7 @@ var imageFamilyBootTimeThresholdMap = map[string]int{
 	"sles-15":     120,
 	"ubuntu-pro":  110,
 	"ubuntu":      75,
+	"windows":     120,
 }
 
 const (
