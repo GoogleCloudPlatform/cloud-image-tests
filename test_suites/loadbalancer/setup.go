@@ -17,6 +17,8 @@
 package loadbalancer
 
 import (
+	"regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
@@ -39,6 +41,10 @@ var (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if regexp.MustCompile(`^cos-`).MatchString(t.Image.Family) {
+		// Alias IPs are disabled on COS and required for cloud load balancers.
+		return nil
+	}
 	lbnet, err := t.CreateNetwork("loadbalancer", false)
 	if err != nil {
 		return err
