@@ -700,6 +700,48 @@ func daisyBucket(ctx context.Context, client *storage.Client, project string) (s
 	return bucketName, nil
 }
 
+// testMetrics is a simple struct to track the progress of a test run.
+type testMetrics struct {
+	// total is the total number of tests.
+	total int
+	// running is the number of tests currently running.
+	running int
+	// finished is the number of tests that have finished.
+	finished int
+	// mu is a mutex to protect the metrics.
+	mu sync.Mutex
+}
+
+// newTestMetrics returns a new testMetrics with total initialized with the
+// given value.
+func newTestMetrics(total int) *testMetrics {
+	return &testMetrics{total: total}
+}
+
+// started increments the running count.
+func (tm *testMetrics) started() {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.running++
+}
+
+// done decrements the running count and increments the finished count.
+func (tm *testMetrics) done() {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.running--
+	tm.finished++
+}
+
+// progress returns a string describing the current progress of the test
+// execution.
+func (tm *testMetrics) progress() string {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	return fmt.Sprintf("total: %d, running: %d, finished: %d, delta: %d",
+		tm.total, tm.running, tm.finished, tm.total-tm.finished)
+}
+
 // RunTests runs all test workflows.
 func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, zone, gcsPath, localPath string, parallelCount int, parallelStagger string, testProjects []string) (junit.Testsuites, error) {
 	gcsPrefix, err := getGCSPrefix(ctx, storageClient, project, gcsPath)
@@ -711,6 +753,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 		return junit.Testsuites{}, err
 	}
 
+	metrics := newTestMetrics(len(testWorkflows))
 	finalizeWorkflows(ctx, testWorkflows, zone, gcsPrefix, localPath)
 
 	testResults := make(chan testResult, len(testWorkflows))
@@ -751,7 +794,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 	var wg sync.WaitGroup
 	for i := 0; i < parallelCount; i++ {
 		wg.Add(1)
-		go func(id int) {
+		go func(metrics *testMetrics, id int) {
 			defer wg.Done()
 			time.Sleep(time.Duration(id) * stagger)
 			for test := range testchan {
@@ -762,13 +805,13 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 				} else {
 					test.wf.Project = <-projects
 				}
-				testResults <- runTestWorkflow(ctx, test)
+				testResults <- runTestWorkflow(ctx, metrics, test)
 				if test.lockProject {
 					// "unlock" the project.
 					exclusiveProjects <- test.wf.Project
 				}
 			}
-		}(i)
+		}(metrics, i)
 	}
 	for _, ts := range testWorkflows {
 		testchan <- ts
@@ -801,9 +844,10 @@ func formatTimeDelta(format string, t time.Duration) string {
 	return z.Add(time.Duration(t)).Format(format)
 }
 
-func runTestWorkflow(ctx context.Context, test *TestWorkflow) testResult {
-	var res testResult
-	res.testWorkflow = test
+func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkflow) testResult {
+	metrics.started()
+
+	res := testResult{testWorkflow: test}
 	if test.skipped {
 		res.skipped = true
 		res.err = fmt.Errorf("test suite was skipped with message: %q", res.testWorkflow.SkippedMessage())
@@ -811,7 +855,8 @@ func runTestWorkflow(ctx context.Context, test *TestWorkflow) testResult {
 	}
 
 	clean := func() {
-		log.Printf("cleaning up after test %s/%s (ID %s) in project %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project)
+		metrics.done()
+		log.Printf("cleaning up after test %s/%s (ID %s) in project %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, metrics.progress())
 		cleaned, errs := cleanTestWorkflow(test)
 		for _, err := range errs {
 			log.Printf("error cleaning test %s/%s: %v\n", test.Name, test.Image.Name, err)
@@ -826,7 +871,7 @@ func runTestWorkflow(ctx context.Context, test *TestWorkflow) testResult {
 	defer clean()
 
 	start := time.Now()
-	log.Printf("running test %s/%s (ID %s) in project %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project)
+	log.Printf("running test %s/%s (ID %s) in project %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, metrics.progress())
 	if err := test.wf.Run(ctx); err != nil {
 		res.err = err
 		return res

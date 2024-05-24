@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -629,5 +630,25 @@ func TestGetLastStepForVMWhenMultipleReboot(t *testing.T) {
 	}
 	if twf.wf.Steps["wait-started-vm-2"] != step {
 		t.Error("not wait-started-vm-2 step")
+	}
+}
+
+func TestMetrics(t *testing.T) {
+	total := 20
+	metrics := newTestMetrics(total)
+
+	var wg sync.WaitGroup
+	for i := 0; i < total; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer metrics.done()
+			metrics.started()
+		}()
+	}
+	wg.Wait()
+
+	if metrics.finished != metrics.total {
+		t.Errorf("finished %d, want %d", metrics.finished, metrics.total)
 	}
 }
