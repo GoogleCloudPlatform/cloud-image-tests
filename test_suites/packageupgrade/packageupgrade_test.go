@@ -2,6 +2,8 @@ package packageupgrade
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -26,7 +28,7 @@ func ChangeRepo(t *testing.T) {
 	utils.FailOnPowershellFail(command, "Error adding staging repo", t)
 }
 
-/*func TestDriverUpgrade(t *testing.T) {
+func TestDriverUpgrade(t *testing.T) {
 	utils.WindowsOnly(t)
 	ChangeRepo(t)
 	drivers := []string{
@@ -69,19 +71,12 @@ func ChangeRepo(t *testing.T) {
 			}
 		}
 	}
-}*/
+}
 
 func TestPackageUpgrade(t *testing.T) {
 	utils.WindowsOnly(t)
 	ChangeRepo(t)
-
-	command := fmt.Sprint("googet -noconfirm update")
-	output, err := utils.RunPowershellCmd(command)
-	if err != nil {
-		t.Fatalf("Error updating googet packages. Stderr: %s", output.Stderr)
-	}
-
-	/*packages := []string{
+	packages := []string{
 		"certgen",
 		"googet",
 		//"google-cloud-ops-agent",
@@ -123,5 +118,5 @@ func TestPackageUpgrade(t *testing.T) {
 				t.Fatalf("Install of '%s' returned unexpected result: %s", agent, output.Stdout)
 			}
 		}
-	}*/
+	}
 }
