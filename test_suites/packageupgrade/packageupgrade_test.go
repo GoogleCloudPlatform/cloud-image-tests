@@ -11,7 +11,10 @@ import (
 
 const (
 	googet      = "C:\\ProgramData\\GooGet\\googet.exe"
-	stagingRepo = "https://packages.cloud.google.com/yuck/repos/google-compute-engine-staging"
+	repoPath    = "C:\\ProgramData\\GooGet\\repos\\google-compute-engine-testing.repo"
+	repoContent = `- name: google-compute-engine-testing
+  url: https://packages.cloud.google.com/yuck/repos/google-compute-engine-testing
+  useoauth: true`
 )
 
 func ChangeRepo(t *testing.T) {
@@ -24,8 +27,11 @@ func ChangeRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	command = fmt.Sprintf("%s addrepo gce-staging %s", googet, stagingRepo)
-	utils.FailOnPowershellFail(command, "Error adding staging repo", t)
+	command = fmt.Sprintf("Set-Content -Path %s -Value %s", repoPath, repoContent)
+	_, err = utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestDriverUpgrade(t *testing.T) {
@@ -36,8 +42,12 @@ func TestDriverUpgrade(t *testing.T) {
 		"google-compute-engine-driver-gga",
 		"google-compute-engine-driver-balloon",
 		"google-compute-engine-driver-gvnic",
-		//"google-compute-engine-driver-netkvm",
-		//"google-compute-engine-driver-vioscsi",
+		/*
+			The driver packages will need to be updated to accomodate this test behavior.
+			We want to uncomment the following drivers once they are fixed,
+			"google-compute-engine-driver-netkvm",
+			"google-compute-engine-driver-vioscsi",
+		*/
 	}
 
 	for _, driver := range drivers {
