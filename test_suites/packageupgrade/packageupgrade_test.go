@@ -12,9 +12,9 @@ import (
 const (
 	googet      = "C:\\ProgramData\\GooGet\\googet.exe"
 	repoPath    = "C:\\ProgramData\\GooGet\\repos\\google-compute-engine-testing.repo"
-	repoContent = `- name: google-compute-engine-testing
+	repoContent = `"- name: google-compute-engine-testing
   url: https://packages.cloud.google.com/yuck/repos/google-compute-engine-testing
-  useoauth: true`
+  useoauth: true"`
 )
 
 func ChangeRepo(t *testing.T) {
