@@ -31,7 +31,7 @@ import (
 	"sync"
 
 	"cloud.google.com/go/storage"
-	imagetest "github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/guestagent"
