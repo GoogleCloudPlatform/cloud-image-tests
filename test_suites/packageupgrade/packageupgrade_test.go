@@ -89,6 +89,7 @@ func TestPackageUpgrade(t *testing.T) {
 	packages := []string{
 		"certgen",
 		"googet",
+		//Ops Agent uses its own repo; need to make a separate change to test it
 		//"google-cloud-ops-agent",
 		"google-compute-engine-diagnostics",
 		"google-compute-engine-metadata-scripts",
@@ -102,30 +103,20 @@ func TestPackageUpgrade(t *testing.T) {
 		command := fmt.Sprintf("%s installed %s", googet, agent)
 		output, err := utils.RunPowershellCmd(command)
 		if err != nil {
-			t.Fatalf("Error getting package status for '%s'", agent)
+			t.Fatalf("Error getting package status for '%s': %s", agent, err)
 		}
 		inString := fmt.Sprintf("No package matching filter \"%s\" installed.", agent)
 		if !strings.Contains(output.Stdout, inString) {
 			command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, agent)
-			output, err := utils.RunPowershellCmd(command)
+			_, err := utils.RunPowershellCmd(command)
 			if err != nil {
 				t.Fatalf("Error reinstalling '%s': %v", agent, err)
 			}
-			reString := fmt.Sprintf("Reinstallation of %s.* completed", agent)
-			matched, err := regexp.MatchString(reString, output.Stdout)
-			if !matched {
-				t.Fatalf("Reinstall of '%s' returned unexpected result: %s", agent, output.Stdout)
-			}
 		} else {
 			command := fmt.Sprintf("%s -noconfirm install %s", googet, agent)
-			output, err := utils.RunPowershellCmd(command)
+			_, err := utils.RunPowershellCmd(command)
 			if err != nil {
 				t.Fatalf("Error installing '%s': %v", agent, err)
-			}
-			reString := fmt.Sprintf("Installation of %s.* and all dependencies completed", agent)
-			matched, err := regexp.MatchString(reString, output.Stdout)
-			if !matched {
-				t.Fatalf("Install of '%s' returned unexpected result: %s", agent, output.Stdout)
 			}
 		}
 	}

@@ -13,7 +13,8 @@
 // limitations under the License.
 
 // Package packageupgrade tests that the guest environment and other
-// necessary packages are installed and configured correctly.
+// necessary drivers can be installed/updated from the testing repos
+// prior to promotion.
 package packageupgrade
 
 import (
@@ -27,6 +28,7 @@ var Name = "packageupgrade"
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	// These tests are against googet which is only used on Windows
+	// TODO: Add Linux equivalent testing
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		vm1, err := t.CreateTestVM("installDrivers")
 		if err != nil {
