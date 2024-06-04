@@ -40,7 +40,14 @@ func searchDmesg(t *testing.T, matches []string) {
 			return
 		}
 	}
-	t.Fatal("Module not active or found")
+	t.Fatal("CPU feature not active or found")
+}
+
+func findGuestDevice(t *testing.T, devicepath string) {
+	_, err := os.Stat(devicepath)
+	if err != nil {
+		t.Fatalf("could not find guest device: %v", err)
+	}
 }
 
 func TestSEVEnabled(t *testing.T) {
@@ -49,10 +56,16 @@ func TestSEVEnabled(t *testing.T) {
 
 func TestSEVSNPEnabled(t *testing.T) {
 	searchDmesg(t, sevSnpMsgList)
+	if !utils.IsWindows() {
+		findGuestDevice(t, "/dev/sev-guest")
+	}
 }
 
 func TestTDXEnabled(t *testing.T) {
 	searchDmesg(t, tdxMsgList)
+	if !utils.IsWindows() {
+		findGuestDevice(t, "/dev/tdx-guest")
+	}
 }
 
 func TestLiveMigrate(t *testing.T) {
