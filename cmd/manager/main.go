@@ -422,6 +422,9 @@ func downloadFolder(ctx context.Context, client *storage.Client, bucket, folder,
 			return err
 		}
 		dstFile := filepath.Join(dstDir, obj.Name)
+		if strings.Contains(dstFile, "/sources/") {
+			continue
+		}
 		// Remote path might contain subfolders, create them locally too.
 		fileDstDir := filepath.Dir(dstFile)
 		if err := os.MkdirAll(fileDstDir, 0755); err != nil {
