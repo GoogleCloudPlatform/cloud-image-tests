@@ -447,7 +447,6 @@ func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, g
 // finalizeWorkflows adds the final necessary data to each workflow for it to
 // be able to run, including the final copy-objects step.
 func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPrefix, localPath string) error {
-	log.Printf("Storing artifacts and logs in %s", gcsPrefix)
 	for _, twf := range tests {
 		if twf.wf == nil {
 			return fmt.Errorf("found nil workflow in finalize")
@@ -473,7 +472,8 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPref
 			for _, q := range quotaStep.WaitForAvailableQuotas.Quotas {
 				// Populate empty regions with best guess from the zone
 				if q.Region == "" {
-					q.Region = twf.wf.Zone[:len(twf.wf.Zone)-2]
+					lastIndex := strings.LastIndex(twf.wf.Zone, "-")
+					q.Region = twf.wf.Zone[:lastIndex]
 				}
 			}
 			createStep, ok := twf.wf.Steps[createStepName]
