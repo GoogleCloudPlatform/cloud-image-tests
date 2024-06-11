@@ -103,8 +103,6 @@ func TestPackageUpgrade(t *testing.T) {
 	packages := []string{
 		"certgen",
 		"googet",
-		//Ops Agent uses its own repo; need to make a separate change to test it
-		//"google-cloud-ops-agent",
 		"google-compute-engine-diagnostics",
 		"google-compute-engine-metadata-scripts",
 		"google-compute-engine-powershell",
