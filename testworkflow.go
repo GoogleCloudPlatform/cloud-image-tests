@@ -473,7 +473,8 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPref
 			for _, q := range quotaStep.WaitForAvailableQuotas.Quotas {
 				// Populate empty regions with best guess from the zone
 				if q.Region == "" {
-					q.Region = twf.wf.Zone[:len(twf.wf.Zone)-2]
+					lastIndex := strings.LastIndex(twf.wf.Zone, "-")
+					q.Region = twf.wf.Zone[:lastIndex]
 				}
 			}
 			createStep, ok := twf.wf.Steps[createStepName]
