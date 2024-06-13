@@ -70,9 +70,7 @@ conditions.
 Tests themselves are written in the test file(s) as go unit tests. Tests may use
 any of the test fixtures provided by the standard `testing` package.  These will
 be packaged into a binary and run on the test VMs created during setup using the
-Google Compute Engine startup script runner. The test files must specify a
-'cit' build constraint in order to prevent the presubmits on this repository
-from invoking the image tests.
+Google Compute Engine startup script runner.
 
 When writing tests to run against both Linux and Windows, it is preferred to
 use separate functions within the same test where appropriate based on
