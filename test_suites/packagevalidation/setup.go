@@ -30,7 +30,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	vm1.RunTests("TestStandardPrograms|TestGuestPackages|TestNTP")
+	vm1.RunTests("TestStandardPrograms|TestGuestPackages")
 
 	// as part of the migration of the windows test suite, these vms
 	// are only used to run windows tests. The tests themselves

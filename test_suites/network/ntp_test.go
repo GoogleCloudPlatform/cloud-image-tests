@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package packagevalidation
+package network
 
 import (
 	"os/exec"
