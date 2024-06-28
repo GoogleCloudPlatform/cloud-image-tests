@@ -123,21 +123,21 @@ var networkPerfTestConfig = []networkPerfTest{
 	},
 	{
 		name:        "c4-2",
-		zone:        "us-east5-b",
+		zone:        "us-east4-b",
 		machineType: "c4-standard-2",
 		diskType:    imagetest.HyperdiskBalanced,
 		arch:        "X86_64",
 		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 8, Region: "us-east5"},
+		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 8, Region: "us-east4"},
 	},
 	{
 		name:        "c4-192",
-		zone:        "us-east5-b",
+		zone:        "us-east4-b",
 		machineType: "c4-standard-192",
 		diskType:    imagetest.HyperdiskBalanced,
 		arch:        "X86_64",
 		networks:    []string{"DEFAULT", "TIER_1"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 1152, Region: "us-east5"},
+		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 1152, Region: "us-east4"},
 	},
 }
 
