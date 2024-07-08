@@ -27,6 +27,14 @@ import (
 
 // TestMatchingKeysInGuestAttributes validate that host keys in guest attributes match those on disk.
 func TestMatchingKeysInGuestAttributes(t *testing.T) {
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata")
+	}
+	if strings.Contains(image, "cos") {
+		// COS is not a supported OS.
+		t.Skip("COS is not a supported OS for storing hostkeys via guest attributes.")
+	}
 	diskEntries, err := utils.GetHostKeysFromDisk()
 	if err != nil {
 		t.Fatalf("failed to get host key from disk %v", err)
