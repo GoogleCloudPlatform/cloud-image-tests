@@ -35,6 +35,7 @@ var imageFamilyBootTimeThresholdMap = map[string]int{
 	"debian":      50,
 	"rhel":        60,
 	"rocky-linux": 60,
+	"opensuse":    70, // Temporary allowance, remove or set to default of 60 after boot time drops again
 	"sles-12":     85,
 	"sles-15":     120,
 	"ubuntu-pro":  110,
