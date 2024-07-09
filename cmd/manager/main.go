@@ -317,6 +317,7 @@ func main() {
 			}
 
 			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
+
 			test, err := imagetest.NewTestWorkflow(computeclient, *computeEndpointOverride, testPackage.name, image, *timeout, *project, *zone, *x86Shape, *arm64Shape)
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)

@@ -16,6 +16,8 @@
 package cvm
 
 import (
+	"fmt"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -28,9 +30,11 @@ var Name = "cvm"
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	for _, feature := range t.Image.GuestOsFeatures {
+	for _, feature := range t.ImageBeta.GuestOsFeatures {
+		fmt.Println("arushi logs: ", feature.Type)
 		switch feature.Type {
 		case "SEV_CAPABLE":
+			fmt.Println("arushi logs: entered SEV_CAPABLE")
 			sevtests := "TestSEVEnabled"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sev"
@@ -54,6 +58,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests(sevtests)
 		case "SEV_SNP_CAPABLE":
+			fmt.Println("arushi logs: entered SEV_SNP_CAPABLE")
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sevsnp"
 			vm.Zone = "us-central1-a" // SEV_SNP not available in all regions
@@ -73,6 +78,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests("TestSEVSNPEnabled")
 		case "TDX_CAPABLE":
+			fmt.Println("arushi logs: entered TDX_CAPABLE")
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "tdx"
 			vm.Zone = "us-central1-a" // TDX not available in all regions
@@ -81,7 +87,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 				EnableConfidentialCompute: true,
 			}
 			vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
-			vm.MachineType = "c3-standard-2"
+			vm.MachineType = "c3-standard-4"
 			vm.MinCpuPlatform = "Intel Sapphire Rapids"
 			disks := []*compute.Disk{
 				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: "us-central1-a"},
