@@ -88,17 +88,20 @@ func TestCustomHostname(t *testing.T) {
 		t.Fatalf("Couldn't get image from metadata")
 	}
 
-	// SLES doesn't support custom hostnames yet.
+	// guest-configs does not support wicked
 	if strings.Contains(image, "sles") {
 		t.Skip("SLES doesn't support custom hostnames.")
 	}
 	if strings.Contains(image, "suse") {
 		t.Skip("SUSE doesn't support custom hostnames.")
 	}
-
-	// Ubuntu doesn't support custom hostnames yet.
+	if strings.Contains(image, "cos") {
+		// Does not have updated guest-configs with systemd-network support.
+		t.Skip("Not supported on cos")
+	}
 	if strings.Contains(image, "ubuntu") {
-		t.Skip("Ubuntu doesn't support custom hostnames.")
+		// Does not have updated guest-configs with systemd-network support.
+		t.Skip("Not supported on ubuntu")
 	}
 
 	TestFQDN(t)
@@ -108,30 +111,6 @@ func TestCustomHostname(t *testing.T) {
 func TestFQDN(t *testing.T) {
 	utils.LinuxOnly(t)
 	ctx := utils.Context(t)
-	// TODO Zonal DNS is breaking this test case in EL9.
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Fatalf("Couldn't get image from metadata")
-	}
-	if strings.Contains(image, "almalinux-9") {
-		// Zonal DNS change is breaking EL9.
-		t.Skip("Broken on EL9")
-	}
-	if strings.Contains(image, "centos-stream-9") {
-		// Zonal DNS change is breaking EL9.
-		t.Skip("Broken on EL9")
-	}
-	if strings.Contains(image, "rhel-9") {
-		// Zonal DNS change is breaking EL9.
-		t.Skip("Broken on EL9")
-	}
-	if strings.Contains(image, "rocky-linux-9") {
-		// Zonal DNS change is breaking EL9.
-		t.Skip("Broken on EL9")
-	}
-	if strings.Contains(image, "debian-12") {
-		t.Skip("debian-12 does not support hostname exit hook")
-	}
 
 	metadataHostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
@@ -247,40 +226,20 @@ func TestHostsFile(t *testing.T) {
 		t.Fatalf("couldn't get image from metadata")
 	}
 	if strings.Contains(image, "sles") {
-		// SLES does not have dhclient or the dhclient exit hook.
+		// guest-configs does not support wicked
 		t.Skip("Not supported on SLES")
 	}
 	if strings.Contains(image, "suse") {
-		// SLES does not have dhclient or the dhclient exit hook.
+		// guest-configs does not support wicked
 		t.Skip("Not supported on SUSE")
 	}
-	if strings.Contains(image, "ubuntu") {
-		// Ubuntu does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on Ubuntu")
-	}
-	if strings.Contains(image, "almalinux-9") {
-		// Does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on EL9")
-	}
 	if strings.Contains(image, "cos") {
-		// Does not have dhclient or the dhclient exit hook.
+		// Does not have updated guest-configs with systemd-network support.
 		t.Skip("Not supported on cos")
 	}
-	if strings.Contains(image, "centos-stream-9") {
-		// Does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on EL9")
-	}
-	if strings.Contains(image, "rhel-9") {
-		// Does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on EL9")
-	}
-	if strings.Contains(image, "rocky-linux-9") {
-		// Does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on EL9")
-	}
-	if strings.Contains(image, "debian-12") {
-		// Does not have dhclient or the dhclient exit hook.
-		t.Skip("Not supported on Debian 12")
+	if strings.Contains(image, "ubuntu") {
+		// Does not have updated guest-configs with systemd-network support.
+		t.Skip("Not supported on ubuntu")
 	}
 
 	b, err := ioutil.ReadFile("/etc/hosts")
