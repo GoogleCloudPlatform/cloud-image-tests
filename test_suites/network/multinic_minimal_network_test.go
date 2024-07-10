@@ -98,7 +98,6 @@ func pingTarget(ctx context.Context, source, target string) error {
 		if err == nil {
 			break
 		}
-		println(fmt.Sprintf("%v", err))
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
