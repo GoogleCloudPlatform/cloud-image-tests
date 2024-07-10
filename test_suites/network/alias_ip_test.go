@@ -31,13 +31,29 @@ const (
 )
 
 func TestAliases(t *testing.T) {
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if strings.Contains(image, "cos") {
+		t.Skipf("COS does not support IP aliases")
+	}
 	if err := verifyIPAliases(t); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestAliasAfterReboot(t *testing.T) {
-	_, err := os.Stat(markerFile)
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if strings.Contains(image, "cos") {
+		t.Skipf("COS does not support IP aliases")
+	}
+	_, err = os.Stat(markerFile)
 	if os.IsNotExist(err) {
 		// first boot
 		if _, err := os.Create(markerFile); err != nil {
@@ -96,6 +112,13 @@ func getGoogleRoutes(networkInterface string) ([]string, error) {
 
 func TestAliasAgentRestart(t *testing.T) {
 	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if strings.Contains(image, "cos") {
+		t.Skipf("COS does not support IP aliases")
+	}
 	iface, err := utils.GetInterface(ctx, 0)
 	if err != nil {
 		t.Fatalf("couldn't get interface: %v", err)

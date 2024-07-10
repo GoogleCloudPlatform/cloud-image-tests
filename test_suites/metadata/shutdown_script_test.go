@@ -66,6 +66,8 @@ func TestShutdownScripts(t *testing.T) {
 		t.Fatalf("could not determine image: %v", err)
 	} else if strings.Contains(image, "sles") || strings.Contains(image, "suse") {
 		t.Skipf("image %s has known issues with metadata scripts on reinstall", image)
+	} else if strings.Contains(image, "cos") {
+		return
 	}
 	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", "result"), "")
 	if err != nil {

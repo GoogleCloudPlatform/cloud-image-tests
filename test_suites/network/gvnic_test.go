@@ -58,7 +58,6 @@ func CheckGVNICPresentWindows(interfaceName string) error {
 
 func TestGVNIC(t *testing.T) {
 	iface, err := utils.GetInterface(utils.Context(t), 0)
-
 	// Check whether the driver exists.
 	if err != nil {
 		t.Fatalf("couldn't find primary NIC: %v", err)
