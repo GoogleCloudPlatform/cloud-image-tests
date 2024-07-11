@@ -62,14 +62,14 @@ func TestGCESysprep(t *testing.T) {
 		t.Fatalf("failed to get winrm cert thumbprint: %s %v", winrmCert.Stderr, err)
 	}
 	if strings.TrimSpace(winrmCert.Stdout) != "" {
-		t.Error("winrm cert thumbprint is not empty, certificate was not cleared")
+		t.Errorf("winrm cert thumbprint is not empty\npowershell command (Get-ChildItem 'Cert:\\LocalMachine\\My\\').Thumbprint = %q, want \"\"", strings.TrimSpace(winrmCert.Stdout))
 	}
 	rpdCert, err := utils.RunPowershellCmd(`(Get-ChildItem 'Cert:\LocalMachine\Remote Desktop\').Thumbprint`)
 	if err != nil {
 		t.Fatalf("failed to get rpd cert thumbprint: %s %v", rpdCert.Stderr, err)
 	}
 	if strings.TrimSpace(rpdCert.Stdout) != "" {
-		t.Error("rpd cert thumbprint is not empty, certificate was not cleared")
+		t.Errorf("rpd cert thumbprint is not empty\npowershell command (Get-ChildItem 'Cert:\\LocalMachine\\Remote Desktop\\').Thumbprint = %q, want \"\"", strings.TrimSpace(rpdCert.Stdout))
 	}
 	disks, err := utils.RunPowershellCmd(`Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Enum\SCSI\Disk&Ven_Google&Prod_PersistentDisk\*\Device Parameters\Partmgr'`)
 	if err == nil && strings.TrimSpace(disks.Stdout) != "" {
