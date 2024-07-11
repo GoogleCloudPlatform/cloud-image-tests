@@ -28,7 +28,7 @@ var Name = "cvm"
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	for _, feature := range t.Image.GuestOsFeatures {
+	for _, feature := range t.ImageBeta.GuestOsFeatures {
 		switch feature.Type {
 		case "SEV_CAPABLE":
 			sevtests := "TestSEVEnabled"
@@ -81,7 +81,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 				EnableConfidentialCompute: true,
 			}
 			vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
-			vm.MachineType = "c3-standard-2"
+			vm.MachineType = "c3-standard-4"
 			vm.MinCpuPlatform = "Intel Sapphire Rapids"
 			disks := []*compute.Disk{
 				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: "us-central1-a"},

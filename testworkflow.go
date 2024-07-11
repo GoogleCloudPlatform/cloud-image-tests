@@ -70,6 +70,8 @@ type TestWorkflow struct {
 	Client daisycompute.Client
 	// Image is the image under test
 	Image *compute.Image
+	// ImageBeta is the image under test using Beta API
+	ImageBeta *computeBeta.Image
 	// ImageURL will be the partial URL of a GCE image.
 	ImageURL string
 	// MachineType is the machine type to be used for the test. This can be overridden by individual test suites.
@@ -610,11 +612,20 @@ func NewTestWorkflow(client daisycompute.Client, computeEndpointOverride, name, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Initializing Image inside the TestWorkflow
 	split := strings.Split(image, "/")
 	if strings.Contains(image, "family") {
 		t.Image, err = t.Client.GetImageFromFamily(split[1], split[len(split)-1])
 	} else {
 		t.Image, err = t.Client.GetImage(split[1], split[len(split)-1])
+	}
+
+	// Initializing ImageBeta inside the TestWorkflow, this is required to provide Beta support to cvm testsuite
+	if strings.Contains(image, "family") {
+		t.ImageBeta, err = t.Client.GetImageFromFamilyBeta(split[1], split[len(split)-1])
+	} else {
+		t.ImageBeta, err = t.Client.GetImageBeta(split[1], split[len(split)-1])
 	}
 	if err != nil {
 		return nil, err
