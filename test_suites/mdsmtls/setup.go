@@ -14,6 +14,7 @@ package mdsmtls
 
 import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -21,6 +22,9 @@ const Name = "mdsmtls"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if !utils.HasFeature(t.Image, "UEFI_COMPATIBLE") {
+		return nil
+	}
 	vm, err := t.CreateTestVM("mtlscreds")
 	if err != nil {
 		return err
