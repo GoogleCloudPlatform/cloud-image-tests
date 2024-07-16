@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ var imageFamilyBootTimeThresholdMap = map[string]int{
 }
 
 const (
-	markerFile     = "/boot-marker"
+	markerFile     = "/var/boot-marker"
 	secureBootFile = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 	setupModeFile  = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 )
@@ -184,6 +185,9 @@ func TestGuestReboot(t *testing.T) {
 	_, err := os.Stat(markerFile)
 	if os.IsNotExist(err) {
 		// first boot
+		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
+			t.Fatalf("failed creating marker file directory: %v", err)
+		}
 		if _, err := os.Create(markerFile); err != nil {
 			t.Fatalf("failed creating marker file: %v", err)
 		}
@@ -198,6 +202,9 @@ func TestGuestRebootOnHost(t *testing.T) {
 	_, err := os.Stat(markerFile)
 	if os.IsNotExist(err) {
 		// first boot
+		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
+			t.Fatalf("failed creating marker file directory: %v", err)
+		}
 		if _, err := os.Create(markerFile); err != nil {
 			t.Fatalf("failed creating marker file: %v", err)
 		}
