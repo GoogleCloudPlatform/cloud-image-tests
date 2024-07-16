@@ -177,6 +177,29 @@ func verifyBootTimeWindows() error {
 	return nil
 }
 
+func mountEFIVarsCOS(t *testing.T) error {
+	t.Helper()
+
+	if _, err := os.Stat(secureBootFile); !os.IsNotExist(err) {
+		return nil
+	}
+
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Couldn't get image from metadata %v", err)
+	}
+
+	if utils.IsCOS(image) {
+		cmd := exec.CommandContext(ctx, "mount", "-t", "efivarfs", "efivarfs", "/sys/firmware/efi/efivars/")
+		_, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("Failed to mount EFI vars: %v", err)
+		}
+	}
+	return nil
+}
+
 func TestGuestBoot(t *testing.T) {
 	t.Log("Guest booted successfully")
 }
@@ -229,13 +252,17 @@ func TestGuestSecureBoot(t *testing.T) {
 			t.Fatalf("SecureBoot test failed with: %v", err)
 		}
 	} else {
-		if err := testLinuxGuestSecureBoot(); err != nil {
+		if err := testLinuxGuestSecureBoot(t); err != nil {
 			t.Fatalf("SecureBoot test failed with: %v", err)
 		}
 	}
 }
 
-func testLinuxGuestSecureBoot() error {
+func testLinuxGuestSecureBoot(t *testing.T) error {
+	if err := mountEFIVarsCOS(t); err != nil {
+		return err
+	}
+
 	if _, err := os.Stat(secureBootFile); os.IsNotExist(err) {
 		return errors.New("secureboot efi var is missing")
 	}

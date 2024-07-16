@@ -342,6 +342,11 @@ func CheckLinuxCmdExists(cmd string) bool {
 	return false
 }
 
+// IsCOS returns true if the image is cos.
+func IsCOS(image string) bool {
+	return strings.Contains(image, "cos")
+}
+
 // LinuxOnly skips tests not on Linux.
 func LinuxOnly(t *testing.T) {
 	if runtime.GOOS != "linux" {
