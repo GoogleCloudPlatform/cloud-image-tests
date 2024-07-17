@@ -24,7 +24,6 @@ ENV GO111MODULE on
 RUN ./local_build.sh -o /out
 
 FROM alpine:latest
-RUN apk add --no-cache openssh-keygen
 RUN apk update && apk upgrade
 COPY --from=builder /out/* /
 
