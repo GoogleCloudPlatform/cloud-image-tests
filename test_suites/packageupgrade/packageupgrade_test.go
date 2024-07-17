@@ -56,12 +56,8 @@ func TestDriverUpgrade(t *testing.T) {
 		"google-compute-engine-driver-gga",
 		"google-compute-engine-driver-balloon",
 		"google-compute-engine-driver-gvnic",
-		/*
-			The driver packages will need to be updated to accomodate this test behavior.
-			We want to uncomment the following drivers once they are fixed,
-			"google-compute-engine-driver-netkvm",
-			"google-compute-engine-driver-vioscsi",
-		*/
+		"google-compute-engine-driver-netkvm",
+		"google-compute-engine-driver-vioscsi",
 	}
 
 	for _, driver := range drivers {
