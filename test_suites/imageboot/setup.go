@@ -34,7 +34,6 @@ var sbUnsupported = []*regexp.Regexp{
 	regexp.MustCompile("windows-server-2012-r2-dc-core"), // Working but not easily testable and EOL in 1.5 months
 	// Temporary exceptions
 	// Waiting on MSFT signed shims:
-	regexp.MustCompile("rocky-linux-9.*arm64"),           // https://bugs.rockylinux.org/view.php?id=4027
 	regexp.MustCompile("rhel-9.*arm64"),                  // https://issues.redhat.com/browse/RHEL-4326
 	regexp.MustCompile("(sles-15|opensuse-leap).*arm64"), // https://bugzilla.suse.com/show_bug.cgi?id=1214761
 }
