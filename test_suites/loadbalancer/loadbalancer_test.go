@@ -87,7 +87,6 @@ func runBackend(t *testing.T) {
 		}
 		body, err := io.ReadAll(req.Body)
 		io.WriteString(w, host)
-		w.WriteHeader(http.StatusOK)
 		if err == nil && string(body) == "stop" {
 			stop <- struct{}{}
 		}
