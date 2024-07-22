@@ -27,17 +27,6 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func checkMTLSAvailable(t *testing.T) {
-	t.Helper()
-	ctx := utils.Context(t)
-	for i := 0; i < 3; i++ {
-		if _, err := utils.GetMetadata(ctx, "instance", "credentials", "certs"); err == nil {
-			return
-		}
-	}
-	t.Skip("MTLs certs are not available from the MDS")
-}
-
 // checkCredsPresent checks mTLS creds exist on Linux based OSs.
 // metadata-script-runner has service dependency and is guaranteed to run after guest-agent.
 func checkCredsPresent(t *testing.T) {
@@ -86,8 +75,11 @@ func checkCredsPresentWindows(t *testing.T) {
 }
 
 func TestMTLSCredsExists(t *testing.T) {
-	checkMTLSAvailable(t)
 	ctx := utils.Context(t)
+	if _, err := utils.GetMetadata(ctx, "instance", "credentials", "certs"); err != nil {
+		t.Errorf("MTLs certs are not available from the MDS: utils.GetMetadata(ctx, instance/credentials/certs) = err %v, want nil", err)
+	}
+
 	var rootKeyFile, clientKeyFile string
 	if utils.IsWindows() {
 		rootKeyFile = filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine", "mds-mtls-root.crt")
@@ -129,7 +121,6 @@ func TestMTLSCredsExists(t *testing.T) {
 }
 
 func TestMTLSJobScheduled(t *testing.T) {
-	checkMTLSAvailable(t)
 	ctx := utils.Context(t)
 	var cmd *exec.Cmd
 	if utils.IsWindows() {
