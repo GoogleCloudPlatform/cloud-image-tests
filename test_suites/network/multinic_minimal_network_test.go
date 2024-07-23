@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -47,10 +48,6 @@ func TestSendPing(t *testing.T) {
 	if utils.IsWindows() {
 		setupFirewall(t)
 	}
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Fatalf("could not determine image: %v", err)
-	}
 	primaryIP, err := utils.GetMetadata(ctx, "instance", "network-interfaces", "0", "ip")
 	if err != nil {
 		t.Fatalf("couldn't get internal network IP from metadata, %v", err)
@@ -67,10 +64,8 @@ func TestSendPing(t *testing.T) {
 	if err := pingTarget(ctx, primaryIP, targetName); err != nil {
 		t.Fatalf("failed to ping remote %s via %s (primary network): %v", targetName, primaryIP, err)
 	}
-	if !strings.Contains(image, "cos") {
-		if err := pingTarget(ctx, secondaryIP, vm2Config.ip); err != nil {
-			t.Fatalf("failed to ping remote %s via %s (secondary network): %v", vm2Config.ip, secondaryIP, err)
-		}
+	if err := pingTarget(ctx, secondaryIP, vm2Config.ip); err != nil {
+		t.Fatalf("failed to ping remote %s via %s (secondary network): %v", vm2Config.ip, secondaryIP, err)
 	}
 }
 
@@ -127,7 +122,10 @@ func TestWaitForPing(t *testing.T) {
 		t.Fatalf("could not determine image: %v", err)
 	}
 	if strings.Contains(image, "cos") {
-		wantPings = 1
+		allowTCPCmd := exec.CommandContext(ctx, "iptables", "-A", "INPUT", "-p", "tcp", "-j", "ACCEPT")
+		if out, err := allowTCPCmd.CombinedOutput(); err != nil {
+			t.Fatalf("iptables -A INPUT -p tcp -j ACCEPT failed: %s %v", out, err)
+		}
 	}
 	var count int
 	var mu sync.RWMutex
