@@ -9,22 +9,57 @@ Testing components are built into a container image. The entrypoint is
 `/manager`, which supports the following options:
 
     Usage:
-      -filter string
-            only run tests matching filter
-      -images string
-            comma separated list of images to test
-      -out_path string
-            junit xml path (default "junit.xml")
-      -parallel_count int
-            TestParallelCount (default 5)
-      -print
-            print out the parsed test workflows and exit
-      -project string
-            project to be used for tests
-      -validate
-            validate all the test workflows and exit
-      -zone string
-            zone to be used for tests
+    -machine_type string
+    	sets default machine_type for test runs, regardless of architecture
+    	prefer the use -x86_shape and/or -arm64_shape instead
+    -arm64_shape string
+    	default arm64 vm shape for tests not requiring a specific shape (default "t2a-standard-1")
+    -x86_shape string
+    	default x86(-32 and -64) vm shape for tests not requiring a specific shape (default "n1-standard-1")
+    -zone string
+    	zone to be used for tests
+    -project string
+    	project to use for test runner
+    -test_projects string
+    	comma separated list of projects to be used for tests. defaults to the test runner project
+    -compute_endpoint_override string
+    	use a different endpoint for compute client libraries
+     -exclude string
+    	skip tests matching filter
+    -filter string
+    	only run tests matching filter
+    -gcs_path string
+    	GCS Path for Daisy working directory
+    -images string
+    	comma separated list of images to test
+    -local_path string
+    	path where test binaries are stored
+    -out_path string
+    	junit xml output path (default "junit.xml")
+    -write_local_artifacts string
+    	Local path to download test artifacts from gcs. (default none)
+    -parallel_count int
+    	tests to run at one time
+    -parallel_stagger string
+    	parseable time.Duration to stagger each parallel test (default "60s")
+    -set_exit_status
+    	Exit with non-zero exit code if test suites are failing (default true)
+    -timeout string
+    	timeout for each step in the test workflow (default "45m")
+    -print
+    	instead of running, print out the parsed test workflows and exit
+    -validate
+    	validate all the test workflows and exit
+
+The following flags are provided to the manager but interpreted by test suites when run, see the [the test\_suites documentation](test_suites/README.md) for more information.
+
+    -shapevalidation_test_filter string
+    	regexp filter for shapevalidation test cases, only cases with a matching family name will be run (default ".*")
+    -storageperf_test_filter string
+    	regexp filter for storageperf test cases, only cases with a matching name will be run (default ".*")
+    -networkperf_test_filter string
+    	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
+
 
 It can be invoked via docker as:
 
@@ -56,8 +91,8 @@ JUnit format XML will also be output.
 
 Tests are organized into go packages in the test\_suites directory and are
 written in go. Each package must at a minimum contain a setup file (by
-conventioned named setup.go) and at least one test file (by convention named
-$packagename\_test.go). Due to golang style conventions, the package name cannot contain an underscore. Thus, for the test suite name to match the packagename, the name of the test suite should not contain an
+convention named setup.go) and at least one test file (by convention named
+$packagename\_test.go). Due to golang style conventions, the package name cannot contain an underscore. Thus, for the test suite name to match the package name, the name of the test suite should not contain an
 underscore. For example, if a new test suite was created to test image licenses,
 it should be called imagelicensing, not image_licensing.
 

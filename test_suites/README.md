@@ -13,26 +13,13 @@ Tests are broken down by suite below:
 
 ## Test Suites
 
-### Test suite: shapevalidation
-
-Test that a VM can boot and access the virtual hardware of the large machine shape in a VM family.
-
-#### Test`$FAMILY`Mem
-
-Test that the available system memory is at least the expected amount of memory for this VM shape.
-
-#### Test`$FAMILY`Cpu
-
-Test the the number of active processors is equal to the number of processors expected for this VM shape.
-
-#### Test`$FAMILY`Numa
-
-Test the the number of active numa nodes is equal to the number of processors expected for this VM shape.
-
 ### Test suite: cvm
 
 #### TestSEVEnabled/TestSEVSNPEnabled/TestTDXEnabled
-Validate that an instance can boot with the specified confidential instance type and load its guest kernel module.
+Validate that an instance can boot with the specified confidential instance type and that the guest kernel supports the associated CPU feature.
+
+#### TestLiveMigrate
+Test that live migration works on each supported confidential instance type.
 
 ### Test suite: disk
 
@@ -47,6 +34,28 @@ new space.
 - <b>Test logic</b>: Launch a VM with the default disk size. Wait for it to boot up, then resize the
 disk and reboot the VM via the API. Wait for the VM to boot again, and validate
 the new size as reported by the operating system matches the expected size.
+
+#### TestDiskReadWrite
+
+Validate that we can write some data to a disk and read it back.
+
+#### TestBlockDeviceNaming
+
+Test that guest disks have `google-DEVICE_NAME` [disk symlinks](https://cloud.google.com/compute/docs/disks/disk-symlinks) created. Because the guest environment is only involved in the creation of these symlinks with nvme disks in a linux guest, this is the only case that is tested.
+
+### Test suite: guestagent ###
+
+Tests which verify functionality of the guest agent.
+
+#### TestTelemetry
+
+Test that the guest-agent schedules reporting telemetry when it is enabled, and does not schedule reporting telemetry when it is disabled.
+
+#### TestSnapshotScripts
+
+Test that application consistent snapshots are working on [Linux](https://cloud.google.com/compute/docs/disks/creating-linux-application-consistent-pd-snapshots) and [Windows](https://cloud.google.com/compute/docs/instances/windows/creating-windows-persistent-disk-snapshot).
+
+On linux, add a script to the VM and test that it is executed when a guest flush snapshot is created. On windows, test that the VSS provider service provider was notified when a guest flush snapshot is created.
 
 ### Test suite: hostnamevalidation ###
 
@@ -95,11 +104,18 @@ prevent new SSH connections.
 - <b>Test logic</b>: Launch a VM and confirm the guest agent generates unique host keys on startup.
 Restart the guest agent and confirm the host keys are not changed.
 
+#### TestHostsFile
+
+On linux guests, test that `/etc/hosts` is populated with an appropriate entry to set the FQDN and an entry to add an alias to the metadata server.
+
 ### Test suite: hotattach
 
 #### TestFileHotAttach
 Validate that hot attach disks work: a file can be written to the disk, the disk can be detached and
 reattached, and the file can still be read.
+
+#### TestMount
+Validate that mounting and un-mounting a local ssd works, and files written are not lost when unmounted.
 
 ### Test suite: imageboot
 
@@ -107,7 +123,7 @@ reattached, and the file can still be read.
 Test that the VM can boot.
 
 #### TestGuestReboot
-Test that the VM can reboot.
+Test that the VM can be rebooting using the GCE API.
 
 - <b>Background</b>: Some categories of errors can produce an OS image that boots but cannot
 successfully reboot. Documenting these errors is out of scope for this document,
@@ -129,42 +145,78 @@ document.
 that Secure Boot is enabled by querying the appropriate EFI variable through the
 sysfs/efivarfs interface.
 
+#### TestGuestRebootOnHost
 
-#### TestGuestShutdownScript
-Test that shutdown scripts can run for around two minutes (as a proxy for
-'forever')
+Test that the VM can reboot successfully from inside the guest, rather that the GCE API.
 
-- <b>Background</b>: We guarantee shutdown scripts will block the system shutdown process until the
-script completes. For scripts which never complete, this would cause the server
-to remain in a 'shutting down' state forever. However, VMs that are stopped via
-the API are first sent an ACPI soft-shutdown signal which triggers the OS
-shutdown process, invoking this script. But after a set amount of time
-(currently 90 seconds), if the VM is still running, the GCE API will hard-reset
-the VM. It's not possible to validate that the shutdown script will run
-'forever'. However, we validate that it will run at least until hard-reset
-occurs.
+#### TestStartTime and TestBootTime
 
-- <b>Test logic</b>: Launch a VM with a shutdown script in metadata. The shutdown script writes an
-increasing counter value every second to a file on disk, forever. Since this
-causes the graceful shutdown process to never succeed, the API hard-resets the
-VM after 2 minutes. After the VM finishes shutdown, start the VM and inspect the
-last value written to the file. It should be >110 to represent approximately 2
-minute shutdown time.
+TestStartTime is informational only, logging the time to test execution from VM creation.
+TestBootTime tests that the time from VM start to when guest-agent (and sshd on linux) is not more than the allowed maximum. See [image_boot_test.go](imageboot/image_boot_test.go) for allowed boot times, the default is 60 seconds.
 
 ### Test suite: licensevalidation ###
 
 A suite which tests that linux licensing and windows activation are working successfully.
 
-#### TestLinuxLicense
-Validate the image has the appropriate license attached
+#### TestWindowsActivationStatus
 
-- <b>Background</b>: Several of the supported GCE Images are subject to licensing agreements with the
-OS vendor. This is represented with the GCE License resource, which is attached
-to the GCE Image resource. Official GCE Images should not be released without
-the appropriate license.
+Test that Windows is licensed and activated.
 
-- <b>Test logic</b>: Connect to the metadata server from the VM and confirm the license available in
-metadata matches the expected value.
+#### TestLicenses
+
+Generate a list of licenses expected to see on the image based on the image name and family name. Test that the licenses are correct and that they propagate to the root disk. See [licensevalidation/setup.go](licensevalidation/setup.go) for license generation rules.
+
+### Test suite: livemigrate
+
+#### TestLiveMigrate
+
+Test that an image can live migrate without rebooting.
+
+### Test suite: loadbalancer
+
+#### TestL3Backend and TestL3Client
+
+Test that an image can serve as the backend for an L3 (network passthrough) load balancer. The Client VM sets up the load balancer resource, and the backends respond.
+
+#### TestL7Backend and TestL7Client
+
+Test that an image can serve as the backend for an L7 (application) load balancer. The Client VM sets up the load balancer resource, and the backends respond.
+
+### Test suite: mdsmtls
+
+#### TestMTLSCredsExists
+
+Test that mTLS credentials were created and can be used to communicate with the MDS.
+
+#### TestMTLSJobScheduled
+
+Test that the guest agent has scheduled certificate rotations for mTLS credentials.
+
+### Test suite: metadata
+
+#### TestShutdownScripts TestShutdownURLScripts TestStartupScripts TestSysprepSpecialize
+
+Test that shutdown, shutdown url, and startup, and sysprep-specialize scripts run correctly.
+
+#### TestDaemonScripts
+
+Test that a startup script can spawn a child that will continue running after the parent exits.
+
+#### TestTestShutdownScriptsFailed TestStartupScriptsFailed
+
+Test that a VM launched with an invalid metadata script only fails to execute that script.
+
+#### TestTokenFetch
+
+Test that VM service account tokens can be retrieved from the MDS.
+
+#### TestMetaDataResponseHeaders
+
+Test that metadata response don't contain unexpected google internal headers.
+
+#### TestGetMetadatUsingIP
+
+Test that compute metadata can be retrieved from 169.254.169.254.
 
 ### Test suite: network
 
@@ -178,11 +230,52 @@ interface to match will prevent unnecessary packet fragmentation.
 correct MTU using the golang 'net' package, which uses the netlink interface on
 Linux (same as the `ip` command).
 
+#### TestGVNIC
+
+Test that the gVNIC driver is loaded.
+
+#### TestDHCP
+
+Test that interfaces are configured with DHCP.
+
+#### TestStaticIP
+
+Test that interfaces with a static IP assigned to them in GCE receive that IP over DHCP.
+
+#### TestNTP
+
+Test that a time synchronization package is installed and properly configured.
+
+- <b>Background</b>: Linux operating systems require a time synchronization sofware to be running to
+correct any drift in the system clock. Correct clock time is required for a wide
+variety of applications, and virtual machines are particularly prone to clock
+drift.
+
+- <b>Test logic</b>: Validate that an appropriate time synchronization package is installed using the
+system package manager, and read its configuration file to verify that it is
+configured to check the Google-provided time server.
+
+#### TestAliases TestAliasAfterReboot TestAliasAgentRestart
+
+Test that IP aliases are added by the guest-agent, and do not disappear after reboot or agent restart.
+
+#### TestSendPing TestWaitForPing
+
+Test that two multinic VMs connected to each other after two networks can send packets to each other over both networks.
+
 ### Test suite: networkperf
 
-#### TestNetworkPerformance
 Validate the network performance of an image reaches at least 85% of advertised
 speeds.
+
+This test suite adds a flag to the manager which can be used to filter the test cases it runs.
+
+  -networkperf_test_filter string
+  	regexp filter for networkperf test cases, only cases with a matching family name will be run (default ".*")
+
+To see the list of test cases, check [networkperf/setup.go](networkperf/setup.go)
+
+#### TestNetworkPerformance
 
 - <b>Background</b>: Reaching advertised speeds is important, as failing to reach them means that
 there are problems with the image or its drivers. The 85% number is chosen as
@@ -204,19 +297,15 @@ features such as the ability to authenticate users using 2FA, security keys, or 
 make sure the guest agent responds correctly to OSLogin metadata changes, and the client VM will use
 test users to SSH to each of the server VMs. The methods covered by this test are normal SSH and 2FA SSH.
 
+Note that this test must be run in a specifically prepared project. See the [OSlogin test README](oslogin/README.md) for more information.
+
+### Test suite: packageupgrade
+
+#### TestDriverUpgrade TestPackageUpgrade
+
+Test that the image can upgrade packages to the versions in the google-compute-engine-testing repository. Not implemented on Linux.
+
 ### Test suite: packagevalidation
-
-#### TestNTPService
-Test that a time synchronization package is installed and properly configured.
-
-- <b>Background</b>: Linux operating systems require a time synchronization sofware to be running to
-correct any drift in the system clock. Correct clock time is required for a wide
-variety of applications, and virtual machines are particularly prone to clock
-drift.
-
-- <b>Test logic</b>: Validate that an appropriate time synchronization package is installed using the
-system package manager, and read its configuration file to verify that it is
-configured to check the Google-provided time server.
 
 #### TestStandardPrograms
 Validate that Google-provided programs are present.
@@ -235,6 +324,45 @@ preinstalled. The guest environment enables many GCE features to function.
 
 - <b>Test logic</b>: Validate that the guest environment packages are installed using the system
 package manager.
+
+#### TestGooGetInstalled TestGooGetAvailable TestSigned TestRemoveInstall TestPackagesInstalled TestPackagesAvailable TestPackagesSigned
+
+Test that googet is fully functional on the image, and can install, uninstall, verify signatures, and manage repositories.
+
+#### TestNetworkDriverLoaded TestDriversInstalled TestDriversRemoved
+
+Test only run on Windows. Test that driver packages are installed from googet, and can be removed.
+
+#### TestAutoUpdateEnabled TestNetworkConnecton TestEmsEnabled TestTimeZoneUTC TestPowershellVersion TestStartExe TestDotNETVersion TestServicesState TestWindowsEdition TestWindowsCore TestServerGuiShell
+
+Test that native windows packages are configured correctly. These are the test cases:
+
+* Windows auto updates are enabled
+* Internet connection outside of GCP (to google.com) is working.
+* Emergency Management Service is enabled
+* Time Zone is UTC
+* Powershell version is at least 5.1
+* Server-Gui-Shell is not installed on Windows Server Core images, and vice versa.
+* Powershell processes can be started, retrieved, and stopped.
+* DotNET version is at least 4.7
+* GCEAGent service is enabled
+* GoogleVssAgent and GoogleVssProvider services are enabled on non-windows client images.
+* google_osconfig_agent service is enabled on non 32-bit images.
+* Windows Datacenter editions have "-dc-" in the image name.
+* Windows Core editions have "-core-" in the image name.
+
+#### TestGCESysprep
+
+Test the functionality of the [GCESysprep](https://cloud.google.com/compute/docs/instances/windows/creating-windows-os-image#prepare_server_image) script. This is only applicable to Windows. These are the test cases:
+
+* Windows Event Log was cleared.
+* C:\Windows\Temp was cleared.
+* RDP and WinRM certificates were cleared.
+* RDP and WinRM traffic is allowed in the firewall.
+* Known disk configurations were cleared.
+* GCEStartup task is disabled.
+* The windows setup script SetupComplete.cmd was written.
+* google_osconfig_agent was disabled
 
 ### Test suite: security
 
@@ -273,6 +401,67 @@ confirm all users have disabled passwords, and that 'system account' users
 (those with UID < 1000) have the correct shell set (typically set to 'nologin'
 or 'false')
 
+#### TestSockets
+
+Test that there are no network listeners on unexpected ports.
+
+### Test suite: shapevalidation
+
+Test that a VM can boot and access the virtual hardware of the large machine shape in a VM family. This test suite adds a flag to the manager which can be used to filter the test cases it runs.
+
+  -shapevalidation_test_filter string
+  	regexp filter for shapevalidation test cases, only cases with a matching family name will be run (default ".*")
+
+To see the list of test cases, check [shapevalidation/setup.go](shapevalidation/setup.go)
+
+#### Test`$FAMILY`Mem
+
+Test that the available system memory is at least the expected amount of memory for this VM shape.
+
+#### Test`$FAMILY`Cpu
+
+Test the the number of active processors is equal to the number of processors expected for this VM shape.
+
+#### Test`$FAMILY`Numa
+
+Test the the number of active numa nodes is equal to the number of processors expected for this VM shape.
+
+### Test suite: sql
+
+Tests for Windows SQL server settings and functionality are correct.
+
+#### TestPowerPlan
+
+Test that the power plan is set to high perfomance.
+
+#### TestSqlVersion
+
+Test that the Windows SQL version matches the image name.
+
+#### TestRemoteConnectivity
+
+Test that a client can authentice and remotely manipulate SQL server tables.
+
+### Test suite: ssh
+
+Tests [metadata ssh key](https://cloud.google.com/compute/docs/connect/add-ssh-keys#metadata) functionality. On windows, tests use the [Windows SSH beta](https://cloud.google.com/compute/docs/connect/windows-ssh).
+
+#### TestMatchingKeysInGuestAttributes
+
+Validate that host keys in guest attributes match those on disk.
+
+#### TestHostKeysAreUnique
+
+Validate that host keys from disk are unique between instances.
+
+#### TestHostKeysNotOverrideAfterAgentRestart
+
+Test that SSH host keys do not change after restarting the guest agent.
+
+#### TestSSHInstanceKey TestEmptyTest
+
+TestSSHInstanceKey tests that it can add a metadata ssh key to another instance and use it to connect. TestEmptyTest does nothing, and waits to be connected to.
+
 ### Test suite: storageperf
 
 This test suite verifies PD performance on linux and windows. The following documentation is relevant for working with these tests, as of January 2024.
@@ -282,6 +471,13 @@ Performance limits: https://cloud.google.com/compute/docs/disks/performance. In 
 FIO command options: https://cloud.google.com/compute/docs/disks/benchmarking-pd-performance. To reach maximum IOPS and bandwidth MB per second, the disk needs to be warmed up with a "random write" fio task before running the benchmarking test.
 
 Hyperdisk limits: https://cloud.google.com/compute/docs/disks/benchmark-hyperdisk-performance. Hyperdisk disk types have a much higher performance limit and limit per GB of disk size. To reach the highest performance values on linux, some additional fio options may be required.
+
+This test suite adds a flag to the manager which can be used to filter the test cases it runs.
+
+  -storageperf_test_filter string
+  	regexp filter for storageperf test cases, only cases with a matching family name will be run (default ".*")
+
+To see the list of test cases, check [storageperf/setup.go](storageperf/setup.go)
 
 #### TestRandomReadIOPS and TestSequentialReadIOPS
 Checks random and sequential read performance on files and compares it to an expected IOPS value
@@ -302,3 +498,40 @@ Checks random and sequential file write performance on a disk and compares it to
 - <b>Background</b>: Similar to the read iops tests, we want to verify that write IOPS on disks work at
 the rate we expect for both random writes and throughput.
 
+### Test suite: suspendresume
+
+#### TestSuspend
+
+Tests that an image can suspend and be resumed without rebooting.
+
+### Test suite: windowscontainers
+
+Test Windows containers functionality.
+
+#### TestDockerIsInstalled TestDockerAvailable
+
+Test that docker is installed and available as a powershell module.
+
+#### TestBaseContainerImagesPresent TestBaseContainerImagesRun
+
+Test that base container images from "mcr.microsoft.com/windows/servercore" are configured and runnable.
+
+#### TestCanBuildNewContainerFromDockerfile
+
+Test that container building is functional.
+
+#### TestRunAndKillBackgroundContainer
+
+Test that containers can be run in the background, commands can be exec'd in them, and they can be killed and cleaned up.
+
+#### TestContainerCanMountStorageVolume
+
+Test that containers can mount local storage volumes and read and write to them.
+
+### Test suite: winrm
+
+Tests for windows remote management.
+
+#### TestWinrmConnection TestWaitForWinrmConnection
+
+Test that a VM can remotely autheticate and run powershell commands on other once trusted as a winrm client.
