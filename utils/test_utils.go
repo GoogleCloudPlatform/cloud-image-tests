@@ -40,8 +40,10 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1"
 	secretmanagerpb "cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"cloud.google.com/go/storage"
+	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -234,6 +236,18 @@ func ParseHostKey(bytes []byte) (map[string]string, error) {
 		hostkeyMap[keyType] = keyValue
 	}
 	return hostkeyMap, nil
+}
+
+// GetDaisyClient returns a daisy compute client with the correct compute endpoint.
+func GetDaisyClient(ctx context.Context) (daisyCompute.Client, error) {
+	computeEndpoint, err := GetMetadata(ctx, "instance", "attributes", "_compute_endpoint")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get compute endpoint: %v", err)
+	}
+	if computeEndpoint == "" {
+		return daisyCompute.NewClient(ctx)
+	}
+	return daisyCompute.NewClient(ctx, option.WithEndpoint(computeEndpoint))
 }
 
 // GetProjectZone gets the project and zone of the instance.

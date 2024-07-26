@@ -17,10 +17,9 @@ package livemigrate
 import (
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
-	compute "cloud.google.com/go/compute/apiv1"
-	computepb "cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
@@ -47,21 +46,19 @@ func TestLiveMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not get instance: %v", err)
 	}
-	client, err := compute.NewInstancesRESTClient(ctx)
+	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("could not make compute api client: %v", err)
 	}
-	t.Cleanup(func() { client.Close() })
-	req := &computepb.SimulateMaintenanceEventInstanceRequest{
-		Project:  prj,
-		Zone:     zone,
-		Instance: inst,
-	}
-	op, err := client.SimulateMaintenanceEvent(ctx, req)
+
+	err = client.SimulateMaintenanceEvent(prj, zone, inst)
 	if err != nil {
-		t.Fatalf("could not migrate self: %v", err)
+		// Operation errors here come from things completely out of our control, such as the availability of a physical machine to take our VM.
+		if !strings.Contains(err.Error(), "MIGRATION_TEMPORARILY_UNAVAILABLE") {
+			t.Fatalf("could not migrate self: %v", err)
+		}
 	}
-	op.Wait(ctx) // Errors here come from things completely out of our control, such as the availability of a physical machine to take our VM.
+
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("could not confirm migrate testing has started ok: %v", err)
 	}

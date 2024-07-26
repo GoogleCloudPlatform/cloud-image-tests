@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/oslogin v1.13.0
 	cloud.google.com/go/secretmanager v1.11.4
 	cloud.google.com/go/storage v1.36.0
-	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20240711054536-f051adb2d9d8
+	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20240725100702-9a712e79fd0e
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.12.3
 	github.com/jstemmer/go-junit-report/v2 v2.1.0

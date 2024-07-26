@@ -127,6 +127,7 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
 	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
+	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.Instances = append(createInstances.Instances, instance)
@@ -180,6 +181,7 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
 	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
+	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.InstancesBeta = append(createInstances.InstancesBeta, instance)

@@ -196,7 +196,7 @@ func TestWindowsPasswordReset(t *testing.T) {
 	createUserCmd := fmt.Sprintf("net user %s %s /add", user, initpwd)
 	verifyPowershellCmd(t, createUserCmd)
 	ctx := utils.Context(t)
-	client, err := daisyCompute.NewClient(ctx)
+	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("Error creating compute service: %v", err)
 	}

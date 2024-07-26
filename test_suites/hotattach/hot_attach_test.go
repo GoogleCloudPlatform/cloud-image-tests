@@ -27,9 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	compute "cloud.google.com/go/compute/apiv1"
-	computepb "cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"google.golang.org/api/compute/v1"
 )
 
 func getWindowsDiskNumber(ctx context.Context) (int, error) {
@@ -92,25 +91,12 @@ func unmountLinuxDisk(ctx context.Context) error {
 	return nil
 }
 
-func waitAttachDiskComplete(ctx context.Context, attachedDiskResource *computepb.AttachedDisk, projectNumber, instanceNameString, instanceZone string) error {
-	c, err := compute.NewInstancesRESTClient(ctx)
+func waitAttachDiskComplete(ctx context.Context, attachedDiskResource *compute.AttachedDisk, projectNumber, instanceNameString, instanceZone string) error {
+	c, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create rest client: err %v", err)
 	}
-	defer c.Close()
-
-	req := &computepb.AttachDiskInstanceRequest{
-		AttachedDiskResource: attachedDiskResource,
-		Project:              projectNumber,
-		Instance:             instanceNameString,
-		Zone:                 instanceZone,
-	}
-	op, err := c.AttachDisk(ctx, req)
-	if err != nil {
-		return fmt.Errorf("attach disk failed: err %v", err)
-	}
-
-	err = op.Wait(ctx)
+	err = c.AttachDisk(projectNumber, instanceZone, instanceNameString, attachedDiskResource)
 	if err != nil {
 		return fmt.Errorf("attach disk wait failed: err %v", err)
 	}
@@ -118,48 +104,31 @@ func waitAttachDiskComplete(ctx context.Context, attachedDiskResource *computepb
 }
 
 func waitDetachDiskComplete(ctx context.Context, deviceName, projectNumber, instanceNameString, instanceZone string) error {
-	c, err := compute.NewInstancesRESTClient(ctx)
+	c, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create rest client: err %v", err)
 	}
-	defer c.Close()
 
-	req := &computepb.DetachDiskInstanceRequest{
-		DeviceName: deviceName,
-		Project:    projectNumber,
-		Instance:   instanceNameString,
-		Zone:       instanceZone,
-	}
-	op, err := c.DetachDisk(ctx, req)
+	err = c.DetachDisk(projectNumber, instanceZone, instanceNameString, deviceName)
 	if err != nil {
 		return fmt.Errorf("detach disk failed: err %v", err)
 	}
 
-	err = op.Wait(ctx)
-	if err != nil {
-		return fmt.Errorf("detach disk wait failed: err %v", err)
-	}
 	return nil
 }
 
-func waitGetMountDisk(ctx context.Context, projectNumber, instanceNameString, instanceZone string) (*computepb.AttachedDisk, error) {
-	c, err := compute.NewInstancesRESTClient(ctx)
+func waitGetMountDisk(ctx context.Context, projectNumber, instanceNameString, instanceZone string) (*compute.AttachedDisk, error) {
+	c, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rest client: err %v", err)
 	}
-	defer c.Close()
 
-	req := &computepb.GetInstanceRequest{
-		Instance: instanceNameString,
-		Project:  projectNumber,
-		Zone:     instanceZone,
-	}
-	computepbInstance, err := c.Get(ctx, req)
+	computeInstance, err := c.GetInstance(projectNumber, instanceZone, instanceNameString)
 	if err != nil {
 		return nil, fmt.Errorf("instances get call failed with error %v", err)
 	}
-	// return the mounted disk
-	attachedDisks := computepbInstance.Disks
+
+	attachedDisks := computeInstance.Disks
 	if len(attachedDisks) < 2 {
 		return nil, fmt.Errorf("failed to find second disk on instance: num disks %d", len(attachedDisks))
 	}
@@ -228,7 +197,7 @@ func TestFileHotAttach(t *testing.T) {
 	}
 
 	diskDeviceName := mountDiskResource.DeviceName
-	if err = waitDetachDiskComplete(ctx, *diskDeviceName, projectNumber, instName, instanceZone); err != nil {
+	if err = waitDetachDiskComplete(ctx, diskDeviceName, projectNumber, instName, instanceZone); err != nil {
 		t.Fatalf("detach disk fail: %v", err)
 	}
 

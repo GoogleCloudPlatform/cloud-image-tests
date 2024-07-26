@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
 )
 
 func restartAgent(t *testing.T) {
@@ -54,7 +53,7 @@ func getAgentOutput(t *testing.T) string {
 func TestTelemetryEnabled(t *testing.T) {
 	initialoutput := getAgentOutput(t)
 	ctx := utils.Context(t)
-	client, err := daisyCompute.NewClient(ctx)
+	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +97,7 @@ func TestTelemetryEnabled(t *testing.T) {
 func TestTelemetryDisabled(t *testing.T) {
 	initialoutput := getAgentOutput(t)
 	ctx := utils.Context(t)
-	client, err := daisyCompute.NewClient(ctx)
+	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

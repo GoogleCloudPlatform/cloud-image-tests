@@ -21,8 +21,6 @@ import (
 	"strings"
 	"testing"
 
-	compute "cloud.google.com/go/compute/apiv1"
-	computepb "cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
@@ -76,21 +74,20 @@ func TestSuspend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not get instance: %v", err)
 	}
-	client, err := compute.NewInstancesRESTClient(ctx)
+
+	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("could not make compute api client: %v", err)
 	}
-	t.Cleanup(func() { client.Close() })
-	req := &computepb.SuspendInstanceRequest{
-		Project:  prj,
-		Zone:     zone,
-		Instance: inst,
-	}
-	op, err := client.Suspend(ctx, req)
+
+	err = client.Suspend(prj, zone, inst)
 	if err != nil {
-		t.Fatalf("could not suspend self: %v", err)
+		// We can't really check the operation error here, we want to attempt to wait until its suspended but the wait operation will likely error out due to being interrupted by the suspension
+		if !strings.Contains(err.Error(), "operation failed") && !strings.Contains(err.Error(), "failed to get zone operation") {
+			t.Fatalf("could not suspend self: %v", err)
+		}
 	}
-	op.Wait(ctx) // We can't really check the error here, we want to attempt to wait until its suspended but the wait operation will likely error out due to being interrupted by the suspension
+
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("could not confirm suspend testing has started ok: %v", err)
 	}

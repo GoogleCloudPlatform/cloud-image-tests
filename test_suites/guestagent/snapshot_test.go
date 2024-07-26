@@ -21,10 +21,8 @@ import (
 	"testing"
 	"time"
 
-	compute "cloud.google.com/go/compute/apiv1"
-	computepb "cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/api/compute/v1"
 )
 
 func snapshotTestPrep(t *testing.T) {
@@ -117,33 +115,21 @@ func TestSnapshotScripts(t *testing.T) {
 	}
 
 	// Make a snapshot request for the boot disk of this instance
-	disksClient, err := compute.NewDisksRESTClient(ctx)
-	snapshotsClient, err := compute.NewSnapshotsRESTClient(ctx)
-	createReq := &computepb.CreateSnapshotDiskRequest{
-		Project:    prj,
-		GuestFlush: proto.Bool(true),
-		Disk:       inst,
-		Zone:       zone,
-		SnapshotResource: &computepb.Snapshot{
-			Name:       proto.String("snapshot-" + inst),
-			SourceDisk: proto.String(fmt.Sprintf("projects/%s/zones/%s/disks/%s", prj, zone, inst)),
-		},
+	client, err := utils.GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("could not make compute api client: %v", err)
 	}
-	op, err := disksClient.CreateSnapshot(ctx, createReq)
+
+	snapshot := &compute.Snapshot{
+		Name:       "snapshot-" + inst,
+		SourceDisk: fmt.Sprintf("projects/%s/zones/%s/disks/%s", prj, zone, inst),
+	}
+	err = client.CreateSnapshotWithGuestFlush(prj, zone, inst, snapshot)
 	if err != nil {
 		t.Fatalf("unable to create snapshot: %v", err)
 	}
-	err = op.Wait(ctx)
-	if err != nil {
-		t.Errorf("failed to wait for snapshot creation: %v", err)
-	}
 
-	// Delete it after. No need to wait for deletion
-	deleteReq := &computepb.DeleteSnapshotRequest{
-		Project:  prj,
-		Snapshot: "snapshot-" + inst,
-	}
-	op, err = snapshotsClient.Delete(ctx, deleteReq)
+	err = client.DeleteSnapshot(prj, "snapshot-"+inst)
 	if err != nil {
 		t.Errorf("unable to delete snapshot: %v", err)
 	}
