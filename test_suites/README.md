@@ -204,6 +204,15 @@ features such as the ability to authenticate users using 2FA, security keys, or 
 make sure the guest agent responds correctly to OSLogin metadata changes, and the client VM will use
 test users to SSH to each of the server VMs. The methods covered by this test are normal SSH and 2FA SSH.
 
+### Test suite: packageupgrade
+
+#### TestDriverUpgrade
+Test that all GCE Windows drivers succesfully install from the latest package in the testing repo.
+
+#### TestPackageUpgrade
+Test that all GCE Windows packages (non-driver) succuessfully install from the latest package in the
+testing repo.
+
 ### Test suite: packagevalidation
 
 #### TestNTPService
