@@ -21,6 +21,9 @@ Validate that an instance can boot with the specified confidential instance type
 #### TestLiveMigrate
 Test that live migration works on each supported confidential instance type.
 
+#### TestTDXAttestation
+Produces an attestation quote and verifies the quote's signatures and certificates.
+
 ### Test suite: disk
 
 #### TestDiskResize

@@ -73,6 +73,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests("TestSEVSNPEnabled")
 		case "TDX_CAPABLE":
+			tdxtests := "TestTDXEnabled|TestTDXAttestation"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "tdx"
 			vm.Zone = "us-central1-a" // TDX not available in all regions
@@ -90,7 +91,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			if err != nil {
 				return err
 			}
-			tvm.RunTests("TestTDXEnabled")
+			tvm.RunTests(tdxtests)
 		}
 	}
 	return nil
