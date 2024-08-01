@@ -41,6 +41,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/licensevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/livemigrate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/loadbalancer"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/lssd"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsmtls"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/metadata"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
@@ -210,6 +211,10 @@ func main() {
 		{
 			hotattach.Name,
 			hotattach.TestSetup,
+		},
+		{
+			lssd.Name,
+			lssd.TestSetup,
 		},
 		{
 			disk.Name,

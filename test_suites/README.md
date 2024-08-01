@@ -117,6 +117,8 @@ On linux guests, test that `/etc/hosts` is populated with an appropriate entry t
 Validate that hot attach disks work: a file can be written to the disk, the disk can be detached and
 reattached, and the file can still be read.
 
+### Test suite: lssd
+
 #### TestMount
 Validate that mounting and un-mounting a local ssd works, and files written are not lost when unmounted.
 

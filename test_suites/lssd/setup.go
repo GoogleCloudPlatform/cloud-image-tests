@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package hotattach is a CIT suite from testing hot attaching/detaching
-package hotattach
+// Package lssd is a CIT suite from testing mounting/umounting of disks.
+package lssd
 
 import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
-var Name = "hotattach"
+var Name = "lssd"
 
 const (
 	bootDiskSizeGB = 10
@@ -35,14 +36,22 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	hotattachInst := &daisy.Instance{}
-	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
+	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
+		lssdMountInst := &daisy.Instance{}
+		lssdMountInst.Zone = "us-central1-a"
+		lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: imagetest.PdBalanced, SizeGb: 30}}, hotattachInst)
-	if err != nil {
-		return err
+		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}}, lssdMountInst)
+		if err != nil {
+			return err
+		}
+		// local SSD's don't show up exactly as their device name under /dev/disk/by-id
+		if utils.HasFeature(t.Image, "WINDOWS") {
+			lssdMount.AddMetadata("hotattach-disk-name", "nvme_card0")
+		} else {
+			lssdMount.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
+		}
+		lssdMount.RunTests("TestMount")
 	}
-	hotattach.AddMetadata("hotattach-disk-name", "hotattachmount")
-	hotattach.RunTests("TestFileHotAttach")
 	return nil
 }
