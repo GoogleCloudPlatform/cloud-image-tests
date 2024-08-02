@@ -131,6 +131,26 @@ func TestCleanTestWorkflow(t *testing.T) {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else if r.Method == "POST" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/operations//wait?alt=json&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/%s/targetHttpProxies?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/testRegion/targetHttpProxies/test-target-http-proxy", "Name": "test-target-http-proxy", "Network": "projects/test-project/global/networks/test-network"}]}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/%s/networkEndpointGroups?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/testRegion/networkEndpointGroups/test-network-endpoint-group", "Name": "test-network-endpoint-group", "Network": "projects/test-project/global/networks/test-network"}]}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/%s/urlMaps?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/testRegion/urlMaps/test-url-map", "Name": "test-url-map", "Network": "projects/test-project/global/networks/test-network", "Subnetwork": "projects/test-project/regions/test-region/subnetworks/test-subnetwork", "DefaultService": "projects/test-project/regions/test-region/backendServices/test-backend-service"}]}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/urlMaps/test-url-map?alt=json&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/networkEndpointGroups/test-network-endpoint-group?alt=json&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/%s/targetHttpProxies?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "Name": "test-target-http-proxy", "urlMap": "projects/test-project/regions/testRegion/urlMaps/test-url-map"}]}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/targetHttpProxies/test-target-http-proxy?alt=json&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/aggregated/forwardingRules?alt=json&pageToken=&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"items":{"forwardingRules":{"forwardingRules":[{"SelfLink": "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule-`+twf.wf.ID()+`", "Name": "test-forwarding-rule-`+twf.wf.ID()+`", "Region": "test-region"}]}}}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions?alt=json&pageToken=&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/test-region"}]}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/forwardingRules/test-forwarding-rule-"+twf.wf.ID()+"?alt=json&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else {
 			w.WriteHeader(555)
 			fmt.Fprint(w, "URL and Method not recognized:", r.Method, r.URL)
@@ -140,7 +160,7 @@ func TestCleanTestWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	twf.Client = daisyFake
-	expect := []string{"projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network-" + twf.wf.ID(), "projects/test-project/regions/test-region/subnetworks/test-subnetwork", "projects/test-project/zones/test-zone/disks/test-disk-" + twf.wf.ID(), "projects/test-project/zones/test-zone/instances/test-instance-" + twf.wf.ID()}
+	expect := []string{"projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule-" + twf.wf.ID(), "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network-" + twf.wf.ID(), "projects/test-project/regions/test-region/subnetworks/test-subnetwork", "projects/test-project/zones/test-zone/disks/test-disk-" + twf.wf.ID(), "projects/test-project/zones/test-zone/instances/test-instance-" + twf.wf.ID()}
 	cleaned, errs := cleanTestWorkflow(twf)
 	for _, err := range errs {
 		t.Errorf("got error from cleanTestWorkflow: %v", err)
