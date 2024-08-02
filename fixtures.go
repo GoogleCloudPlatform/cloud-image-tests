@@ -415,7 +415,7 @@ func (t *TestVM) SetWindowsShutdownScript(script string) {
 
 // SetShutdownScriptURL sets the`shutdown-script-url` metadata key for a non-Windows VM.
 func (t *TestVM) SetShutdownScriptURL(script string) error {
-	fileName := fmt.Sprintf("/shutdown_script-%s", uuid.New())
+	fileName := fmt.Sprintf("/tmp/shutdown_script-%s", uuid.New())
 	if err := ioutil.WriteFile(fileName, []byte(script), 0755); err != nil {
 		return err
 	}
@@ -427,7 +427,7 @@ func (t *TestVM) SetShutdownScriptURL(script string) error {
 
 // SetWindowsShutdownScriptURL sets the`windows-shutdown-script-url` metadata key for a Windows VM.
 func (t *TestVM) SetWindowsShutdownScriptURL(script string) error {
-	fileName := fmt.Sprintf("/shutdown_script-%s.ps1", uuid.New())
+	fileName := fmt.Sprintf("/tmp/shutdown_script-%s.ps1", uuid.New())
 	if err := ioutil.WriteFile(fileName, []byte(script), 0755); err != nil {
 		return err
 	}
