@@ -27,10 +27,16 @@ import (
 	compute "cloud.google.com/go/compute/apiv1"
 	computepb "cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	client "github.com/google/go-tdx-guest/client"
+	sevabi "github.com/google/go-sev-guest/abi"
+	sevclient "github.com/google/go-sev-guest/client"
+	checkpb "github.com/google/go-sev-guest/proto/check"
+	spb "github.com/google/go-sev-guest/proto/sevsnp"
+	sevvalidate "github.com/google/go-sev-guest/validate"
+	sevverify "github.com/google/go-sev-guest/verify"
+	tdxclient "github.com/google/go-tdx-guest/client"
 	ccpb "github.com/google/go-tdx-guest/proto/checkconfig"
-	validate "github.com/google/go-tdx-guest/validate"
-	verify "github.com/google/go-tdx-guest/verify"
+	tdxvalidate "github.com/google/go-tdx-guest/validate"
+	tdxverify "github.com/google/go-tdx-guest/verify"
 )
 
 var sevMsgList = []string{"AMD Secure Encrypted Virtualization (SEV) active", "AMD Memory Encryption Features active: SEV", "Memory Encryption Features active: AMD SEV"}
@@ -38,7 +44,10 @@ var sevSnpMsgList = []string{"SEV: SNP guest platform device initialized", "Memo
 var tdxMsgList = []string{"Memory Encryption Features active: TDX", "Memory Encryption Features active: Intel TDX"}
 var rebootCmd = []string{"/usr/bin/sudo", "-n", "/sbin/reboot"}
 
-const reportDataBase64String = "R29vZ2xlJ3MgdG9wIHNlY3JldA=="
+const (
+	tdxreportDataBase64String    = "R29vZ2xlJ3MgdG9wIHNlY3JldA=="
+	sevsnpreportDataBase64String = "SGVsbG8gU0VWLVNOUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+)
 
 func searchDmesg(t *testing.T, matches []string) {
 	output, err := exec.Command("dmesg").CombinedOutput()
@@ -56,8 +65,8 @@ func searchDmesg(t *testing.T, matches []string) {
 func reboot() error {
 	command := rebootCmd
 	cmd := exec.Command(command[0], command[1:]...)
-	if output, err := cmd.Output(); err != nil {
-		return fmt.Errorf("Failed to reboot:\nOutput: %s\nError: %v", string(output), err)
+	if _, err := cmd.Output(); err != nil {
+		return fmt.Errorf("exec.Command(%v).Output() = %v, want nil", command, err)
 	}
 	return nil
 }
@@ -144,40 +153,40 @@ func TestTDXAttestation(t *testing.T) {
 				t.Fatalf("error converting kernelVersion to int: %v", err)
 			}
 			if int(kernelRev) >= 1016 {
-				if output1, err := exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput(); err != nil {
-					t.Fatalf("error: %v output: %s", err, output1)
+				if _, err := exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput(); err != nil {
+					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput() = %v, want nil`, err)
 				}
-				output2, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput()
+				output1, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput()
 				if err != nil {
-					t.Fatalf("error: %v output: %s", err, output2)
+					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput() = %v, want nil`, err)
 				}
-				output3, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput()
+				output2, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput()
 				if err != nil {
-					t.Fatalf("error: %v output: %s", err, output3)
+					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput() = %v, want nil`, err)
 				}
-				if !strings.Contains(string(output2), "linux-gcp is already the newest version") ||
-					!strings.Contains(string(output3), "linux-modules-extra-gcp is already the newest version") {
+				if !strings.Contains(string(output1), "linux-gcp is already the newest version") ||
+					!strings.Contains(string(output2), "linux-modules-extra-gcp is already the newest version") {
 					if err := reboot(); err != nil {
 						t.Fatalf("Reboot error: %v", err)
 					}
 				}
-				if output4, err := exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput(); err != nil {
-					t.Fatalf("error: %v output: %s", err, output4)
+				if _, err := exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput(); err != nil {
+					t.Fatalf(`exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput() = %v, want nil`, err)
 				}
 			}
 		}
 	}
-	decodedBytes, err := base64.StdEncoding.DecodeString(reportDataBase64String)
+	decodedBytes, err := base64.StdEncoding.DecodeString(tdxreportDataBase64String)
 	if err != nil {
 		t.Fatalf("error decoding reportData string: %v", err)
 	}
 	var reportData [64]byte
 	copy(reportData[:], decodedBytes)
-	quoteProvider, err := client.GetQuoteProvider()
+	quoteProvider, err := tdxclient.GetQuoteProvider()
 	if err != nil {
 		t.Fatalf("error getting quote provider: %v", err)
 	}
-	quote, err := client.GetQuote(quoteProvider, reportData)
+	quote, err := tdxclient.GetQuote(quoteProvider, reportData)
 	if err != nil {
 		t.Fatalf("error getting quote from the quote provider: %v", err)
 	}
@@ -185,18 +194,71 @@ func TestTDXAttestation(t *testing.T) {
 		RootOfTrust: &ccpb.RootOfTrust{},
 		Policy:      &ccpb.Policy{HeaderPolicy: &ccpb.HeaderPolicy{}, TdQuoteBodyPolicy: &ccpb.TDQuoteBodyPolicy{}},
 	}
-	sopts, err := verify.RootOfTrustToOptions(config.RootOfTrust)
+	sopts, err := tdxverify.RootOfTrustToOptions(config.RootOfTrust)
 	if err != nil {
 		t.Fatalf("error converting root of trust to options for verifying the TDX Quote: %v", err)
 	}
-	if err := verify.TdxQuote(quote, sopts); err != nil {
+	if err := tdxverify.TdxQuote(quote, sopts); err != nil {
 		t.Fatalf("error verifying the TDX Quote: %v", err)
 	}
-	opts, err := validate.PolicyToOptions(config.Policy)
+	opts, err := tdxvalidate.PolicyToOptions(config.Policy)
 	if err != nil {
 		t.Fatalf("error converting policy to options for validating the TDX Quote: %v", err)
 	}
-	if err = validate.TdxQuote(quote, opts); err != nil {
+	if err = tdxvalidate.TdxQuote(quote, opts); err != nil {
 		t.Fatalf("error validating the TDX Quote: %v", err)
+	}
+}
+
+func TestSEVSNPAttestation(t *testing.T) {
+	ctx := utils.Context(t)
+	ensureSevGuestcmd := exec.CommandContext(ctx, "modprobe", "sev-guest")
+	if _, err := ensureSevGuestcmd.CombinedOutput(); err != nil {
+		t.Fatalf(`exec.CommandContext(ctx, "modprobe", "sev-guest").Output() = %v, want nil`, err)
+	}
+	// attest
+	decodedBytes, err := base64.StdEncoding.DecodeString(sevsnpreportDataBase64String)
+	if err != nil {
+		t.Fatalf("base64.StdEncoding.DecodeString(sevsnpreportDataBase64String) = %v, want nil", err)
+	}
+	var reportData [64]byte
+	copy(reportData[:], decodedBytes)
+	qp, err := sevclient.GetQuoteProvider()
+	if err != nil {
+		t.Fatalf(`sevclient.GetQuoteProvider() = %v, want nil`, err)
+	}
+	rawQuote, err := qp.GetRawQuote(reportData)
+	if err != nil {
+		t.Fatalf(`qp.GetRawQuote(reportData) = %v, want nil`, err)
+	}
+	// verify
+	attestation, err := sevabi.ReportCertsToProto(rawQuote)
+	if err != nil {
+		t.Fatalf("sevabi.ReportCertsToProto(rawQuote) = %v, want nil", err)
+	}
+	attestation.Product = &spb.SevProduct{
+		Name: spb.SevProduct_SEV_PRODUCT_MILAN,
+	}
+	config := &checkpb.Config{
+		RootOfTrust: &checkpb.RootOfTrust{},
+		Policy: &checkpb.Policy{
+			Policy:         (1<<17 | 1<<16),
+			MinimumVersion: "0.0",
+		},
+	}
+	sopts, err := sevverify.RootOfTrustToOptions(config.RootOfTrust)
+	if err != nil {
+		t.Fatalf("sevverify.RootOfTrustToOptions(config.RootOfTrust) = %v, want nil", err)
+	}
+	if err := sevverify.SnpAttestation(attestation, sopts); err != nil {
+		t.Fatalf("sevverify.SnpAttestation(attestation, sopts) = %v, want nil", err)
+	}
+	// validate
+	opts, err := sevvalidate.PolicyToOptions(config.Policy)
+	if err != nil {
+		t.Fatalf("sevvalidate.PolicyToOptions(config.Policy) = %v, want nil", err)
+	}
+	if err := sevvalidate.SnpAttestation(attestation, opts); err != nil {
+		t.Fatalf("sevvalidate.SnpAttestation(attestation, opts) = %v, want nil", err)
 	}
 }

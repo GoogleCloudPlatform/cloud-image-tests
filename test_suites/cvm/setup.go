@@ -54,6 +54,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests(sevtests)
 		case "SEV_SNP_CAPABLE":
+			sevsnptests := "TestSEVSNPEnabled|TestSEVSNPAttestation"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sevsnp"
 			vm.Zone = "us-central1-a" // SEV_SNP not available in all regions
@@ -71,7 +72,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			if err != nil {
 				return err
 			}
-			tvm.RunTests("TestSEVSNPEnabled")
+			tvm.RunTests(sevsnptests)
 		case "TDX_CAPABLE":
 			tdxtests := "TestTDXEnabled|TestTDXAttestation"
 			vm := &daisy.InstanceBeta{}
