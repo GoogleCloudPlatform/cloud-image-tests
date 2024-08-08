@@ -963,6 +963,9 @@ func parseResult(res testResult, localPath string) junit.Testsuite {
 			ret.Tests++
 			ret.Skipped++
 		}
+		ret.AddProperty("image_family", res.testWorkflow.Image.Family)
+		ret.AddProperty("image", res.testWorkflow.Image.SelfLink)
+		ret.AddProperty("project", res.testWorkflow.Project.Name)
 	default:
 		var status string
 		if res.err != nil {
