@@ -74,7 +74,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests(sevsnptests)
 		case "TDX_CAPABLE":
-			tdxtests := "TestTDXEnabled|TestTDXAttestation|TestCheckApicId"
+			tdxtests := "TestTDXEnabled|TestTDXAttestation|TestCheckApicId|TestIntelTrustAuthority"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "tdx"
 			vm.Zone = "us-central1-a" // TDX not available in all regions
