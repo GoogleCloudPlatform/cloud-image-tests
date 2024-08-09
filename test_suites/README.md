@@ -24,6 +24,9 @@ Test that live migration works on each supported confidential instance type.
 #### TestTDXAttestation/TestSEVSNPAttestation
 Produces an attestation quote, verifies the quote's signatures and certificates, and validates the non-signature report fields against a user-provided policy.
 
+#### TestIntelTrustAuthority
+Attest an Intel TDX TD with Intel Trust Authority
+
 ### Test suite: disk
 
 #### TestDiskResize
