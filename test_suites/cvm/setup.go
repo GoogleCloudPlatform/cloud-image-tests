@@ -31,7 +31,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	for _, feature := range t.ImageBeta.GuestOsFeatures {
 		switch feature.Type {
 		case "SEV_CAPABLE":
-			sevtests := "TestSEVEnabled"
+			sevtests := "TestSEVEnabled|TestCheckApicId"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sev"
 			vm.ConfidentialInstanceConfig = &computeBeta.ConfidentialInstanceConfig{
@@ -54,7 +54,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests(sevtests)
 		case "SEV_SNP_CAPABLE":
-			sevsnptests := "TestSEVSNPEnabled|TestSEVSNPAttestation"
+			sevsnptests := "TestSEVSNPEnabled|TestSEVSNPAttestation|TestCheckApicId"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sevsnp"
 			vm.Zone = "us-central1-a" // SEV_SNP not available in all regions
@@ -74,7 +74,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			tvm.RunTests(sevsnptests)
 		case "TDX_CAPABLE":
-			tdxtests := "TestTDXEnabled|TestTDXAttestation"
+			tdxtests := "TestTDXEnabled|TestTDXAttestation|TestCheckApicId"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "tdx"
 			vm.Zone = "us-central1-a" // TDX not available in all regions

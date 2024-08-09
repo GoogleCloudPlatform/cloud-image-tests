@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -260,5 +261,19 @@ func TestSEVSNPAttestation(t *testing.T) {
 	}
 	if err := sevvalidate.SnpAttestation(attestation, opts); err != nil {
 		t.Fatalf("sevvalidate.SnpAttestation(attestation, opts) = %v, want nil", err)
+	}
+}
+
+func TestCheckApicId(t *testing.T) {
+	ctx := utils.Context(t)
+	cmd := "cat /proc/cpuinfo | grep -m 1 ^apicid"
+	apic, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
+	if err != nil {
+		t.Fatalf(`exec.CommandContext(ctx, "sh", "-c", "cat /proc/cpuinfo | grep -m 1 ^apicid") = %v, want nil`, err)
+	}
+	apicidstr := strings.TrimSpace(string(apic))
+	re := regexp.MustCompile(`.*0.*$`)
+	if !re.MatchString(apicidstr) {
+		t.Errorf("expected APIC ID to contain '0', but got: %s", apicidstr)
 	}
 }
