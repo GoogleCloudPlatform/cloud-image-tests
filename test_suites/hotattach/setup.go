@@ -16,6 +16,8 @@
 package hotattach
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
@@ -38,7 +40,12 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	hotattachInst := &daisy.Instance{}
 	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 
-	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: imagetest.PdBalanced, SizeGb: 30}}, hotattachInst)
+	diskType := imagetest.PdBalanced
+	if strings.HasPrefix(t.MachineType.Name, "n4-") {
+		diskType = imagetest.HyperdiskBalanced
+	}
+
+	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: diskType, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
 	if err != nil {
 		return err
 	}
