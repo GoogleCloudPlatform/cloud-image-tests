@@ -13,6 +13,8 @@
 package guestagent
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -24,11 +26,15 @@ const Name = "guestagent"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	diskType := imagetest.PdBalanced
+	if strings.HasPrefix(t.MachineType.Name, "n4-") {
+		diskType = imagetest.HyperdiskBalanced
+	}
 
 	telemetrydisabledinst := &daisy.Instance{}
 	telemetrydisabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 	telemetrydisabledinst.Name = "telemetryDisabled"
-	telemetrydisabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetrydisabledinst.Name, Type: imagetest.PdBalanced}}, telemetrydisabledinst)
+	telemetrydisabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetrydisabledinst.Name, Type: diskType}}, telemetrydisabledinst)
 	if err != nil {
 		return err
 	}
@@ -38,7 +44,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	telemetryenabledinst := &daisy.Instance{}
 	telemetryenabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 	telemetryenabledinst.Name = "telemetryEnabled"
-	telemetryenabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetryenabledinst.Name, Type: imagetest.PdBalanced}}, telemetryenabledinst)
+	telemetryenabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetryenabledinst.Name, Type: diskType}}, telemetryenabledinst)
 	if err != nil {
 		return err
 	}
@@ -48,7 +54,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	snapshotinst := &daisy.Instance{}
 	snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 	snapshotinst.Name = "snapshotScripts"
-	snapshotvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: snapshotinst.Name, Type: imagetest.PdBalanced}}, snapshotinst)
+	snapshotvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: snapshotinst.Name, Type: diskType}}, snapshotinst)
 	if err != nil {
 		return err
 	}
