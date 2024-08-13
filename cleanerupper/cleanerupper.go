@@ -130,6 +130,31 @@ func AgePolicy(t time.Time) PolicyFunc {
 			}
 			labels = r.Labels
 			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.ForwardingRule:
+			desc = r.Description
+			labels = r.Labels
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.UrlMap:
+			desc = r.Description
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.BackendService:
+			desc = r.Description
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.TargetHttpProxy:
+			desc = r.Description
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.HealthCheck:
+			desc = r.Description
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
+		case *compute.NetworkEndpointGroup:
+			desc = r.Description
+			name = r.Name
+			created, err = time.Parse(time.RFC3339, r.CreationTimestamp)
 		default:
 			return false
 		}
@@ -187,6 +212,25 @@ func WorkflowPolicy(id string) PolicyFunc {
 				return false
 			}
 			labels = r.Labels
+			name = r.Name
+		case *compute.ForwardingRule:
+			desc = r.Description
+			labels = r.Labels
+			name = r.Name
+		case *compute.UrlMap:
+			desc = r.Description
+			name = r.Name
+		case *compute.BackendService:
+			desc = r.Description
+			name = r.Name
+		case *compute.TargetHttpProxy:
+			desc = r.Description
+			name = r.Name
+		case *compute.HealthCheck:
+			desc = r.Description
+			name = r.Name
+		case *compute.NetworkEndpointGroup:
+			desc = r.Description
 			name = r.Name
 		default:
 			return false
@@ -405,8 +449,264 @@ func CleanSnapshots(clients Clients, project string, delete PolicyFunc, dryRun b
 	return deleted, errs
 }
 
-// CleanRegionalBackendServices deletes load balancer backend services in the
-// given region indicated by the policy.
+// CleanLoadBalancerResources deletes load balancer backend services and associated URL Maps, forwarding rules, network endpoint groups, and HTTP Proxies indicated by the policy func.
+func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFunc, dryRun bool) ([]string, []error) {
+	globalForwardingRules, err := clients.Daisy.AggregatedListForwardingRules(project)
+	if err != nil {
+		return nil, []error{fmt.Errorf("could not list all forwarding rules: %v", err)}
+	}
+
+	regions, err := clients.Daisy.ListRegions(project)
+	if err != nil {
+		return nil, []error{fmt.Errorf("could not list regions: %v", err)}
+	}
+
+	regionalForwardingRules := make(map[string][]*compute.ForwardingRule)
+	regionalBackendServices := make(map[string][]*compute.BackendService)
+	regionalNetworkEndpointGroups := make(map[string][]*compute.NetworkEndpointGroup)
+	regionalURLMaps := make(map[string][]*compute.UrlMap)
+	regionalHTTPProxies := make(map[string][]*compute.TargetHttpProxy)
+
+	var deletedMu sync.Mutex
+	var deleted []string
+	var errsMu sync.Mutex
+	var errs []error
+	var wg sync.WaitGroup
+
+	// Clean global forwarding rules.
+	for _, fr := range globalForwardingRules {
+		if !delete(fr) {
+			continue
+		}
+		frpartial := fmt.Sprintf("projects/%s/regions/%s/forwardingRules/%s", project, fr.Region, fr.Name)
+		wg.Add(1)
+		go func(frName, frRegion string) {
+			defer wg.Done()
+			if !dryRun {
+				if err := clients.Daisy.DeleteForwardingRule(project, frRegion, frName); err != nil {
+					errsMu.Lock()
+					defer errsMu.Unlock()
+					errs = append(errs, err)
+					return
+				}
+			}
+			deletedMu.Lock()
+			defer deletedMu.Unlock()
+			deleted = append(deleted, frpartial)
+		}(fr.Name, fr.Region)
+	}
+	wg.Wait()
+
+	for _, computeRegion := range regions {
+		region := path.Base(computeRegion.SelfLink)
+		regionFRs, ok := regionalForwardingRules[region]
+		if !ok {
+			var err error
+			regionFRs, err = clients.Daisy.ListForwardingRules(project, region)
+			if err != nil {
+				errsMu.Lock()
+				errs = append(errs, err)
+				errsMu.Unlock()
+			} else {
+				regionalForwardingRules[region] = regionFRs
+			}
+		}
+		// Clean regional forwarding rules in the region.
+		for _, fr := range regionFRs {
+			if !delete(fr) {
+				continue
+			}
+			frpartial := fmt.Sprintf("projects/%s/regions/%s/forwardingRules/%s", project, region, fr.Name)
+			wg.Add(1)
+			go func(frName string) {
+				defer wg.Done()
+				if !dryRun {
+					if err := clients.Daisy.DeleteForwardingRule(project, region, frName); err != nil {
+						errsMu.Lock()
+						defer errsMu.Unlock()
+						errs = append(errs, err)
+						return
+					}
+				}
+				deletedMu.Lock()
+				defer deletedMu.Unlock()
+				deleted = append(deleted, frpartial)
+			}(fr.Name)
+		}
+
+		// Clean backend services in the region.
+		regionBSs, ok := regionalBackendServices[region]
+		if !ok {
+			var err error
+			regionBSs, err = clients.Daisy.ListRegionBackendServices(project, region)
+			if err != nil {
+				errsMu.Lock()
+				errs = append(errs, err)
+				errsMu.Unlock()
+			} else {
+				regionalBackendServices[region] = regionBSs
+			}
+		}
+		for _, bs := range regionBSs {
+			if !delete(bs) {
+				continue
+			}
+			bspartial := fmt.Sprintf("projects/%s/regions/%s/backendServices/%s", project, region, bs.Name)
+			regionUMs, ok := regionalURLMaps[region]
+			if !ok {
+				var err error
+				regionUMs, err = clients.Daisy.ListRegionURLMaps(project, region)
+				if err != nil {
+					errsMu.Lock()
+					errs = append(errs, err)
+					errsMu.Unlock()
+				} else {
+					regionalURLMaps[region] = regionUMs
+				}
+			}
+			// Clean URL maps in the region.
+			for _, um := range regionUMs {
+				if !delete(um) {
+					continue
+				}
+				umpartial := fmt.Sprintf("projects/%s/regions/%s/urlMaps/%s", project, region, um.Name)
+				regionHPs, ok := regionalHTTPProxies[region]
+				if !ok {
+					var err error
+					regionHPs, err = clients.Daisy.ListRegionTargetHTTPProxies(project, region)
+					if err != nil {
+						errsMu.Lock()
+						errs = append(errs, err)
+						errsMu.Unlock()
+					} else {
+						regionalHTTPProxies[region] = regionHPs
+					}
+				}
+				// Clean target http proxies in the region.
+				for _, hp := range regionHPs {
+					if !delete(hp) {
+						continue
+					}
+					hppartial := fmt.Sprintf("projects/%s/regions/%s/targetHttpProxies/%s", project, region, hp.Name)
+					wg.Add(1)
+					go func(hpName string) {
+						defer wg.Done()
+						if !dryRun {
+							if err := clients.Daisy.DeleteRegionTargetHTTPProxy(project, region, hpName); err != nil {
+								errsMu.Lock()
+								defer errsMu.Unlock()
+								errs = append(errs, err)
+								return
+							}
+						}
+						deletedMu.Lock()
+						defer deletedMu.Unlock()
+						deleted = append(deleted, hppartial)
+					}(path.Base(hp.Name))
+				}
+				// URL maps might be associated with target http proxies, wait for proxies to be
+				// deleted first.
+				wg.Wait()
+				wg.Add(1)
+				go func(unName string) {
+					defer wg.Done()
+					if !dryRun {
+						if err := clients.Daisy.DeleteRegionURLMap(project, region, unName); err != nil {
+							errsMu.Lock()
+							defer errsMu.Unlock()
+							errs = append(errs, err)
+							return
+						}
+					}
+					deletedMu.Lock()
+					defer deletedMu.Unlock()
+					deleted = append(deleted, umpartial)
+				}(path.Base(um.Name))
+			}
+			// Backend services might be associated with URL maps, wait for them to be
+			// deleted first.
+			wg.Wait()
+			wg.Add(1)
+			go func(bsName string) {
+				defer wg.Done()
+				if !dryRun {
+					if err := clients.Daisy.DeleteRegionBackendService(project, region, bsName); err != nil {
+						errsMu.Lock()
+						defer errsMu.Unlock()
+						errs = append(errs, err)
+						return
+					}
+				}
+				deletedMu.Lock()
+				defer deletedMu.Unlock()
+				deleted = append(deleted, bspartial)
+			}(bs.Name)
+			wg.Wait()
+			// Delete health checks, they might associated with backend services so wait for
+			// those to be deleted first.
+			for _, hc := range bs.HealthChecks {
+				if !delete(hc) {
+					continue
+				}
+				hcpartial := fmt.Sprintf("projects/%s/regions/%s/healthChecks/%s", project, region, path.Base(hc))
+				wg.Add(1)
+				go func(hcName string) {
+					defer wg.Done()
+					if !dryRun {
+						if err := clients.Daisy.DeleteRegionHealthCheck(project, region, hcName); err != nil {
+							errsMu.Lock()
+							defer errsMu.Unlock()
+							errs = append(errs, err)
+							return
+						}
+					}
+					deletedMu.Lock()
+					defer deletedMu.Unlock()
+					deleted = append(deleted, hcpartial)
+				}(path.Base(hc))
+			}
+		}
+		wg.Wait()
+
+		// Delete network endpoint groups, they might associated with health checks so
+		// wait for those to be deleted first.
+		regionalNEGs, ok := regionalNetworkEndpointGroups[region]
+		if !ok {
+			var err error
+			regionalNEGs, err = clients.Daisy.ListRegionNetworkEndpointGroups(project, region)
+			if err != nil {
+				errsMu.Lock()
+				errs = append(errs, err)
+				errsMu.Unlock()
+			} else {
+				regionalNetworkEndpointGroups[region] = regionalNEGs
+			}
+		}
+		for _, neg := range regionalNEGs {
+			if !delete(neg) {
+				continue
+			}
+			negpartial := fmt.Sprintf("projects/%s/regions/%s/networkEndpointGroups/%s", project, region, neg.Name)
+			wg.Add(1)
+			go func(negName string) {
+				defer wg.Done()
+				if !dryRun {
+					if err := clients.Daisy.DeleteRegionNetworkEndpointGroup(project, region, negName); err != nil {
+						errsMu.Lock()
+						defer errsMu.Unlock()
+						errs = append(errs, err)
+						return
+					}
+				}
+				deletedMu.Lock()
+				defer deletedMu.Unlock()
+				deleted = append(deleted, negpartial)
+			}(neg.Name)
+		}
+	}
+	wg.Wait()
+	return deleted, errs
+}
 
 // CleanNetworks deletes all networks indicated, as well as all subnetworks and
 // firewall rules that are part of the network indicated for deleted. Returns a
@@ -486,7 +786,8 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 					continue
 				}
 			}
-			// Don't delete network yet - wait until resources associated with it are deleted to avoid resource in use issues.
+			// Don't delete network yet - wait until resources associated with it are
+			// deleted to avoid resource in use issues.
 
 			region := path.Base(sn.Region)
 			regionFRs, ok := regionalForwardingRules[region]
@@ -596,7 +897,8 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 						}(path.Base(hp.Name))
 					}
 					wg.Wait()
-					// Wait for target http proxy deletion before URL map deletion to avoid resource in use issues.
+					// Wait for target http proxy deletion before URL map deletion to avoid resource
+					// in use issues.
 					wg.Add(1)
 					go func(unName string) {
 						defer wg.Done()
@@ -613,7 +915,8 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 						deleted = append(deleted, umpartial)
 					}(path.Base(um.Name))
 				}
-				// Wait for URL Map deletion before backend service deletion to avoid resource in use issues.
+				// Wait for URL Map deletion before backend service deletion to avoid resource
+				// in use issues.
 				wg.Wait()
 				wg.Add(1)
 				go func(bsName string) {
@@ -687,7 +990,8 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 					deleted = append(deleted, negpartial)
 				}(neg.Name)
 			}
-			// Wait for NEG deletion before subnetwork deletion to avoid resource in use issues.
+			// Wait for NEG deletion before subnetwork deletion to avoid resource in use
+			// issues.
 			wg.Wait()
 
 			subnetpartial := fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", project, region, sn.Name)
@@ -708,7 +1012,8 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 				deleted = append(deleted, subnetpartial)
 			}(sn.Name)
 		}
-		// Wait for subnetwork deletion before network deletion to avoid resource in use issues.
+		// Wait for subnetwork deletion before network deletion to avoid resource
+		// in use issues.
 		wg.Wait()
 		wg.Add(1)
 		go func() {
