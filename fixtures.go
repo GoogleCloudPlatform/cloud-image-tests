@@ -469,6 +469,55 @@ func (t *TestVM) SetNetworkPerformanceTier(tier string) error {
 	return nil
 }
 
+// RebootChangeMachineType stops a VM, changes its machine type, then starts it
+// again.
+func (t *TestVM) RebootChangeMachineType(machineType string) error {
+	t.testWorkflow.counter++
+	stepSuffix := fmt.Sprintf("%s-%d", t.name, t.testWorkflow.counter)
+	lastStep, err := t.testWorkflow.getLastStepForVM(t.name)
+	if err != nil {
+		return fmt.Errorf("failed resolve last step")
+	}
+
+	// Stop the instance.
+	stopInstancesStep, err := t.testWorkflow.addStopStep(stepSuffix, t.name)
+	if err != nil {
+		return err
+	}
+	if err := t.testWorkflow.wf.AddDependency(stopInstancesStep, lastStep); err != nil {
+		return err
+	}
+
+	// Change the machine type.
+	changeVMStepName := fmt.Sprintf("change-machine-type-%s", stepSuffix)
+	changeVMStep, err := t.testWorkflow.appendChangeMachineTypeStep(changeVMStepName, t.name, machineType)
+	if err != nil {
+		return err
+	}
+	if err := t.testWorkflow.wf.AddDependency(changeVMStep, stopInstancesStep); err != nil {
+		return err
+	}
+
+	// Restart the instance.
+	startInstancesStep, err := t.testWorkflow.addStartStep(stepSuffix, t.name)
+	if err != nil {
+		return err
+	}
+	if err := t.testWorkflow.wf.AddDependency(startInstancesStep, changeVMStep); err != nil {
+		return err
+	}
+
+	// Wait for the instance to start.
+	waitStartedStep, err := t.testWorkflow.addWaitStep("started-"+stepSuffix, t.name)
+	if err != nil {
+		return err
+	}
+	if err := t.testWorkflow.wf.AddDependency(waitStartedStep, startInstancesStep); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Reboot stops the VM, waits for it to shutdown, then starts it again. Your
 // test package must handle being run twice.
 func (t *TestVM) Reboot() error {

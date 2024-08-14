@@ -433,6 +433,21 @@ func (t *TestWorkflow) appendCreateSubnetworksStep(name, ipRange, networkName st
 	return createSubnetworksStep, subnetwork, nil
 }
 
+func (t *TestWorkflow) appendChangeMachineTypeStep(stepname, vmname, machineType string) (*daisy.Step, error) {
+	smt := &daisy.SetMachineType{
+		Project:     t.wf.Project,
+		Zone:        t.wf.Zone,
+		Instance:    vmname,
+		MachineType: machineType,
+	}
+	changeVMStep, err := t.wf.NewStep(stepname)
+	if err != nil {
+		return nil, err
+	}
+	changeVMStep.SetMachineType = smt
+	return changeVMStep, nil
+}
+
 func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, gcsPath string) (string, error) {
 	// Set global client.
 	client = storageClient
