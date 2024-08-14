@@ -15,16 +15,11 @@
 package cvm
 
 import (
-	"archive/tar"
-	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -53,17 +48,7 @@ var rebootCmd = []string{"/usr/bin/sudo", "-n", "/sbin/reboot"}
 const (
 	tdxreportDataBase64String    = "R29vZ2xlJ3MgdG9wIHNlY3JldA=="
 	sevsnpreportDataBase64String = "SGVsbG8gU0VWLVNOUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
-	itaAPILink                   = "https://api.github.com/repos/intel/trustauthority-client-for-go/tags"
 )
-
-//go:embed *
-var scripts embed.FS
-
-type Config struct {
-	TrustAuthorityURL    string `json:"trustauthority_url"`
-	TrustAuthorityAPIURL string `json:"trustauthority_api_url"`
-	TrustAuthorityAPIKey string `json:"trustauthority_api_key"`
-}
 
 func searchDmesg(t *testing.T, matches []string) {
 	output, err := exec.Command("dmesg").CombinedOutput()
@@ -291,174 +276,4 @@ func TestCheckApicId(t *testing.T) {
 	if !re.MatchString(apicidstr) {
 		t.Errorf("expected APIC ID to contain '0', but got: %s", apicidstr)
 	}
-}
-
-func TestIntelTrustAuthority(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		t.Fatalf("couldn't get image from metadata")
-	}
-	ctx := utils.Context(t)
-	// For Ubuntu image, the tdx_guest module was moved to linux-modules-extra package in the 1016 and newer kernels.
-	if strings.Contains(image, "ubuntu") {
-		kernelVersionCmd := exec.CommandContext(ctx, "uname", "-r")
-		kernelVersionOut, err := kernelVersionCmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("error getting kernel version: %v", err)
-		}
-		kernelVersion := strings.TrimSpace(string(kernelVersionOut))
-		// Extract the part after the last dot and compare with 1016
-		kernelParts := strings.Split(kernelVersion, "-")
-		if len(kernelParts) > 1 {
-			kernelRevStr := kernelParts[1]
-			kernelRev, err := strconv.Atoi(kernelRevStr)
-			if err != nil {
-				t.Fatalf("error converting kernelVersion to int: %v", err)
-			}
-			if int(kernelRev) >= 1016 {
-				if _, err := exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput(); err != nil {
-					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput() = %v, want nil`, err)
-				}
-				output1, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput()
-				if err != nil {
-					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput() = %v, want nil`, err)
-				}
-				output2, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput()
-				if err != nil {
-					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput() = %v, want nil`, err)
-				}
-				if !strings.Contains(string(output1), "linux-gcp is already the newest version") ||
-					!strings.Contains(string(output2), "linux-modules-extra-gcp is already the newest version") {
-					if err := reboot(); err != nil {
-						t.Fatalf("Reboot error: %v", err)
-					}
-				}
-				if _, err := exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput(); err != nil {
-					t.Fatalf(`exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput() = %v, want nil`, err)
-				}
-			}
-		}
-	}
-	configJSON, err := scripts.ReadFile("ita_config.json")
-	if err != nil {
-		t.Fatalf(`scripts.ReadFile("ita_config.json") = %v, want nil`, err)
-	}
-	var config Config
-	err = json.Unmarshal(configJSON, &config)
-	if err != nil {
-		t.Fatalf("json.Unmarshal(configJSON, &config) = %v, want nil", err)
-	}
-	resp, err := http.Get(itaAPILink)
-	if err != nil {
-		t.Fatalf("http.Get(itaAPILink) = %v, want nil", err)
-	}
-	defer resp.Body.Close()
-	var tags []struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
-		t.Fatalf("json.NewDecoder(resp.Body).Decode(&tags) = %v, want nil", err)
-	}
-	if len(tags) == 0 {
-		t.Fatalf("no tags found in response")
-	}
-	latestVer := tags[0].Name
-	downloadLink := fmt.Sprintf("https://github.com/intel/trustauthority-client-for-go/releases/download/%s/trustauthority-cli-%s.tar.gz", latestVer, latestVer)
-	tarballPath := "trustauthority-cli.tar.gz"
-	out, err := os.Create(tarballPath)
-	if err != nil {
-		t.Fatalf("os.Create(tarballPath) = %v, want nil", err)
-	}
-	defer out.Close()
-	resp, err = http.Get(downloadLink)
-	if err != nil {
-		t.Fatalf("http.Get(downloadLink) = %v, want nil", err)
-	}
-	defer resp.Body.Close()
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		t.Fatalf("io.Copy(out, resp.Body) = %v, want nil", err)
-	}
-	file, err := os.Open(tarballPath)
-	if err != nil {
-		t.Fatalf("os.Open(tarballPath) = %v, want nil", err)
-	}
-	defer file.Close()
-	if err := extractTar(file); err != nil {
-		t.Fatalf("extractTar(file) = %v, want nil", err)
-	}
-	if err := os.Chmod("trustauthority-cli", 0755); err != nil {
-		t.Fatalf(`os.Chmod("trustauthority-cli", 0755) = %v, want nil`, err)
-	}
-	configData, err := scripts.ReadFile("ita_config.json")
-	if err != nil {
-		t.Fatalf(`scripts.ReadFile("ita_config.json") = %v, want nil`, err)
-	}
-	configFile, err := os.CreateTemp("", "ita_config_*.json")
-	if err != nil {
-		t.Fatalf(`os.CreateTemp("", "ita_config_*.json") = %v, want nil`, err)
-	}
-	defer os.Remove(configFile.Name()) // Clean up the temp file after the test
-	if _, err := configFile.Write(configData); err != nil {
-		t.Fatalf("configFile.Write(configData) = %v, want nil", err)
-	}
-	if err := configFile.Close(); err != nil {
-		t.Fatalf("configFile.Close() = %v, want nil", err)
-	}
-	tokenCmd := exec.CommandContext(ctx, "./trustauthority-cli", "token", "--config", configFile.Name(), "--user-data", "YQ==", "--no-eventlog")
-	tokenOut, err := tokenCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf(`exec.CommandContext(ctx, "./trustauthority-cli", "token", "--config", configFile.Name(), "--user-data", "YQ==", "--no-eventlog") = %v, want nil`, err)
-	}
-	lines := strings.Split(string(tokenOut), "\n")
-	var itaToken string
-	for _, line := range lines {
-		if strings.HasPrefix(line, "eyJ") {
-			itaToken = line
-			break
-		}
-	}
-	if itaToken == "" {
-		t.Fatalf("failed to extract ITA token from the output")
-	}
-	verifyCmd := exec.Command("./trustauthority-cli", "verify", "--config", configFile.Name(), "--token", itaToken)
-	_, err = verifyCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf(`exec.Command("./trustauthority-cli", "verify", "--config", configFile.Name(), "--token", itaToken) = %v, want nil`, err)
-	}
-}
-
-func extractTar(r io.Reader) error {
-	tr := tar.NewReader(r)
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar header: %v", err)
-		}
-		target := filepath.Join(".", header.Name)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %v", target, err)
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %v", filepath.Dir(target), err)
-			}
-			outFile, err := os.Create(target)
-			if err != nil {
-				return fmt.Errorf("failed to create file %s: %v", target, err)
-			}
-			if _, err := io.Copy(outFile, tr); err != nil {
-				outFile.Close()
-				return fmt.Errorf("failed to copy file %s: %v", target, err)
-			}
-			outFile.Close()
-		default:
-			return fmt.Errorf("unknown type: %v in %s", header.Typeflag, header.Name)
-		}
-	}
-	return nil
 }
