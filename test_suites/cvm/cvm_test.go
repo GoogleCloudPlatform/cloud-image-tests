@@ -214,8 +214,10 @@ func TestTDXAttestation(t *testing.T) {
 func TestSEVSNPAttestation(t *testing.T) {
 	ctx := utils.Context(t)
 	ensureSevGuestcmd := exec.CommandContext(ctx, "modprobe", "sev-guest")
-	if _, err := ensureSevGuestcmd.CombinedOutput(); err != nil {
-		t.Fatalf(`exec.CommandContext(ctx, "modprobe", "sev-guest").Output() = %v, want nil`, err)
+	if err := ensureSevGuestcmd.Run(); err != nil {
+		if err2 := exec.CommandContext(ctx, "modprobe", "sevguest").Run(); err2 != nil {
+			t.Fatalf(`exec.CommandContext(ctx, "modprobe", "sev-guest").Run() = %v \n exec.CommandContext(ctx, "modprobe", "sevguest").Run() = %v, want nil for either of them`, err, err2)
+		}
 	}
 	// attest
 	decodedBytes, err := base64.StdEncoding.DecodeString(sevsnpreportDataBase64String)
