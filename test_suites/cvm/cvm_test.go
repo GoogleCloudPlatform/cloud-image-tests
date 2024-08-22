@@ -96,8 +96,8 @@ func checkBit(t *testing.T, ebx uint32, shift uint, hostHas bool, name string) {
 	if bitSet {
 		status = "ON"
 	}
-	t.Logf("Guest CPUID F00000007_EBX: %x, the %s bit is %s.\n", ebx, name, status)
-	t.Logf("Guest kernel %s %s: 0x%08x\n", flagToStr(hostHas), name, ebx)
+	t.Logf("The %s bit is %s on Guest.\n", name, status)
+	t.Logf("Host %s %s\n", flagToStr(hostHas), name)
 	if hostHas && !bitSet {
 		t.Logf("%s bit should be ON but is OFF", name)
 	} else if !hostHas && bitSet {
@@ -216,7 +216,7 @@ func TestTDXAttestation(t *testing.T) {
 			kernelRevStr := kernelParts[1]
 			kernelRev, err := strconv.Atoi(kernelRevStr)
 			if err != nil {
-				t.Fatalf("error converting kernelVersion to int: %v", err)
+				t.Fatalf("kernelRev, err := strconv.Atoi(kernelRevStr): %v, want nil", err)
 			}
 			if int(kernelRev) >= 1016 {
 				if _, err := exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput(); err != nil {
@@ -244,17 +244,17 @@ func TestTDXAttestation(t *testing.T) {
 	}
 	decodedBytes, err := base64.StdEncoding.DecodeString(tdxreportDataBase64String)
 	if err != nil {
-		t.Fatalf("error decoding reportData string: %v", err)
+		t.Fatalf("decodedBytes, err := base64.StdEncoding.DecodeString(tdxreportDataBase64String): %v, want nil", err)
 	}
 	var reportData [64]byte
 	copy(reportData[:], decodedBytes)
 	quoteProvider, err := tdxclient.GetQuoteProvider()
 	if err != nil {
-		t.Fatalf("error getting quote provider: %v", err)
+		t.Fatalf("quoteProvider, err := tdxclient.GetQuoteProvider(): %v, want nil", err)
 	}
 	quote, err := tdxclient.GetQuote(quoteProvider, reportData)
 	if err != nil {
-		t.Fatalf("error getting quote from the quote provider: %v", err)
+		t.Fatalf("quote, err := tdxclient.GetQuote(quoteProvider, reportData): %v, want nil", err)
 	}
 	config := &ccpb.Config{
 		RootOfTrust: &ccpb.RootOfTrust{},
@@ -262,17 +262,17 @@ func TestTDXAttestation(t *testing.T) {
 	}
 	sopts, err := tdxverify.RootOfTrustToOptions(config.RootOfTrust)
 	if err != nil {
-		t.Fatalf("error converting root of trust to options for verifying the TDX Quote: %v", err)
+		t.Fatalf("sopts, err := tdxverify.RootOfTrustToOptions(config.RootOfTrust): %v, want nil", err)
 	}
 	if err := tdxverify.TdxQuote(quote, sopts); err != nil {
-		t.Fatalf("error verifying the TDX Quote: %v", err)
+		t.Fatalf("err := tdxverify.TdxQuote(quote, sopts): %v, want nil", err)
 	}
 	opts, err := tdxvalidate.PolicyToOptions(config.Policy)
 	if err != nil {
-		t.Fatalf("error converting policy to options for validating the TDX Quote: %v", err)
+		t.Fatalf("opts, err := tdxvalidate.PolicyToOptions(config.Policy): %v, want nil", err)
 	}
 	if err = tdxvalidate.TdxQuote(quote, opts); err != nil {
-		t.Fatalf("error validating the TDX Quote: %v", err)
+		t.Fatalf("err = tdxvalidate.TdxQuote(quote, opts): %v, want nil", err)
 	}
 }
 
