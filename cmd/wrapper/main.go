@@ -32,6 +32,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	vm_pb "github.com/GoogleCloudPlatform/cloud-image-tests/vm_test_info"
+	"google.golang.org/protobuf/proto"
 )
 
 // In special cases such as the shutdown script, the guest attribute match
@@ -105,6 +107,11 @@ func main() {
 		log.Fatalf("failed to get metadata _test_results_url: %v", err)
 	}
 
+	propertiesURL, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_properties_url")
+	if err != nil {
+		log.Fatalf("failed to get metadata _test_properties_url: %v", err)
+	}
+
 	var testArguments = []string{"-test.v", "-test.timeout", testTimeout}
 
 	testRun, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_run")
@@ -115,6 +122,31 @@ func main() {
 	testPackage, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_package_name")
 	if err != nil {
 		log.Fatalf("failed to get metadata _test_package_name: %v", err)
+	}
+
+	testSuiteName, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_suite_name")
+	if err != nil {
+		log.Fatalf("failed to get metadata _test_suite_name: %v", err)
+	}
+
+	machineType, err := utils.GetMetadata(ctx, "instance", "machine-type")
+	if err != nil {
+		log.Fatalf("failed to get metadata _machine_type: %v", err)
+	}
+
+	zone, err := utils.GetMetadata(ctx, "instance", "zone")
+	if err != nil {
+		log.Fatalf("failed to get metadata _zone: %v", err)
+	}
+
+	id, err := utils.GetMetadata(ctx, "instance", "id")
+	if err != nil {
+		log.Fatalf("failed to get metadata _id: %v", err)
+	}
+
+	name, err := utils.GetMetadata(ctx, "instance", "name")
+	if err != nil {
+		log.Fatalf("failed to get metadata _name: %v", err)
 	}
 
 	workDirPath := "/etc/"
@@ -153,6 +185,25 @@ func main() {
 	defer client.Close()
 	if err = uploadGCSObject(ctx, client, resultsURL, bytes.NewReader(out)); err != nil {
 		log.Fatalf("failed to upload test result: %v", err)
+	}
+
+	vmInfoProto := &vm_pb.Vm{
+		Test: &vm_pb.Vm_Test{
+			TestSuite: proto.String(testSuiteName),
+			TestRegex: proto.String(testRun),
+		},
+		Name:        proto.String(name),
+		Id:          proto.String(id),
+		Zone:        proto.String(zone),
+		MachineType: proto.String(machineType),
+	}
+
+	vmInfo, err := proto.Marshal(vmInfoProto)
+	if err != nil {
+		log.Fatalf("failed to marshal vm info proto: %v", err)
+	}
+	if err = uploadGCSObject(ctx, client, propertiesURL, bytes.NewReader(vmInfo)); err != nil {
+		log.Fatalf("failed to upload vm info: %v", err)
 	}
 }
 

@@ -126,6 +126,8 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	instance.Metadata["_test_vmname"] = name
 	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
 	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
+	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", name)
+	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 
@@ -180,6 +182,8 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.Metadata["_test_vmname"] = name
 	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
 	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
+	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", name)
+	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 
@@ -927,9 +931,7 @@ func cleanTestWorkflow(test *TestWorkflow) (totalCleaned []string, totalErrs []e
 // gets result struct and converts to a jUnit TestSuite
 func parseResult(res testResult, localPath string) junit.Testsuite {
 	ret := junit.Testsuite{}
-	// Use ImageURL instead of the name or family to display results the same way
-	// as the user entered them.
-	name := fmt.Sprintf("%s-%s", res.testWorkflow.Name, strings.Split(res.testWorkflow.ImageURL, "/")[len(strings.Split(res.testWorkflow.ImageURL, "/"))-1])
+	name := getTestSuiteName(res.testWorkflow)
 
 	switch {
 	case res.skipped:
@@ -993,6 +995,12 @@ func parseResult(res testResult, localPath string) junit.Testsuite {
 		ret.Time = "0.000"
 	}
 	return ret
+}
+
+func getTestSuiteName(testWorkflow *TestWorkflow) string {
+	// Use ImageURL instead of the name or family to display results the same way
+	// as the user entered them.
+	return fmt.Sprintf("%s-%s", testWorkflow.Name, strings.Split(testWorkflow.ImageURL, "/")[len(strings.Split(testWorkflow.ImageURL, "/"))-1])
 }
 
 func getTestsBySuiteName(name, localPath string) []string {
