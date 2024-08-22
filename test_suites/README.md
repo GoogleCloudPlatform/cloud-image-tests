@@ -24,6 +24,12 @@ Test that live migration works on each supported confidential instance type.
 #### TestTDXAttestation/TestSEVSNPAttestation
 Produces an attestation quote, verifies the quote's signatures and certificates, and validates the non-signature report fields against a user-provided policy.
 
+### TestCheckApicId
+Tests for correct APIC ID for the VCPUs
+
+### TestCheckCpuidLeaf7
+Tests for correct enabling of bits in CPUID leaf 7. The test checks the following features: ADX, RDSEED, SMAP, FPDP, FPCSDS, LA57. Also checks that the LA57 bit is not set on platforms that do not support it.
+
 ### Test suite: disk
 
 #### TestDiskResize

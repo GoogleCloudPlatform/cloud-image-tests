@@ -15,6 +15,7 @@
 package cvm
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -48,6 +49,12 @@ var rebootCmd = []string{"/usr/bin/sudo", "-n", "/sbin/reboot"}
 const (
 	tdxreportDataBase64String    = "R29vZ2xlJ3MgdG9wIHNlY3JldA=="
 	sevsnpreportDataBase64String = "SGVsbG8gU0VWLVNOUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+	ADXShiftLeaf7EBX             = 19 // ADX: Intel ADX (Multi-Precision Add-Carry Instruction Extensions)
+	FPDPShiftLeaf7EBX            = 6  // x87 FPU data pointer updated only on x87 exceptions
+	FPCSDSShiftLeaf7EBX          = 13 // FPU CS and FPU DS values are deprecated
+	RDSEEDShiftLeaf7EBX          = 18 // RDSEED instruction enabled
+	SMAPShiftLeaf7EBX            = 20 // Supervisor Mode Access Prevention
+	LA57ShiftLeaf7ECX            = 16 // 5-level paging (increases size of virtual addresses from 48 bits to 57 bits)
 )
 
 func searchDmesg(t *testing.T, matches []string) {
@@ -70,6 +77,64 @@ func reboot() error {
 		return fmt.Errorf("exec.Command(%v).Output() = %v, want nil", command, err)
 	}
 	return nil
+}
+
+// From https://github.com/intel-go/cpuid/blob/master/cpuidlow_amd64.s
+func cpuidlow(leaf, subleaf uint32) (eax, ebx, ecx, edx uint32)
+
+func flagToStr(x bool) string {
+	if x {
+		return "has"
+	}
+	return "does not have"
+}
+
+func checkBit(t *testing.T, ebx uint32, shift uint, hostHas bool, name string) {
+	t.Helper()
+	bitSet := ebx&(1<<shift) != 0
+	status := "OFF"
+	if bitSet {
+		status = "ON"
+	}
+	t.Logf("Guest CPUID F00000007_EBX: %x, the %s bit is %s.\n", ebx, name, status)
+	t.Logf("Guest kernel %s %s: 0x%08x\n", flagToStr(hostHas), name, ebx)
+	if hostHas && !bitSet {
+		t.Logf("%s bit should be ON but is OFF", name)
+	} else if !hostHas && bitSet {
+		t.Logf("%s bit should be OFF but is ON", name)
+	}
+}
+
+func isIntelPlatform(t *testing.T) bool {
+	t.Helper()
+	cmd := exec.Command("grep", "-m", "1", "vendor_id", "/proc/cpuinfo")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("Failed to execute command: %v", err)
+		return false
+	}
+	return strings.Contains(out.String(), "GenuineIntel")
+}
+
+func cpuPlatformIn(t *testing.T, platforms []string) bool {
+	t.Helper()
+	cmd := exec.Command("grep", "model name", "/proc/cpuinfo")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		t.Fatalf("Failed to execute command: %v", err)
+		return false
+	}
+	modelName := out.String()
+	for _, platform := range platforms {
+		if strings.Contains(modelName, platform) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSEVEnabled(t *testing.T) {
@@ -277,5 +342,26 @@ func TestCheckApicId(t *testing.T) {
 	re := regexp.MustCompile(`.*0.*$`)
 	if !re.MatchString(apicidstr) {
 		t.Errorf("expected APIC ID to contain '0', but got: %s", apicidstr)
+	}
+}
+
+func TestCheckCpuidLeaf7(t *testing.T) {
+	_, ebx, ecx, _ := cpuidlow(7, 0)
+	// CPU Platform not in ['Intel Ivy Bridge', 'Intel Sandy Bridge', 'Intel Haswell'] should have Broadwell features.
+	guestHasBroadwellFeatures := true
+	checkBit(t, ebx, ADXShiftLeaf7EBX, guestHasBroadwellFeatures, "adx")
+	checkBit(t, ebx, RDSEEDShiftLeaf7EBX, guestHasBroadwellFeatures, "rdseed")
+	checkBit(t, ebx, SMAPShiftLeaf7EBX, guestHasBroadwellFeatures, "smap")
+	// Intel guests should have FPDP and FPCSDS unconditionally
+	if isIntelPlatform(t) {
+		checkBit(t, ebx, FPDPShiftLeaf7EBX, guestHasBroadwellFeatures, "fpdp")
+		checkBit(t, ebx, FPCSDSShiftLeaf7EBX, guestHasBroadwellFeatures, "fpcsds")
+	}
+	excludeLA57Platforms := []string{"Intel Sapphire Rapids", "AMD Genoa", "Intel Emerald Rapids"}
+	shouldNotHaveLA57 := cpuPlatformIn(t, excludeLA57Platforms)
+	if shouldNotHaveLA57 && (ecx&(1<<LA57ShiftLeaf7ECX) != 0) {
+		t.Errorf("LA57 bit should be OFF but is ON")
+	} else {
+		t.Logf("LA57 bit is correctly OFF")
 	}
 }
