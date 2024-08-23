@@ -25,6 +25,10 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "packageupgrade"
 
+const (
+	platformScope = "https://www.googleapis.com/auth/cloud-platform"
+)
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	// These tests are against googet which is only used on Windows
@@ -34,13 +38,36 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		vm1.RunTests("TestDriverUpgrade")
+		vm1.AddScope(platformScope)
+		vm1.RunTests("TestPvpanicDriverInstallFromTesting|TestGgaDriverInstallFromTesting|TestBalloonDriverInstallFromTesting")
 
-		vm2, err := t.CreateTestVM("installPackages")
+		vm2, err := t.CreateTestVM("installDrivers2")
 		if err != nil {
 			return err
 		}
-		vm2.RunTests("TestPackageUpgrade")
+		vm2.AddScope(platformScope)
+		vm2.RunTests("TestGvnicDriverInstallFromTesting|TestNetkvmDriverInstallFromTesting|TestVioscsiDriverInstallFromTesting")
+
+		vm3, err := t.CreateTestVM("installPackages")
+		if err != nil {
+			return err
+		}
+		vm3.AddScope(platformScope)
+		vm3.RunTests("TestCertgenPackageInstallFromTesting|TestGoogetPackageInstallFromTesting|TestGceDiagnosticsPackageInstallFromTesting|TestGceMetadataScriptsPackageInstallFromTesting")
+
+		vm4, err := t.CreateTestVM("installPackages2")
+		if err != nil {
+			return err
+		}
+		vm4.AddScope(platformScope)
+		vm4.RunTests("TestGcePowershellPackageInstallFromTesting|TestGceSysprepPackageInstallFromTesting|TestWindowsGuestAgentInstallFromTesting|TestOSConfigAgentInstallFromTesting")
+
+		vm5, err := t.CreateTestVM("googetUpdate")
+		if err != nil {
+			return err
+		}
+		vm5.AddScope(platformScope)
+		vm5.RunTests("TestGoogetUpdateFromTesting")
 	}
 	return nil
 }

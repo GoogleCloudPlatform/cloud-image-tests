@@ -17,7 +17,6 @@ package packageupgrade
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -29,11 +28,12 @@ const (
 	repoContent = `"- name: google-compute-engine-testing
   url: https://packages.cloud.google.com/yuck/repos/google-compute-engine-testing
   useoauth: true"`
+	cacheErr = "cache either doesn't exist or is older than 3m0s"
 )
 
 func ChangeRepo(t *testing.T) {
 	command := fmt.Sprintf("cmd.exe /c del /Q C:\\ProgramData\\GooGet\\repos\\*")
-	utils.FailOnPowershellFail(command, "Error deleting stable repo", t)
+	utils.FailOnPowershellFail(command, "Error deleting stable repo.", t)
 
 	command = fmt.Sprintf("%s available", googet)
 	err := utils.CheckPowershellReturnCode(command, 1)
@@ -48,84 +48,201 @@ func ChangeRepo(t *testing.T) {
 	}
 }
 
-func TestDriverUpgrade(t *testing.T) {
-	utils.WindowsOnly(t)
-	ChangeRepo(t)
-	drivers := []string{
-		"google-compute-engine-driver-pvpanic",
-		"google-compute-engine-driver-gga",
-		"google-compute-engine-driver-balloon",
-		"google-compute-engine-driver-gvnic",
-		"google-compute-engine-driver-netkvm",
-		"google-compute-engine-driver-vioscsi",
+func VerifyInstallReturn(t *testing.T, pkg string, input string) {
+	installString := fmt.Sprintf("Installation of %s.* and all dependencies completed", pkg)
+	noactionString := fmt.Sprintf("%s.* or a newer version is already installed on the system", pkg)
+	matchedInstall, err := regexp.MatchString(installString, input)
+	if err != nil {
+		t.Fatalf("Failed to parse package install result: %v", err)
 	}
-
-	for _, driver := range drivers {
-		command := fmt.Sprintf("%s installed %s", googet, driver)
-		output, err := utils.RunPowershellCmd(command)
-		if err != nil {
-			t.Fatalf("Error getting package status for '%s'", driver)
-		}
-		inString := fmt.Sprintf("No package matching filter \"%s\" installed.", driver)
-		if !strings.Contains(output.Stdout, inString) {
-			command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, driver)
-			output, err := utils.RunPowershellCmd(command)
-			if err != nil {
-				t.Fatalf("Error reinstalling '%s': %v", driver, err)
-			}
-			reString := fmt.Sprintf("Reinstallation of %s.* completed", driver)
-			matched, err := regexp.MatchString(reString, output.Stdout)
-			if !matched {
-				t.Fatalf("Reinstall of '%s' returned unexpected result: %s", driver, output.Stdout)
-			}
-		} else {
-			command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
-			output, err := utils.RunPowershellCmd(command)
-			if err != nil {
-				t.Fatalf("Error installing '%s': %v", driver, err)
-			}
-			reString := fmt.Sprintf("Installation of %s.* and all dependencies completed", driver)
-			matched, err := regexp.MatchString(reString, output.Stdout)
-			if !matched {
-				t.Fatalf("Install of '%s' returned unexpected result: %s", driver, output.Stdout)
-			}
-		}
+	matchedNoaction, err := regexp.MatchString(noactionString, input)
+	if err != nil {
+		t.Fatalf("Failed to parse package install result: %v", err)
 	}
+	if matchedInstall || matchedNoaction {
+		return
+	}
+	t.Fatalf("Installation of '%s' returned unexpected result: %s", pkg, input)
 }
 
-func TestPackageUpgrade(t *testing.T) {
+func TestPvpanicDriverInstallFromTesting(t *testing.T) {
 	utils.WindowsOnly(t)
 	ChangeRepo(t)
-	packages := []string{
-		"certgen",
-		"googet",
-		"google-compute-engine-diagnostics",
-		"google-compute-engine-metadata-scripts",
-		"google-compute-engine-powershell",
-		"google-compute-engine-sysprep",
-		"google-compute-engine-windows",
-		"google-osconfig-agent",
-	}
 
-	for _, agent := range packages {
-		command := fmt.Sprintf("%s installed %s", googet, agent)
-		output, err := utils.RunPowershellCmd(command)
-		if err != nil {
-			t.Fatalf("Error getting package status for '%s': %s", agent, err)
-		}
-		inString := fmt.Sprintf("No package matching filter \"%s\" installed.", agent)
-		if !strings.Contains(output.Stdout, inString) {
-			command := fmt.Sprintf("%s -noconfirm install -reinstall %s", googet, agent)
-			_, err := utils.RunPowershellCmd(command)
-			if err != nil {
-				t.Fatalf("Error reinstalling '%s': %v", agent, err)
-			}
-		} else {
-			command := fmt.Sprintf("%s -noconfirm install %s", googet, agent)
-			_, err := utils.RunPowershellCmd(command)
-			if err != nil {
-				t.Fatalf("Error installing '%s': %v", agent, err)
-			}
-		}
+	driver := "google-compute-engine-driver-pvpanic"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
 	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestGgaDriverInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	driver := "google-compute-engine-driver-gga"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestBalloonDriverInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	driver := "google-compute-engine-driver-balloon"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestGvnicDriverInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	driver := "google-compute-engine-driver-gvnic"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestNetkvmDriverInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	driver := "google-compute-engine-driver-netkvm"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestVioscsiDriverInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	driver := "google-compute-engine-driver-vioscsi"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+	}
+	VerifyInstallReturn(t, driver, output.Stdout)
+}
+
+func TestCertgenPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "certgen"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestGoogetPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "googet"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestGceDiagnosticsPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-compute-engine-diagnostics"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestGceMetadataScriptsPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-compute-engine-metadata-scripts"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestGcePowershellPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-compute-engine-powershell"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestGceSysprepPackageInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-compute-engine-sysprep"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestWindowsGuestAgentInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-compute-engine-windows"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
+}
+
+func TestOSConfigAgentInstallFromTesting(t *testing.T) {
+	utils.WindowsOnly(t)
+	ChangeRepo(t)
+
+	pkg := "google-osconfig-agent"
+	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+	}
+	VerifyInstallReturn(t, pkg, output.Stdout)
 }
