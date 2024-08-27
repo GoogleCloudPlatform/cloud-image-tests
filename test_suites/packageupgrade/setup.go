@@ -18,6 +18,8 @@
 package packageupgrade
 
 import (
+	"strings"
+
 	imagetest "github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -39,35 +41,37 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 		vm1.AddScope(platformScope)
-		vm1.RunTests("TestPvpanicDriverInstallFromTesting|TestGgaDriverInstallFromTesting|TestBalloonDriverInstallFromTesting")
+		vm1.RunTests("TestPvpanicDriverInstallFromTesting|TestGgaDriverInstallFromTesting|TestBalloonDriverInstallFromTesting|TestNetkvmDriverInstallFromTesting|TestVioscsiDriverInstallFromTesting")
 
-		vm2, err := t.CreateTestVM("installDrivers2")
+		vm2, err := t.CreateTestVM("installPackages")
 		if err != nil {
 			return err
 		}
 		vm2.AddScope(platformScope)
-		vm2.RunTests("TestGvnicDriverInstallFromTesting|TestNetkvmDriverInstallFromTesting|TestVioscsiDriverInstallFromTesting")
+		vm2.RunTests("TestCertgenPackageInstallFromTesting|TestGoogetPackageInstallFromTesting|TestGceDiagnosticsPackageInstallFromTesting|TestGceMetadataScriptsPackageInstallFromTesting")
 
-		vm3, err := t.CreateTestVM("installPackages")
+		vm3, err := t.CreateTestVM("installPackages2")
 		if err != nil {
 			return err
 		}
 		vm3.AddScope(platformScope)
-		vm3.RunTests("TestCertgenPackageInstallFromTesting|TestGoogetPackageInstallFromTesting|TestGceDiagnosticsPackageInstallFromTesting|TestGceMetadataScriptsPackageInstallFromTesting")
+		vm3.RunTests("TestGcePowershellPackageInstallFromTesting|TestGceSysprepPackageInstallFromTesting|TestWindowsGuestAgentInstallFromTesting|TestOSConfigAgentInstallFromTesting")
 
-		vm4, err := t.CreateTestVM("installPackages2")
+		vm4, err := t.CreateTestVM("googetUpdate")
 		if err != nil {
 			return err
 		}
 		vm4.AddScope(platformScope)
-		vm4.RunTests("TestGcePowershellPackageInstallFromTesting|TestGceSysprepPackageInstallFromTesting|TestWindowsGuestAgentInstallFromTesting|TestOSConfigAgentInstallFromTesting")
+		vm4.RunTests("TestGoogetUpdateFromTesting")
 
-		vm5, err := t.CreateTestVM("googetUpdate")
-		if err != nil {
-			return err
+		if utils.HasFeature(t.Image, "GVNIC") && !strings.Contains(t.Image.Name, "windows-server-2012-r2") {
+			vm5, err := t.CreateTestVM("gvnicDriverUpdate")
+			if err != nil {
+				return err
+			}
+			vm5.AddScope(platformScope)
+			vm5.RunTests("TestGvnicDriverInstallFromTesting")
 		}
-		vm5.AddScope(platformScope)
-		vm5.RunTests("TestGoogetUpdateFromTesting")
 	}
 	return nil
 }
