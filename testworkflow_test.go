@@ -41,6 +41,40 @@ func NewTestWorkflowForUnitTest(name, image, timeout string) *TestWorkflow {
 	return t
 }
 
+func TestAddNewVMStep(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	if twf.wf == nil {
+		t.Fatal("test workflow is malformed")
+	}
+	step, _, err := twf.addNewVMStep([]*compute.Disk{&compute.Disk{Name: "test"}}, &daisy.Instance{})
+	if err != nil {
+		t.Errorf("failed to add new VM step to test workflow: %v", err)
+	}
+
+	if step.CreateInstances == nil {
+		t.Fatal("CreateInstances step is missing")
+	}
+	instances := step.CreateInstances.Instances
+	if len(instances) != 1 {
+		t.Errorf("CreateInstances step does not contain only 1 instance: %d found", len(instances))
+	}
+	if instances[0].Name != "test" {
+		t.Error("CreateInstances step is malformed")
+	}
+	if instances[0].Disks == nil || len(instances[0].Disks) != 1 {
+		t.Error("CreateInstances step does not contain a disk.")
+	}
+
+	// Counter is at 0 at this time.
+	vmStep, ok := twf.wf.Steps["create-vms-0"]
+	if !ok {
+		t.Fatalf("addNewVMStep(disk, inst) failed to add new create-vms step")
+	}
+	if vmStep != step {
+		t.Fatalf("addNewVMStep(disk, inst) returned an unexpected step.")
+	}
+}
+
 func TestAddStartStep(t *testing.T) {
 	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
 	if twf.wf == nil {

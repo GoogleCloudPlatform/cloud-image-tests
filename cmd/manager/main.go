@@ -55,6 +55,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/ssh"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/storageperf"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/suspendresume"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/vmspec"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/windowscontainers"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/winrm"
 	"github.com/GoogleCloudPlatform/compute-daisy/compute"
@@ -263,6 +264,10 @@ func main() {
 		{
 			windowscontainers.Name,
 			windowscontainers.TestSetup,
+		},
+		{
+			vmspec.Name,
+			vmspec.TestSetup,
 		},
 	}
 

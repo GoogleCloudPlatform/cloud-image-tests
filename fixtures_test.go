@@ -91,6 +91,44 @@ func TestReboot(t *testing.T) {
 	}
 }
 
+func TestCreateDerivativeVM(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	tvm, err := twf.CreateTestVM("vm")
+	if err != nil {
+		t.Errorf("failed to create test vm: %v", err)
+	}
+	if twf.counter != 0 {
+		t.Errorf("step counter not starting at 0")
+	}
+
+	dvm, err := tvm.CreateDerivativeVM("vm")
+	if err != nil {
+		t.Errorf("failed to create derivative vm: %v", err)
+	}
+	if dvm.name != "derivative-vm" {
+		t.Errorf("unexpected derivative vm name: got %s, want %s", dvm.name, "derivative-vm")
+	}
+	if twf.counter != 1 {
+		t.Errorf("step counter not incremented")
+	}
+	if _, ok := twf.wf.Steps["create-vms-1"]; !ok {
+		t.Errorf("create-vms-1 step missing")
+	} else {
+		deps := twf.wf.Dependencies["create-vms-1"]
+		if !slices.Contains(deps, "detach-disk-vm-1") {
+			t.Errorf("create-vms-1 has deps %v, want a dependency on detach-disk-vm-1", deps)
+		}
+	}
+
+	lastStep, err := twf.getLastStepForVM("derivative-vm")
+	if err != nil {
+		t.Errorf("failed to get last step for derivative_vm: %v", err)
+	}
+	if lastStep.WaitForInstancesSignal == nil {
+		t.Error("last step for derivative_vm is not WaitForInstancesSignal")
+	}
+}
+
 func TestResume(t *testing.T) {
 	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
 	tvm, err := twf.CreateTestVM("vm")

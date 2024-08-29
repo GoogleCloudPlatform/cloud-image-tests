@@ -362,6 +362,72 @@ func (t *TestWorkflow) CreateTestVMFromInstanceBeta(i *daisy.InstanceBeta, disks
 	return &TestVM{name: vmname, testWorkflow: t, instancebeta: i}, nil
 }
 
+// CreateDerivativeVM creates a derivative image using the sourceVM's boot disk
+// as the source and adds it to the test workflow. The new VM is named using the
+// provided name, with a "derivative-" prefix.
+func (t *TestVM) CreateDerivativeVM(name string) (*TestVM, error) {
+	t.testWorkflow.counter++
+	stepSuffix := fmt.Sprintf("%s-%d", t.name, t.testWorkflow.counter)
+	vmname := fmt.Sprintf("derivative-%s", name)
+
+	// Stop the source VM.
+	lastStep, err := t.testWorkflow.getLastStepForVM(t.name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve last step")
+	}
+	stopStep, err := t.testWorkflow.addStopStep(stepSuffix, t.name)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.testWorkflow.wf.AddDependency(stopStep, lastStep); err != nil {
+		return nil, err
+	}
+
+	// Wait for the source VM to stop.
+	waitStopStep, err := t.testWorkflow.addWaitStoppedStep("stopped-"+stepSuffix, t.name)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.testWorkflow.wf.AddDependency(waitStopStep, stopStep); err != nil {
+		return nil, err
+	}
+
+	// Now detach the boot disk from the source VM.
+	detachStepName := fmt.Sprintf("detach-disk-%s", stepSuffix)
+	detachDiskStep, err := t.testWorkflow.appendDetachDiskStep(detachStepName, t.name, []string{t.name})
+	if err != nil {
+		return nil, err
+	}
+	if err := t.testWorkflow.wf.AddDependency(detachDiskStep, waitStopStep); err != nil {
+		return nil, err
+	}
+
+	// Create a new instance using the original boot disk.
+	daisyInst := &daisy.Instance{}
+	bootDisk := &compute.Disk{Name: t.name}
+	createVMStep, i, err := t.testWorkflow.addNewVMStep([]*compute.Disk{bootDisk}, daisyInst)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.testWorkflow.wf.AddDependency(createVMStep, detachDiskStep); err != nil {
+		return nil, err
+	}
+
+	// Override the name with the derivative name.
+	i.Name = vmname
+
+	// Add wait step for the new VM.
+	waitStep, err := t.testWorkflow.addWaitStep(vmname, vmname)
+	if err != nil {
+		return nil, err
+	}
+	if err := t.testWorkflow.wf.AddDependency(waitStep, createVMStep); err != nil {
+		return nil, err
+	}
+
+	return &TestVM{name: vmname, testWorkflow: t.testWorkflow, instance: i}, nil
+}
+
 // AddMetadata adds the specified key:value pair to metadata during VM creation.
 func (t *TestVM) AddMetadata(key, value string) {
 	if t.instance != nil {

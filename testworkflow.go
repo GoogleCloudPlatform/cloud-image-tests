@@ -89,6 +89,69 @@ type TestWorkflow struct {
 	lockProject bool
 }
 
+func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
+	name := instance.Name
+
+	instance.Metadata["_test_vmname"] = name
+	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
+	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", instance.Name)
+	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
+	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
+	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
+	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
+	instance.Metadata["_cit_timeout"] = t.wf.DefaultTimeout
+}
+
+// addNewVMStep adds an entirely new addVM step, separate from the step used and
+// modified by the `appendCreateVMStep` function.
+func (t *TestWorkflow) addNewVMStep(disks []*compute.Disk, instanceParams *daisy.Instance) (*daisy.Step, *daisy.Instance, error) {
+	stepSuffix := fmt.Sprintf("%d", t.counter)
+	if len(disks) == 0 || disks[0].Name == "" {
+		return nil, nil, fmt.Errorf("failed to create VM from empty boot disk")
+	}
+	// The boot disk is the first disk, and the VM name comes from that
+	name := disks[0].Name
+	if strings.Contains(name, "-") {
+		return nil, nil, fmt.Errorf("dashes are disallowed in testworkflow vm names: %s", name)
+	}
+
+	var suffix string
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		suffix = ".exe"
+	}
+
+	instance := instanceParams
+	if instance == nil {
+		instance = &daisy.Instance{}
+	}
+
+	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
+	instance.Name = name
+	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
+
+	for _, disk := range disks {
+		currentDisk := &compute.AttachedDisk{Source: disk.Name, AutoDelete: true}
+		instance.Disks = append(instance.Disks, currentDisk)
+	}
+
+	if instance.Metadata == nil {
+		instance.Metadata = make(map[string]string)
+	}
+
+	t.setInstanceTestMetadata(instance, suffix)
+
+	createInstances := &daisy.CreateInstances{}
+	createInstances.Instances = append(createInstances.Instances, instance)
+
+	createVMsStepName := fmt.Sprintf("create-vms-%s", stepSuffix)
+	createVMsStep, err := t.wf.NewStep(createVMsStepName)
+	if err != nil {
+		return nil, nil, err
+	}
+	createVMsStep.CreateInstances = createInstances
+	return createVMsStep, instance, nil
+}
+
 func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams *daisy.Instance) (*daisy.Step, *daisy.Instance, error) {
 	if len(disks) == 0 || disks[0].Name == "" {
 		return nil, nil, fmt.Errorf("failed to create VM from empty boot disk")
@@ -123,13 +186,7 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 		instance.Metadata = make(map[string]string)
 	}
 
-	instance.Metadata["_test_vmname"] = name
-	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
-	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
-	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", name)
-	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
-	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
-	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
+	t.setInstanceTestMetadata(instance, suffix)
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.Instances = append(createInstances.Instances, instance)
@@ -146,7 +203,6 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 		}
 		createVMStep.CreateInstances = createInstances
 	}
-	instance.Metadata["_cit_timeout"] = t.wf.DefaultTimeout
 
 	return createVMStep, instance, nil
 }
@@ -266,6 +322,44 @@ func (t *TestWorkflow) appendCreateMountDisksStep(diskParams *compute.Disk) (*da
 	}
 
 	return createDisksStep, nil
+}
+
+func (t *TestWorkflow) appendCreateImageStep(stepname string, image *compute.Image) (*daisy.Step, error) {
+	createImages := &daisy.Image{}
+	createImages.Name = image.Name
+	createImages.SourceDisk = image.SourceDisk
+	createImagesStep, ok := t.wf.Steps[stepname]
+	if ok {
+		// append to existing step.
+		createImagesStep.CreateImages.Images = append(createImagesStep.CreateImages.Images, createImages)
+	} else {
+		var err error
+		createImagesStep, err = t.wf.NewStep(stepname)
+		if err != nil {
+			return nil, err
+		}
+		createImagesStep.CreateImages.Images = []*daisy.Image{createImages}
+	}
+	return createImagesStep, nil
+}
+
+// Detaches all the specified disks from the specified VM.
+func (t *TestWorkflow) appendDetachDiskStep(stepname, vmname string, disknames []string) (*daisy.Step, error) {
+	disks := &daisy.DetachDisks{}
+	for _, diskname := range disknames {
+		detachDisk := &daisy.DetachDisk{}
+		detachDisk.Instance = vmname
+		detachDisk.DeviceName = diskname
+
+		*disks = append(*disks, detachDisk)
+	}
+
+	detachDisksStep, err := t.wf.NewStep(stepname)
+	if err != nil {
+		return nil, err
+	}
+	detachDisksStep.DetachDisks = disks
+	return detachDisksStep, nil
 }
 
 func (t *TestWorkflow) addWaitStoppedStep(stepname, vmname string) (*daisy.Step, error) {

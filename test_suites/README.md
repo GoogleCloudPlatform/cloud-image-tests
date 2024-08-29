@@ -515,6 +515,24 @@ the rate we expect for both random writes and throughput.
 
 Tests that an image can suspend and be resumed without rebooting.
 
+### Test suite: vmspec
+
+Tests network and metadata server connectivity after a change in VM specs. The
+vmspec change is accomplished by detaching the boot disk from a source VM and
+re-attaching it to a new VM using a machine type containing LSSDs.
+
+#### TestMetadata
+
+Test that the primary NIC can reach the metadata server after a vmspec change.
+
+#### TestPCIEChanged
+
+Test that the topology of the VM did change after a vmspec change.
+
+#### TestPing
+
+Test pinging external IPs from the primary NIC after a vmspec change.
+
 ### Test suite: windowscontainers
 
 Test Windows containers functionality.
