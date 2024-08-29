@@ -17,6 +17,7 @@
 package licensevalidation
 
 import (
+    "flag"
 	"fmt"
 	"regexp"
 	"strings"
@@ -33,31 +34,49 @@ var sqlVersionRe = regexp.MustCompile("sql-[0-9]{4}-(express|enterprise|standard
 // Name is the name of the test package. It must match the directory name.
 var Name = "licensevalidation"
 
+var testExcludeFilter = flag.String("licensevalidation_test_exclude_filter", "", "Regex filter that excludes licensevalidation test cases. Only cases with a matching test name will be skipped.")
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	// Skipping license check for preview 2025 image. TODO: Remove with official release.
 	if strings.Contains(t.Image.Name, "windows-server-2025") {
 		t.Skip("Windows Server 2025 is in preview; skipping GCE license check.")
 	}
-	licensetests := "TestLicenses"
-	if utils.HasFeature(t.Image, "WINDOWS") {
-		licensetests += "|TestWindowsActivationStatus"
-	}
-	vm1, err := t.CreateTestVM("licensevm")
-	if err != nil {
-		return err
-	}
-	rlicenses, err := requiredLicenseList(t.Image)
-	if err != nil {
-		return err
-	}
-	vm1.AddMetadata("expected-licenses", rollStringToString(rlicenses))
-	vm1.AddMetadata("actual-licenses", rollStringToString(t.Image.Licenses))
-	vm1.AddMetadata("expected-license-codes", rollInt64ToString(t.Image.LicenseCodes))
-	if err != nil {
-		return err
-	}
-	vm1.RunTests(licensetests)
+    if exfilter.MatchString("TestLicenses") && exfilter.MatchString("TestWindowsActivationStatus") {
+        // Skip VM creation & save resource if no tests are being run on `vm`
+        fmt.Println("Skipping tests 'TestLicenses|TestWindowsActivationStatus'")
+    } else {
+        licensetests := ""
+        if exfilter.MatchString("TestLicenses") {
+            fmt.Println("Skipping tests 'TestLicenses'")
+        } else {
+            licensetests += "TestLicenses"
+        }
+        if utils.HasFeature(t.Image, "WINDOWS") && !exfilter.MatchString("TestWindowsActivationStatus") {
+            licensetests += "|TestWindowsActivationStatus"
+        }
+        if len(licensetests) > 0 {
+            vm1, err := t.CreateTestVM("licensevm")
+            if err != nil {
+                return err
+            }
+            rlicenses, err := requiredLicenseList(t.Image)
+            if err != nil {
+                return err
+            }
+            vm1.AddMetadata("expected-licenses", rollStringToString(rlicenses))
+            vm1.AddMetadata("actual-licenses", rollStringToString(t.Image.Licenses))
+            vm1.AddMetadata("expected-license-codes", rollInt64ToString(t.Image.LicenseCodes))
+            if err != nil {
+                return err
+            }
+            vm1.RunTests(licensetests)
+        }
+    }
 	return nil
 }
 

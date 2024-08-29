@@ -16,6 +16,10 @@
 package winrm
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -23,10 +27,16 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "winrm"
 
+var testExcludeFilter = flag.String("winrm_test_exclude_filter", "", "Regex filter that excludes winrm test cases. Only cases with a matching test name will be skipped.")
+
 const user = "test-user"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	if !utils.HasFeature(t.Image, "WINDOWS") {
 		return nil
 	}
@@ -37,14 +47,20 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	vm.AddMetadata("winrm-passwd", passwd)
-	vm.RunTests("TestWinrmConnection")
-
+	if exfilter.MatchString("TestWinrmConnection") {
+	    fmt.Println("Skipping test 'TestWinrmConnection'")
+	} else {
+		vm.RunTests("TestWinrmConnection")
+    }
 	vm2, err := t.CreateTestVM("server")
 	if err != nil {
 		return err
 	}
-	vm2.AddMetadata("winrm-passwd", passwd)
-	vm2.RunTests("TestWaitForWinrmConnection")
-
+	if exfilter.MatchString("TestWaitForWinrmConnection") {
+	    fmt.Println("Skipping test 'TestWaitForWinrmConnection'")
+	} else {
+	    vm2.AddMetadata("winrm-passwd", passwd)
+	    vm2.RunTests("TestWaitForWinrmConnection")
+    }
 	return nil
 }

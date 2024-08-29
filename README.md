@@ -60,6 +60,40 @@ The following flags are provided to the manager but interpreted by test suites w
     -networkperf_test_filter string
     	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
 
+    ---
+    
+    -disk_test_exclude_filter string
+        regexp filter for individual disk test cases; cases matching any tests will be skipped (default "" [nil])
+    -guestagent_test_exclude_filter string
+        regexp filter for individual guestagent test cases; cases matching any tests will be skipped (default "" [nil])
+    -hostnamevalidation_test_exclude_filter string
+        regexp filter for individual hostnamevalidation test cases; cases matching any tests will be skipped (default "" [nil])
+    -hotattach_test_exclude_filter string
+        regexp filter for individual hotattach test cases; cases matching any tests will be skipped (default "" [nil])
+    -imageboot_test_exclude_filter string
+        regexp filter for individual imageboot test cases; cases matching any tests will be skipped (default "" [nil])
+    -licensevalidation_test_exclude_filter string
+        regexp filter for individual licensevalidation test cases; cases matching any tests will be skipped (default "" [nil])
+    -livemigrate_test_exclude_filter string
+        regexp filter for individual livemigrate test cases; cases matching any tests will be skipped (default "" [nil])
+    -lssd_test_exclude_filter string
+        regexp filter for individual lssd test cases; cases matching any tests will be skipped (default "" [nil])
+    -mdsmtls_test_exclude_filter string
+        regexp filter for individual mdsmtls test cases; cases matching any tests will be skipped (default "" [nil])
+    -network_test_exclude_filter string
+        regexp filter for individual network test cases; cases matching any tests will be skipped (default "" [nil])
+    -oslogin_test_exclude_filter string
+        regexp filter for individual oslogin test cases; cases matching any tests will be skipped (default "" [nil])
+    -packagevalidation_test_exclude_filter string
+        regexp filter for individual packagevalidation test cases; cases matching any tests will be skipped (default "" [nil])
+    -sql_test_exclude_filter string
+        regexp filter for individual sql test cases; cases matching any tests will be skipped (default "" [nil])
+    -ssh_test_exclude_filter string
+        regexp filter for individual ssh test cases; cases matching any tests will be skipped (default "" [nil])
+    -suspendresume_test_exclude_filter string
+        regexp filter for individual suspendresume test cases; cases matching any tests will be skipped (default "" [nil])
+    -winrm_test_exclude_filter string
+        regexp filter for individual winrm test cases; cases matching any tests will be skipped (default "" [nil])
 
 It can be invoked via docker as:
 

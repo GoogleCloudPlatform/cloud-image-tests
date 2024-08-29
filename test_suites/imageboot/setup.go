@@ -17,6 +17,8 @@
 package imageboot
 
 import (
+    "flag"
+    "fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -27,6 +29,8 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "imageboot"
+
+var testExcludeFilter = flag.String("imageboot_test_exclude_filter", "", "Regex filter that excludes imageboot test cases. Only cases with a matching test name will be skipped.")
 
 var sbUnsupported = []*regexp.Regexp{
 	// Permanent exceptions
@@ -40,27 +44,62 @@ var sbUnsupported = []*regexp.Regexp{
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	vm, err := t.CreateTestVM("boot")
+	exfilter, err := regexp.Compile(*testExcludeFilter)
 	if err != nil {
-		return err
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
 	}
-	if err := vm.Reboot(); err != nil {
-		return err
+    if exfilter.MatchString("TestGuestBoot") && exfilter.MatchString("TestGuestReboot") {
+        // Skip VM creation & save resource if no tests are being run on vm `boot`
+        fmt.Println("Skipping tests 'TestGuestBoot|TestGuestReboot'")
+    } else {
+        vm, err := t.CreateTestVM("boot")
+        if err != nil {
+            return err
+        }
+        if err := vm.Reboot(); err != nil {
+            return err
+        }
+        if exfilter.MatchString("TestGuestBoot") {
+            fmt.Println("Skipping test 'TestGuestBoot'")
+        } else {
+            vm.RunTests("TestGuestBoot")
+        }
+        if exfilter.MatchString("TestGuestReboot") {
+            fmt.Println("Skipping test 'TestGuestReboot'")
+        } else {
+            vm.RunTests("TestGuestReboot")
+        }
 	}
-	vm.RunTests("TestGuestBoot|TestGuestReboot$")
+    if exfilter.MatchString("TestGuestRebootOnHost") {
+        fmt.Println("Skipping test 'TestGuestRebootOnHost'")
+    } else {
+        vm2, err := t.CreateTestVM("guestreboot")
+        if err != nil {
+            return err
+        }
+        vm2.RunTests("TestGuestRebootOnHost")
+	}
+    if exfilter.MatchString("TestStartTime") && exfilter.MatchString("TestBootTime") {
+        // Skip VM creation & save resource if no tests are being run on vm `boottime`
+        fmt.Println("Skipping tests 'TestStartTime|TestBootTime'")
+    } else {
+        vm3, err := t.CreateTestVM("boottime")
+        if err != nil {
+            return err
+        }
+        vm3.AddMetadata("start-time", strconv.Itoa(time.Now().Second()))
+        if exfilter.MatchString("TestStartTime") {
+            fmt.Println("Skipping tests 'TestStartTime'")
+        } else {
+            vm3.RunTests("TestStartTime")
+        }
 
-	vm2, err := t.CreateTestVM("guestreboot")
-	if err != nil {
-		return err
+        if exfilter.MatchString("TestBootTime") {
+            fmt.Println("Skipping tests 'TestBootTime'")
+        } else {
+            vm3.RunTests("TestBootTime")
+        }
 	}
-	vm2.RunTests("TestGuestRebootOnHost")
-
-	vm3, err := t.CreateTestVM("boottime")
-	if err != nil {
-		return err
-	}
-	vm3.AddMetadata("start-time", strconv.Itoa(time.Now().Second()))
-	vm3.RunTests("TestStartTime|TestBootTime")
 
 	for _, r := range sbUnsupported {
 		if r.MatchString(t.Image.Name) {
@@ -70,11 +109,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if !utils.HasFeature(t.Image, "UEFI_COMPATIBLE") {
 		return nil
 	}
-	vm4, err := t.CreateTestVM("secureboot")
-	if err != nil {
-		return err
-	}
-	vm4.EnableSecureBoot()
-	vm4.RunTests("TestGuestSecureBoot")
+    if exfilter.MatchString("TestGuestSecureBoot") {
+        fmt.Println("Skipping tests 'TestGuestSecureBoot'")
+    } else {
+        vm4, err := t.CreateTestVM("secureboot")
+        if err != nil {
+            return err
+        }
+        vm4.EnableSecureBoot()
+        vm4.RunTests("TestGuestSecureBoot")
+    }
 	return nil
 }

@@ -17,6 +17,9 @@ package sql
 
 import (
 	"embed"
+	"flag"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -25,6 +28,8 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "sql"
+
+var testExcludeFilter = flag.String("sql_test_exclude_filter", "", "Regex filter that excludes sql test cases. Only cases with a matching test name will be skipped.")
 
 // InstanceConfig for setting up test VMs.
 type InstanceConfig struct {
@@ -45,6 +50,10 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	if utils.HasFeature(t.Image, "WINDOWS") && strings.Contains(t.Image.Name, "sql") {
 		defaultNetwork, err := t.CreateNetwork("default-network", false)
 		if err != nil {
@@ -73,41 +82,55 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		serverStartup := string(serverStartupByteArr)
 		clientStartup := string(clientStartupByteArr)
 
-		serverVM, err := t.CreateTestVM(serverConfig.name)
-		if err != nil {
-			return err
-		}
-		if err := serverVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-			return err
-		}
-		if err := serverVM.SetPrivateIP(defaultNetwork, serverConfig.ip); err != nil {
-			return err
-		}
-
-		clientVM, err := t.CreateTestVM(clientConfig.name)
-		if err != nil {
-			return err
-		}
-		if err := clientVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-			return err
-		}
-		if err := clientVM.SetPrivateIP(defaultNetwork, clientConfig.ip); err != nil {
-			return err
-		}
-		clientVM.AddMetadata("enable-guest-attributes", "TRUE")
-		clientVM.AddMetadata("sqltarget", serverConfig.ip)
-
-		serverVM.AddMetadata("windows-startup-script-ps1", serverStartup)
-		clientVM.AddMetadata("windows-startup-script-ps1", clientStartup)
-
-		vm1, err := t.CreateTestVM("settings")
-		if err != nil {
-			return err
-		}
-		vm1.AddMetadata("windows-startup-script-ps1", `(Get-Service 'MSSQLSERVER').WaitForStatus('Running', '00:10:00')`)
-		vm1.RunTests("TestSqlVersion|TestPowerPlan")
-		clientVM.RunTests("TestRemoteConnectivity")
-		serverVM.RunTests("TestPowerPlan")
+        if exfilter.MatchString("TestPowerPlan") {
+            fmt.Println("Skipping test 'TestPowerPlan'")
+        } else {
+            serverVM, err := t.CreateTestVM(serverConfig.name)
+            if err != nil {
+                return err
+            }
+            if err := serverVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
+                return err
+            }
+            if err := serverVM.SetPrivateIP(defaultNetwork, serverConfig.ip); err != nil {
+                return err
+            }
+            serverVM.AddMetadata("windows-startup-script-ps1", serverStartup)
+            serverVM.RunTests("TestPowerPlan")
+        }
+        if exfilter.MatchString("TestRemoteConnectivity") {
+            fmt.Println("Skipping test 'TestRemoteConnectivity'")
+        } else {
+            clientVM, err := t.CreateTestVM(clientConfig.name)
+            if err != nil {
+                return err
+            }
+            if err := clientVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
+                return err
+            }
+            if err := clientVM.SetPrivateIP(defaultNetwork, clientConfig.ip); err != nil {
+                return err
+            }
+            clientVM.AddMetadata("enable-guest-attributes", "TRUE")
+            clientVM.AddMetadata("sqltarget", serverConfig.ip)
+            clientVM.AddMetadata("windows-startup-script-ps1", clientStartup)
+            clientVM.RunTests("TestRemoteConnectivity")
+        }
+        vm1, err := t.CreateTestVM("settings")
+        if err != nil {
+            return err
+        }
+        vm1.AddMetadata("windows-startup-script-ps1", `(Get-Service 'MSSQLSERVER').WaitForStatus('Running', '00:10:00')`)
+        if exfilter.MatchString("TestSqlVersion") {
+            fmt.Println("Skipping test 'TestSqlVersion'")
+        } else {
+            vm1.RunTests("TestSqlVersion")
+        }
+        if exfilter.MatchString("TestPowerPlan") {
+            fmt.Println("Skipping test 'TestPowerPlan'")
+        } else {
+            vm1.RunTests("TestPowerPlan")
+        }
 	}
 	return nil
 }

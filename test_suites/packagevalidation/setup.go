@@ -17,6 +17,10 @@
 package packagevalidation
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -24,13 +28,33 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "packagevalidation"
 
+var testExcludeFilter = flag.String("packagevalidation_test_exclude_filter", "", "Regex filter that excludes packagevalidation test cases. Only cases with a matching test name will be skipped.")
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	vm1, err := t.CreateTestVM("installedPackages")
+	exfilter, err := regexp.Compile(*testExcludeFilter)
 	if err != nil {
-		return err
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
 	}
-	vm1.RunTests("TestStandardPrograms|TestGuestPackages")
+    if exfilter.MatchString("TestStandardPrograms") && exfilter.MatchString("TestGuestPackages") {
+        // Skip VM creation & save resource if no tests are being run on vm1
+        fmt.Println("Skipping tests 'TestStandardPrograms|TestGuestPackages'")
+    } else {
+        vm1, err := t.CreateTestVM("installedPackages")
+        if err != nil {
+            return err
+        }
+        if exfilter.MatchString("TestStandardPrograms") {
+            fmt.Println("Skipping test 'TestStandardPrograms'")
+        } else {
+            vm1.RunTests("TestStandardPrograms")
+        }
+        if exfilter.MatchString("TestGuestPackages") {
+            fmt.Println("Skipping test 'TestGuestPackages'")
+        } else {
+            vm1.RunTests("TestGuestPackages")
+        }
+    }
 
 	// as part of the migration of the windows test suite, these vms
 	// are only used to run windows tests. The tests themselves

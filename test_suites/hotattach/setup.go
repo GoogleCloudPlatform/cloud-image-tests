@@ -16,7 +16,10 @@
 package hotattach
 
 import (
+    "flag"
+    "fmt"
 	"strings"
+	"regexp"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -25,6 +28,8 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "hotattach"
+
+var testExcludeFilter = flag.String("hotattach_test_exclude_filter", "", "Regex filter that excludes hotattach test cases. Only cases with a matching test name will be skipped.")
 
 const (
 	bootDiskSizeGB = 10
@@ -37,6 +42,10 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	hotattachInst := &daisy.Instance{}
 	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 
@@ -44,12 +53,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if strings.HasPrefix(t.MachineType.Name, "n4-") {
 		diskType = imagetest.HyperdiskBalanced
 	}
-
-	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: diskType, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
-	if err != nil {
-		return err
+    if exfilter.MatchString("TestFileHotAttach") {
+        fmt.Println("Skipping test 'TestFileHotAttach'")
+    } else {
+        hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: diskType, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
+        if err != nil {
+            return err
+        }
+        hotattach.AddMetadata("hotattach-disk-name", "hotattachmount")
+        hotattach.RunTests("TestFileHotAttach")
 	}
-	hotattach.AddMetadata("hotattach-disk-name", "hotattachmount")
-	hotattach.RunTests("TestFileHotAttach")
 	return nil
 }

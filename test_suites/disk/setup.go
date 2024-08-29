@@ -16,6 +16,9 @@
 package disk
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -44,41 +47,65 @@ var (
 	}
 )
 
+var testExcludeFilter = flag.String("disk_test_exclude_filter", "", "Regex filter that excludes disk test cases. Only cases with a matching test name will be skipped.")
+
 const (
 	resizeDiskSize = 200
 )
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	rebootInst := &daisy.Instance{}
-	rebootInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "resize"}}, rebootInst)
+	exfilter, err := regexp.Compile(*testExcludeFilter)
 	if err != nil {
-		return err
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
 	}
-	// TODO:currently the Resize and Reboot disk test is only written to run on linux
-	if !utils.HasFeature(t.Image, "WINDOWS") {
-		if err = vm.ResizeDiskAndReboot(resizeDiskSize); err != nil {
-			return err
-		}
-	}
-	vm.RunTests("TestDiskReadWrite|TestDiskResize")
-	// Block device naming is an interaction between OS and hardware alone on windows, there is no guest-environment equivalent of udev rules for us to test.
-	if !utils.HasFeature(t.Image, "WINDOWS") && utils.HasFeature(t.Image, "GVNIC") {
-		for _, tc := range blockdevNamingCases {
-			if tc.arch != t.Image.Architecture {
-				continue
-			}
-			inst := &daisy.Instance{}
-			inst.MachineType = tc.machineType
-			series, _, _ := strings.Cut(tc.machineType, "-")
-			inst.Name = "blockNaming" + strings.ToUpper(series)
-			vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.PdBalanced}, {Name: "secondary", Type: imagetest.PdBalanced, SizeGb: 10}}, inst)
-			if err != nil {
-				return err
-			}
-			vm.RunTests("TestBlockDeviceNaming")
-		}
-	}
+    if exfilter.MatchString("TestDiskReadWrite") && exfilter.MatchString("TestDiskResize") && exfilter.MatchString("TestBlockDeviceNaming") {
+        // Skip VM creation & save resource if no tests are being run on the vm
+        fmt.Println("Skipping tests 'TestDiskReadWrite|TestDiskResize|TestBlockDeviceNaming'")
+    } else {
+        rebootInst := &daisy.Instance{}
+        rebootInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
+        vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "resize"}}, rebootInst)
+        if err != nil {
+            return err
+        }
+        // TODO:currently the Resize and Reboot disk test is only written to run on linux
+        if !utils.HasFeature(t.Image, "WINDOWS") {
+            if err = vm.ResizeDiskAndReboot(resizeDiskSize); err != nil {
+                return err
+            }
+        }
+        if exfilter.MatchString("TestDiskReadWrite") {
+            fmt.Println("Skipping test 'TestDiskReadWrite'")
+        } else {
+            vm.RunTests("TestDiskReadWrite")
+        }
+        if exfilter.MatchString("TestDiskResize") {
+            fmt.Println("Skipping test 'TestDiskResize'")
+        } else {
+            vm.RunTests("TestDiskResize")
+        }
+        // Block device naming is an interaction between OS and hardware alone on windows, there is no guest-environment equivalent of udev rules for us to test.
+        if !utils.HasFeature(t.Image, "WINDOWS") && utils.HasFeature(t.Image, "GVNIC") {
+            if exfilter.MatchString("TestBlockDeviceNaming") {
+                fmt.Println("Skipping test 'TestBlockDeviceNaming'")
+            } else {
+                for _, tc := range blockdevNamingCases {
+                    if tc.arch != t.Image.Architecture {
+                        continue
+                    }
+                    inst := &daisy.Instance{}
+                    inst.MachineType = tc.machineType
+                    series, _, _ := strings.Cut(tc.machineType, "-")
+                    inst.Name = "blockNaming" + strings.ToUpper(series)
+                    vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.PdBalanced}, {Name: "secondary", Type: imagetest.PdBalanced, SizeGb: 10}}, inst)
+                    if err != nil {
+                        return err
+                    }
+                    vm.RunTests("TestBlockDeviceNaming")
+                }
+            }
+        }
+    }
 	return nil
 }

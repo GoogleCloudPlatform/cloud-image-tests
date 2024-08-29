@@ -32,6 +32,11 @@ Tests for correct enabling of bits in CPUID leaf 7. The test checks the followin
 
 ### Test suite: disk
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -disk_test_exclude_filter string
+      regexp filter for individual disk test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestDiskResize
 Validate the filesystem is resized on reboot after a disk resize.
 
@@ -55,6 +60,10 @@ Test that guest disks have `google-DEVICE_NAME` [disk symlinks](https://cloud.go
 ### Test suite: guestagent ###
 
 Tests which verify functionality of the guest agent.
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -guestagent_test_exclude_filter string
+      regexp filter for individual guestagent test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestTelemetry
 
@@ -69,6 +78,11 @@ On linux, add a script to the VM and test that it is executed when a guest flush
 ### Test suite: hostnamevalidation ###
 
 Tests which verify that the metadata hostname is created and works with the DNS record.
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -hostnamevalidation_test_exclude_filter string
+      regexp filter for individual hostnamevalidation test cases; cases matching any tests will be skipped (default "" [nil])
+
 
 #### TestHostname
 Test that the system hostname is correctly set.
@@ -119,16 +133,31 @@ On linux guests, test that `/etc/hosts` is populated with an appropriate entry t
 
 ### Test suite: hotattach
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -hotattach_test_exclude_filter string
+      regexp filter for individual hotattach test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestFileHotAttach
 Validate that hot attach disks work: a file can be written to the disk, the disk can be detached and
 reattached, and the file can still be read.
 
 ### Test suite: lssd
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -lssd_test_exclude_filter string
+      regexp filter for individual lssd test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestMount
 Validate that mounting and un-mounting a local ssd works, and files written are not lost when unmounted.
 
 ### Test suite: imageboot
+
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -imageboot_test_exclude_filter string
+      regexp filter for individual imageboot test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestGuestBoot
 Test that the VM can boot.
@@ -169,6 +198,11 @@ TestBootTime tests that the time from VM start to when guest-agent (and sshd on 
 
 A suite which tests that linux licensing and windows activation are working successfully.
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -licensevalidation_test_exclude_filter string
+      regexp filter for individual licensevalidation test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestWindowsActivationStatus
 
 Test that Windows is licensed and activated.
@@ -178,6 +212,11 @@ Test that Windows is licensed and activated.
 Generate a list of licenses expected to see on the image based on the image name and family name. Test that the licenses are correct and that they propagate to the root disk. See [licensevalidation/setup.go](licensevalidation/setup.go) for license generation rules.
 
 ### Test suite: livemigrate
+
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -livemigrate_test_exclude_filter string
+      regexp filter for individual livemigrate test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestLiveMigrate
 
@@ -194,6 +233,11 @@ Test that an image can serve as the backend for an L3 (network passthrough) load
 Test that an image can serve as the backend for an L7 (application) load balancer. The Client VM sets up the load balancer resource, and the backends respond.
 
 ### Test suite: mdsmtls
+
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -mdsmtls_test_exclude_filter string
+      regexp filter for individual mdsmtls test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestMTLSCredsExists
 
@@ -230,6 +274,11 @@ Test that metadata response don't contain unexpected google internal headers.
 Test that compute metadata can be retrieved from 169.254.169.254.
 
 ### Test suite: network
+
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -network_test_exclude_filter string
+      regexp filter for individual network test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestDefaultMTU
 Validate the primary interface has correct MTU of 1460
@@ -310,6 +359,11 @@ test users to SSH to each of the server VMs. The methods covered by this test ar
 
 Note that this test must be run in a specifically prepared project. See the [OSlogin test README](oslogin/README.md) for more information.
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -oslogin_test_exclude_filter string
+      regexp filter for individual oslogin test cases; cases matching any tests will be skipped (default "" [nil])
+
 ### Test suite: packageupgrade
 
 #### TestDriverUpgrade TestPackageUpgrade
@@ -317,6 +371,11 @@ Note that this test must be run in a specifically prepared project. See the [OSl
 Test that the image can upgrade packages to the versions in the google-compute-engine-testing repository. Not implemented on Linux.
 
 ### Test suite: packagevalidation
+
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -packagevalidation_test_exclude_filter string
+      regexp filter for individual packagevalidation test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestStandardPrograms
 Validate that Google-provided programs are present.
@@ -441,6 +500,11 @@ Test the the number of active numa nodes is equal to the number of processors ex
 
 Tests for Windows SQL server settings and functionality are correct.
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -sql_test_exclude_filter string
+      regexp filter for individual sql test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestPowerPlan
 
 Test that the power plan is set to high perfomance.
@@ -456,6 +520,10 @@ Test that a client can authentice and remotely manipulate SQL server tables.
 ### Test suite: ssh
 
 Tests [metadata ssh key](https://cloud.google.com/compute/docs/connect/add-ssh-keys#metadata) functionality. On windows, tests use the [Windows SSH beta](https://cloud.google.com/compute/docs/connect/windows-ssh).
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -ssh_test_exclude_filter string
+      regexp filter for individual ssh test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestMatchingKeysInGuestAttributes
 
@@ -511,6 +579,11 @@ the rate we expect for both random writes and throughput.
 
 ### Test suite: suspendresume
 
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -suspendresume_test_exclude_filter string
+      regexp filter for individual suspendresume test cases; cases matching any tests will be skipped (default "" [nil])
+
 #### TestSuspend
 
 Tests that an image can suspend and be resumed without rebooting.
@@ -561,6 +634,10 @@ Test that containers can mount local storage volumes and read and write to them.
 ### Test suite: winrm
 
 Tests for windows remote management.
+This test suite adds a flag to the manager which can be used to filter out the tests run.
+
+  -winrm_test_exclude_filter string
+      regexp filter for individual winrm test cases; cases matching any tests will be skipped (default "" [nil])
 
 #### TestWinrmConnection TestWaitForWinrmConnection
 

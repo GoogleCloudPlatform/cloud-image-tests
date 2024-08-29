@@ -16,6 +16,8 @@
 package network
 
 import (
+    "flag"
+    "fmt"
 	"regexp"
 	"strings"
 
@@ -28,6 +30,8 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "network"
 
+var testExcludeFilter = flag.String("network_test_exclude_filter", "", "Regex filter that excludes network test cases. Only cases with a matching test name will be skipped.")
+
 // InstanceConfig for setting up test VMs.
 type InstanceConfig struct {
 	name string
@@ -39,6 +43,10 @@ var vm2Config = InstanceConfig{name: "ping2", ip: "192.168.0.3"}
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	network1, err := t.CreateNetwork("network-1", false)
 	if err != nil {
 		return err
@@ -77,10 +85,37 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err := vm1.SetPrivateIP(network2, vm1Config.ip); err != nil {
 		return err
 	}
-	vm1.RunTests("TestSendPing|TestDHCP|TestDefaultMTU|TestNTP")
+    if exfilter.MatchString("TestSendPing") {
+        fmt.Println("Skipping test 'TestSendPing'")
+    } else {
+	    vm1.RunTests("TestSendPing")
+	}
+	if exfilter.MatchString("TestDHCP") {
+        fmt.Println("Skipping test 'TestDHCP'")
+    } else {
+	    vm1.RunTests("TestDHCP")
+	}
+	if exfilter.MatchString("TestDefaultMTU") {
+        fmt.Println("Skipping test 'TestDefaultMTU'")
+    } else {
+	    vm1.RunTests("TestDefaultMTU")
+	}
+	if exfilter.MatchString("TestNTP") {
+        fmt.Println("Skipping test 'TestNTP'")
+    } else {
+	    vm1.RunTests("TestNTP")
+	}
 
 	multinictests := "TestStaticIP|TestWaitForPing"
-	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !strings.Contains(t.Image.Name, "cos") {
+	if exfilter.MatchString("TestStaticIP") {
+        fmt.Println("Skipping test 'TestStaticIP'")
+        multinictests = strings.ReplaceAll(multinictests, "TestStaticIP", "")
+    }
+    if exfilter.MatchString("TestWaitForPing") {
+        fmt.Println("Skipping test 'TestWaitForPing'")
+        multinictests = strings.ReplaceAll(multinictests, "|TestWaitForPing", "")
+    }
+	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !strings.Contains(t.Image.Name, "cos") && !exfilter.MatchString("TestAlias") {
 		multinictests += "|TestAlias"
 	}
 
@@ -108,19 +143,25 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	el7Re := regexp.MustCompile(`(centos|rhel)-7`)
-	if utils.HasFeature(t.Image, "GVNIC") && !el7Re.MatchString(t.Image.Family) {
+	if utils.HasFeature(t.Image, "GVNIC") && !el7Re.MatchString(t.Image.Family) && !exfilter.MatchString("TestGVNIC") {
 		multinictests += "|TestGVNIC"
 		vm2.UseGVNIC()
 	}
-	vm2.RunTests(multinictests)
+    if len(multinictests) > 0 {
+	    vm2.RunTests(multinictests)
+	}
 
 	if el7Re.MatchString(t.Image.Family) {
-		vm3, err := t.CreateTestVM("testGVNICEl7")
-		if err != nil {
-			return err
-		}
-		vm3.RunTests("TestGVNIC")
-		vm3.UseGVNIC()
+		if exfilter.MatchString("TestGVNIC") {
+            fmt.Println("Skipping test 'TestGVNIC'")
+        } else {
+            vm3, err := t.CreateTestVM("testGVNICEl7")
+            if err != nil {
+                return err
+            }
+            vm3.RunTests("TestGVNIC")
+            vm3.UseGVNIC()
+	    }
 	}
 
 	return nil

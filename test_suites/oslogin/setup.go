@@ -17,12 +17,18 @@
 package oslogin
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "oslogin"
+
+var testExcludeFilter = flag.String("oslogin_test_exclude_filter", "", "Regex filter that excludes oslogin test cases. Only cases with a matching test name will be skipped.")
 
 // test2FAUser encapsulates a test user for 2FA tests.
 type test2FAUser struct {
@@ -115,18 +121,36 @@ var (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		t.Skip("OSLogin not supported on windows")
 		return nil
 	}
 
-	defaultVM, err := t.CreateTestVM("default")
-	if err != nil {
-		return err
-	}
-	defaultVM.AddScope(computeScope)
-	defaultVM.AddMetadata("enable-oslogin", "true")
-	defaultVM.RunTests("TestOsLoginEnabled|TestGetentPasswd|TestAgent")
+    defaultVM, err := t.CreateTestVM("default")
+    if err != nil {
+        return err
+    }
+    defaultVM.AddScope(computeScope)
+    defaultVM.AddMetadata("enable-oslogin", "true")
+    if exfilter.MatchString("TestOsLoginEnabled") {
+        fmt.Println("Skipping test 'TestOsLoginEnabled'")
+    } else {
+        defaultVM.RunTests("TestOsLoginEnabled")
+    }
+    if exfilter.MatchString("TestGetentPasswd") {
+        fmt.Println("Skipping test 'TestGetentPasswd'")
+    } else {
+        defaultVM.RunTests("TestGetentPasswd")
+    }
+    if exfilter.MatchString("TestAgent") {
+        fmt.Println("Skipping test 'TestAgent'")
+    } else {
+        defaultVM.RunTests("TestAgent")
+    }
 
 	normalUser := twoFATestUsers[counter%len(twoFATestUsers)]
 	adminUser := twoFAAdminTestUsers[counter%len(twoFAAdminTestUsers)]
@@ -143,16 +167,44 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	ssh.AddMetadata(admin2FAUser, adminUser.email)
 	ssh.AddMetadata(admin2FAKey, adminUser.twoFA)
 	ssh.AddMetadata(admin2FASSHKey, adminUser.sshKey)
-	ssh.RunTests("TestOsLoginDisabled|TestSSH|TestAdminSSH|Test2FASSH|Test2FAAdminSSH")
-
-	twofa, err := t.CreateTestVM("twofa")
-	if err != nil {
-		return err
+    if exfilter.MatchString("TestOsLoginDisabled") {
+        fmt.Println("Skipping test 'TestOsLoginDisabled'")
+    } else {
+	    ssh.RunTests("TestOsLoginDisabled")
 	}
-	twofa.AddScope(computeScope)
-	twofa.AddMetadata("enable-oslogin", "true")
-	twofa.AddMetadata("enable-oslogin-2fa", "true")
-	twofa.RunTests("TestAgent")
+    if exfilter.MatchString("TestSSH") {
+        fmt.Println("Skipping test 'TestSSH'")
+    } else {
+	    ssh.RunTests("TestSSH")
+	}
+    if exfilter.MatchString("TestAdminSSH") {
+        fmt.Println("Skipping test 'TestAdminSSH'")
+    } else {
+	    ssh.RunTests("TestAdminSSH")
+	}
+    if exfilter.MatchString("Test2FASSH") {
+        fmt.Println("Skipping test 'Test2FASSH'")
+    } else {
+	    ssh.RunTests("Test2FASSH")
+	}
+    if exfilter.MatchString("Test2FAAdminSSH") {
+        fmt.Println("Skipping test 'Test2FAAdminSSH'")
+    } else {
+	    ssh.RunTests("Test2FAAdminSSH")
+	}
+
+    if exfilter.MatchString("TestAgent") {
+        fmt.Println("Skipping test 'TestAgent'")
+    } else {
+        twofa, err := t.CreateTestVM("twofa")
+        if err != nil {
+            return err
+        }
+        twofa.AddScope(computeScope)
+        twofa.AddMetadata("enable-oslogin", "true")
+        twofa.AddMetadata("enable-oslogin-2fa", "true")
+        twofa.RunTests("TestAgent")
+    }
 
 	// This is used to stagger the admin users to avoid hitting 2FA quotas.
 	counter++

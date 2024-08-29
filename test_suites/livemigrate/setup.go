@@ -17,6 +17,10 @@
 package livemigrate
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
@@ -25,15 +29,25 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "livemigrate"
 
+var testExcludeFilter = flag.String("livemigrate_test_exclude_filter", "", "Regex filter that excludes livemigrate test cases. Only cases with a matching test name will be skipped.")
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	lm := &daisy.Instance{}
-	lm.Scopes = append(lm.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-	lm.Scheduling = &compute.Scheduling{OnHostMaintenance: "MIGRATE"}
-	lmvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "livemigrate"}}, lm)
+	exfilter, err := regexp.Compile(*testExcludeFilter)
 	if err != nil {
-		return err
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
 	}
-	lmvm.RunTests("TestLiveMigrate")
+    if exfilter.MatchString("TestLiveMigrate") {
+        fmt.Println("Skipping test 'TestLiveMigrate'")
+    } else {
+        lm := &daisy.Instance{}
+        lm.Scopes = append(lm.Scopes, "https://www.googleapis.com/auth/cloud-platform")
+        lm.Scheduling = &compute.Scheduling{OnHostMaintenance: "MIGRATE"}
+        lmvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "livemigrate"}}, lm)
+        if err != nil {
+            return err
+        }
+        lmvm.RunTests("TestLiveMigrate")
+	}
 	return nil
 }

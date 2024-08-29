@@ -13,6 +13,10 @@
 package mdsmtls
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -20,15 +24,35 @@ import (
 // Name is the name of the test package. It must match the directory name.
 const Name = "mdsmtls"
 
+var testExcludeFilter = flag.String("mdsmtls_test_exclude_filter", "", "Regex filter that excludes mdsmtls test cases. Only cases with a matching test name will be skipped.")
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	if !utils.HasFeature(t.Image, "UEFI_COMPATIBLE") {
 		return nil
 	}
-	vm, err := t.CreateTestVM("mtlscreds")
-	if err != nil {
-		return err
-	}
-	vm.RunTests("TestMTLSCredsExists|TestMTLSJobScheduled")
+    if exfilter.MatchString("TestMTLSCredsExists") && exfilter.MatchString("TestMTLSJobScheduled") {
+        // Skip VM creation & save resource if no tests are being run on `vm`
+        fmt.Println("Skipping tests 'TestMTLSCredsExists|TestMTLSJobScheduled'")
+    } else {
+        vm, err := t.CreateTestVM("mtlscreds")
+        if err != nil {
+            return err
+        }
+	    if exfilter.MatchString("TestMTLSCredsExists") {
+            fmt.Println("Skipping test 'TestMTLSCredsExists'")
+        } else {
+            vm.RunTests("TestMTLSCredsExists")
+        }
+        if exfilter.MatchString("TestMTLSJobScheduled") {
+            fmt.Println("Skipping test 'TestMTLSJobScheduled'")
+        } else {
+            vm.RunTests("TestMTLSJobScheduled")
+        }
+    }
 	return nil
 }

@@ -16,6 +16,10 @@
 package lssd
 
 import (
+    "flag"
+    "fmt"
+    "regexp"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -24,6 +28,8 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "lssd"
+
+var testExcludeFilter = flag.String("lssd_test_exclude_filter", "", "Regex filter that excludes lssd test cases. Only cases with a matching test name will be skipped.")
 
 const (
 	bootDiskSizeGB = 10
@@ -36,22 +42,29 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	exfilter, err := regexp.Compile(*testExcludeFilter)
+	if err != nil {
+		return fmt.Errorf("Invalid test case exclude filter: %v", err)
+	}
 	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
 		lssdMountInst := &daisy.Instance{}
 		lssdMountInst.Zone = "us-central1-a"
 		lssdMountInst.MachineType = "c3-standard-8-lssd"
-
-		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}}, lssdMountInst)
-		if err != nil {
-			return err
+        if exfilter.MatchString("TestMount") {
+            fmt.Println("Skipping test 'TestMount'")
+        } else {
+            lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}}, lssdMountInst)
+            if err != nil {
+                return err
+            }
+            // local SSD's don't show up exactly as their device name under /dev/disk/by-id
+            if utils.HasFeature(t.Image, "WINDOWS") {
+                lssdMount.AddMetadata("hotattach-disk-name", "nvme_card0")
+            } else {
+                lssdMount.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
+            }
+            lssdMount.RunTests("TestMount")
 		}
-		// local SSD's don't show up exactly as their device name under /dev/disk/by-id
-		if utils.HasFeature(t.Image, "WINDOWS") {
-			lssdMount.AddMetadata("hotattach-disk-name", "nvme_card0")
-		} else {
-			lssdMount.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
-		}
-		lssdMount.RunTests("TestMount")
 	}
 	return nil
 }
