@@ -218,7 +218,18 @@ func TestTDXAttestation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("kernelRev, err := strconv.Atoi(kernelRevStr): %v, want nil", err)
 			}
-			if int(kernelRev) >= 1016 {
+
+			// Kernel revisions assuming 2204 image
+			lowerKernelRev := 1016
+			upperKernelRev := 1021
+
+			if strings.Contains(image, "-2404-") {
+				lowerKernelRev = 1006
+				upperKernelRev = 1008
+			}
+			// Installing linux-modules-extra-gcp is required only on some kernel versions of 2204 and 2404
+			if (strings.Contains(image, "-2204-") || strings.Contains(image, "-2404-")) &&
+				int(kernelRev) >= lowerKernelRev && int(kernelRev) < upperKernelRev {
 				if _, err := exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput(); err != nil {
 					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "update", "-y").CombinedOutput() = %v, want nil`, err)
 				}
@@ -236,11 +247,11 @@ func TestTDXAttestation(t *testing.T) {
 						t.Fatalf("Reboot error: %v", err)
 					}
 				}
-				if _, err := exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput(); err != nil {
-					t.Fatalf(`exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput() = %v, want nil`, err)
-				}
 			}
 		}
+	}
+	if _, err := exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput(); err != nil {
+		t.Fatalf(`exec.CommandContext(ctx, "modprobe", "tdx_guest").CombinedOutput() = %v, want nil`, err)
 	}
 	decodedBytes, err := base64.StdEncoding.DecodeString(tdxreportDataBase64String)
 	if err != nil {
