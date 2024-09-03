@@ -43,6 +43,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/loadbalancer"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/lssd"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsmtls"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsroutes"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/metadata"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkperf"
@@ -260,6 +261,10 @@ func main() {
 		{
 			mdsmtls.Name,
 			mdsmtls.TestSetup,
+		},
+		{
+			mdsroutes.Name,
+			mdsroutes.TestSetup,
 		},
 		{
 			windowscontainers.Name,

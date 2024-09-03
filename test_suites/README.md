@@ -203,6 +203,12 @@ Test that mTLS credentials were created and can be used to communicate with the 
 
 Test that the guest agent has scheduled certificate rotations for mTLS credentials.
 
+### Test suite: mdsroutes
+
+#### TestMDSRoutes
+
+Test that the MDS is accessible over the primary NIC only.
+
 ### Test suite: metadata
 
 #### TestShutdownScripts TestShutdownURLScripts TestStartupScripts TestSysprepSpecialize
