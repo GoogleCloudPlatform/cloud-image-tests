@@ -94,9 +94,9 @@ var x86shapes = map[string]*shape{
 		cpu:             192,
 		mem:             1488,
 		numa:            2,
-		zone:            "us-east5-b",
-		disks:           []*compute.Disk{{Name: "C4", Type: imagetest.HyperdiskBalanced, Zone: "us-east5-b"}},
-		quota:           &daisy.QuotaAvailable{Metric: "CPUS", Units: 192, Region: "us-east5"},
+		zone:            "us-east4-a",
+		disks:           []*compute.Disk{{Name: "C4", Type: imagetest.HyperdiskBalanced, Zone: "us-east4-a"}},
+		quota:           &daisy.QuotaAvailable{Metric: "CPUS", Units: 192, Region: "us-east4"},
 		requireFeatures: []string{"GVNIC"},
 	},
 	"N2": {
