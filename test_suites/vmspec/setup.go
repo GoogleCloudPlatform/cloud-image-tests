@@ -22,6 +22,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -31,6 +32,7 @@ var Name = "vmspec"
 func TestSetup(t *imagetest.TestWorkflow) error {
 	// Skip ARM64 images, since no ARM64-supporting machine types support LSSDs.
 	if t.Image.Architecture == "ARM64" {
+		t.Skip("vmspec not supported on ARM images")
 		return nil
 	}
 
@@ -43,6 +45,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return fmt.Errorf("failed to create test subnetwork 1: %v", err)
 	}
+	subnet1.SetRegion("us-central1")
 
 	network2, err := t.CreateNetwork("test-network-2", false)
 	if err != nil {
@@ -52,14 +55,20 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return fmt.Errorf("failed to create test subnetwork 2: %v", err)
 	}
+	subnet2.SetRegion("us-central1")
 
-	// Create the source VM.
-	source, err := t.CreateTestVM("source")
+	// Create the source VM. The VMs will be made and run in us-central1-a.
+	zone, err := t.Client.GetZone(t.Project.Name, "us-central1-a")
+	if err != nil {
+		return fmt.Errorf("failed to get zone: %v", err)
+	}
+	sourceInst := &daisy.Instance{}
+	disks := []*compute.Disk{&compute.Disk{Name: "source", Type: imagetest.PdBalanced, Zone: zone.Name}}
+	source, err := t.CreateTestVMMultipleDisks(disks, sourceInst)
 	if err != nil {
 		return err
 	}
 	source.ForceMachineType("c3-standard-4")
-	// Force the zone to us-central1-a, since it's in a region supporting C3.
 	source.ForceZone("us-central1-a")
 	source.RunTests("TestEmpty")
 
@@ -71,6 +80,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	// The machine type should stay in the same generation as the source VM.
 	vmspec.ForceMachineType("c3-standard-8-lssd")
+	vmspec.ForceZone("us-central1-a")
 	if err := vmspec.AddCustomNetwork(network1, subnet1); err != nil {
 		return err
 	}
@@ -86,5 +96,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err := t.WaitForVMQuota(&daisy.QuotaAvailable{Metric: "C3_CPUS", Units: 8, Region: "us-central1"}); err != nil {
 		return err
 	}
+
 	return nil
 }

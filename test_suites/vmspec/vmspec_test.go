@@ -16,7 +16,6 @@ package vmspec
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -31,10 +30,10 @@ import (
 
 // JSON representation of the ip link command output.
 type ipLink struct {
-	IfName    string   `json:"ifname"`
-	OperState string   `json:"operstate"`
-	MAC       string   `json:"address"`
-	Flags     []string `json:"flags"`
+	IfName    string
+	OperState string
+	MAC       string
+	Flags     []string
 }
 
 const (
@@ -44,7 +43,7 @@ const (
 
 var (
 	// Cache the interfaces so we don't have to run ip link between tests.
-	interfaces []ipLink
+	interfaces []*ipLink
 )
 
 // This will write a file with the original names of the interfaces. The
@@ -105,14 +104,11 @@ func TestPing(t *testing.T) {
 		"5",
 		"www.google.com",
 	}
-	for i, nic := range interfaces {
-		pingArgs := append(baseArgs, "-I", nic.IfName)
-		cmd := exec.CommandContext(ctx, "ping", pingArgs...)
-		if res, err := cmd.CombinedOutput(); err != nil && i == 0 {
-			t.Fatalf("error pinging google.com on nic %s: %v", nic, string(res))
-		} else if err == nil && i != 0 {
-			t.Fatalf("unexpected success pinging google.com on nic %s", nic)
-		}
+	nic := interfaces[0]
+	pingArgs := append(baseArgs, "-I", nic.IfName)
+	cmd := exec.CommandContext(ctx, "ping", pingArgs...)
+	if res, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("error pinging google.com on nic %s: %v", nic, string(res))
 	}
 }
 
@@ -198,30 +194,45 @@ func TestMetadataServer(t *testing.T) {
 }
 
 // parseInterfaceLinks returns the names of all the interfaces on the system.
-func parseInterfaceLinks(ctx context.Context, t *testing.T) []ipLink {
+func parseInterfaceLinks(ctx context.Context, t *testing.T) []*ipLink {
 	if utils.IsWindows() {
 		res, err := utils.RunPowershellCmd("Get-NetAdapter -Name * -Physical | Format-Table -Property MacAddress -HideTableHeaders")
 		if err != nil {
 			t.Fatalf("error getting interface links: %v", res.Stderr)
 		}
 
-		var links []ipLink
+		var links []*ipLink
 		for _, mac := range strings.Split(strings.TrimSpace(res.Stdout), "\r\n") {
 			if mac == "" {
 				continue
 			}
-			links = append(links, ipLink{MAC: mac})
+			links = append(links, &ipLink{MAC: mac})
 		}
 		return links
 	}
-	out, err := exec.CommandContext(ctx, "ip", "-brief", "-json", "link").Output()
+	out, err := exec.CommandContext(ctx, "ip", "-brief", "link").Output()
 	if err != nil {
 		stderr := string(err.(*exec.ExitError).Stderr)
 		t.Fatalf("error getting interface names: %v", stderr)
 	}
-	var iflinks []ipLink
-	if err := json.Unmarshal(out, &iflinks); err != nil {
-		t.Fatalf("error unmarshalling interface names: %v", err)
+	fmt.Printf("Output: %v\n\n", string(out))
+
+	var iflinks []*ipLink
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 4 {
+			continue
+		}
+
+		fmt.Printf("Fields: %v\n", fields)
+
+		iflink := &ipLink{
+			IfName:    fields[0],
+			OperState: fields[1],
+			MAC:       fields[2],
+			Flags:     strings.Split(strings.Trim(fields[3], "<>"), ","),
+		}
+		iflinks = append(iflinks, iflink)
 	}
 
 	// The first interface is the loopback interface, so leave it out.

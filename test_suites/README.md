@@ -519,7 +519,8 @@ Tests that an image can suspend and be resumed without rebooting.
 
 Tests network and metadata server connectivity after a change in VM specs. The
 vmspec change is accomplished by detaching the boot disk from a source VM and
-re-attaching it to a new VM using a machine type containing LSSDs.
+re-attaching it to a new VM using a machine type containing LSSDs. This test is
+not supported on ARM-only images and is always run in zone `us-central1-a`.
 
 #### TestMetadata
 
