@@ -86,6 +86,9 @@ func getTestUserEntry(ctx context.Context) (string, string, string, error) {
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to get login profile: %v", err)
 	}
+	if len(resp.PosixAccounts) == 0 {
+		return "", "", "", fmt.Errorf("no posix accounts found for default service account")
+	}
 	posixAccount := resp.PosixAccounts[0]
 
 	// Get necessary information.
