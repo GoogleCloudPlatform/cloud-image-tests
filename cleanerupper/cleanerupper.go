@@ -1064,7 +1064,7 @@ func deleteGuestPolicies(ctx context.Context, clients Clients, gpolicies []*osco
 				if err := clients.OSConfig.DeleteGuestPolicy(ctx, &osconfigpb.DeleteGuestPolicyRequest{Name: gp.GetName()}); err != nil {
 					errsMu.Lock()
 					defer errsMu.Unlock()
-					errs = append(errs, err)
+					errs = append(errs, fmt.Errorf("Failed to delete Guest Policy %s: %v", gp.GetName(), err))
 					return
 				}
 			}
@@ -1085,6 +1085,8 @@ func getGuestPolicies(ctx context.Context, clients Clients, project string) (gpo
 		if err != nil {
 			if err == iterator.Done {
 				err = nil
+			} else {
+				err = fmt.Errorf("Failed to list Guest Policies : %v", err)
 			}
 			return
 		}
@@ -1095,7 +1097,7 @@ func getGuestPolicies(ctx context.Context, clients Clients, project string) (gpo
 func getOSPolicies(ctx context.Context, clients Clients, project string) (ospolicies []*osconfigv1alphapb.OSPolicyAssignment, errs []error) {
 	zones, err := clients.Daisy.ListZones(project)
 	if err != nil {
-		return nil, []error{err}
+		return nil, []error{fmt.Errorf("Failed to list zones : %v", err)}
 	}
 	var osp *osconfigv1alphapb.OSPolicyAssignment
 	for _, zone := range zones {
@@ -1104,7 +1106,7 @@ func getOSPolicies(ctx context.Context, clients Clients, project string) (ospoli
 			osp, err = itr.Next()
 			if err != nil {
 				if err != iterator.Done {
-					errs = append(errs, err)
+					errs = append(errs, fmt.Errorf("Failed to list OSPolicy assignments for zone %s : %v", zone.Name, err))
 				}
 				break
 			}
@@ -1132,7 +1134,7 @@ func deleteOSPolicies(ctx context.Context, clients Clients, ospolicies []*osconf
 				if err != nil {
 					errsMu.Lock()
 					defer errsMu.Unlock()
-					errs = append(errs, err)
+					errs = append(errs, fmt.Errorf("Failed to delete OSPolicy assignment %s: %v", osp.GetName(), err))
 					return
 				}
 				op.Wait(ctx)
