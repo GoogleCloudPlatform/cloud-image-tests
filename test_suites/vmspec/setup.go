@@ -18,6 +18,7 @@ package vmspec
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -33,6 +34,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// Skip ARM64 images, since no ARM64-supporting machine types support LSSDs.
 	if t.Image.Architecture == "ARM64" {
 		t.Skip("vmspec not supported on ARM images")
+		return nil
+	}
+
+	windows2016regexp, err := regexp.Compile(".*windows.*2016.*")
+	if err != nil {
+		return fmt.Errorf("failed to compile windows-2016 regexp: %v", err)
+	}
+	if windows2016regexp.MatchString(t.Image.Name) {
+		t.Skip("vmspec not supported on windows-2016")
 		return nil
 	}
 
