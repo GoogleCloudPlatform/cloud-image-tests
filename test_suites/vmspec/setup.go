@@ -18,7 +18,6 @@ package vmspec
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -37,12 +36,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
-	windows2016regexp, err := regexp.Compile(".*windows.*2016.*")
-	if err != nil {
-		return fmt.Errorf("failed to compile windows-2016 regexp: %v", err)
-	}
-	if windows2016regexp.MatchString(t.Image.Name) {
-		t.Skip("vmspec not supported on windows-2016")
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		t.Skip("vmspec not supported on windows images")
 		return nil
 	}
 
