@@ -512,6 +512,8 @@ func validateSocketsWindows(t *testing.T) {
 			continue
 		case 546: // dhcp
 			continue
+		case 1900: // UPnP SSDP Discovery/SSDPSRV service
+			continue
 		case 3389: // RDP
 			continue
 		case 3544: // Teredo
