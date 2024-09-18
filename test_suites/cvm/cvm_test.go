@@ -43,7 +43,7 @@ import (
 
 var sevMsgList = []string{"AMD Secure Encrypted Virtualization (SEV) active", "AMD Memory Encryption Features active: SEV", "Memory Encryption Features active: AMD SEV"}
 var sevSnpMsgList = []string{"SEV: SNP guest platform device initialized", "Memory Encryption Features active: SEV SEV-ES SEV-SNP", "Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP"}
-var tdxMsgList = []string{"Memory Encryption Features active: TDX", "Memory Encryption Features active: Intel TDX"}
+var tdxMsgList = []string{"Memory Encryption Features active: TDX", "Memory Encryption Features active: Intel TDX", "Intel TDX", "tdx: Guest detected"}
 var rebootCmd = []string{"/usr/bin/sudo", "-n", "/sbin/reboot"}
 
 const (
@@ -60,14 +60,14 @@ const (
 func searchDmesg(t *testing.T, matches []string) {
 	output, err := exec.Command("dmesg").CombinedOutput()
 	if err != nil {
-		t.Fatalf("Error: %v", err)
+		t.Fatalf("exec.Command(%q)).CombinedOutput() = err %v, want nil", "dmesg", err)
 	}
 	for _, m := range matches {
 		if strings.Contains(string(output), m) {
 			return
 		}
 	}
-	t.Fatal("Module not active or found")
+	t.Fatalf("Want exec.Command(%q)).CombinedOutput() to contain one of these string: %v found none", "dmesg", matches)
 }
 
 func reboot() error {
