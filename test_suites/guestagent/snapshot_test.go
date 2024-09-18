@@ -103,6 +103,15 @@ func verifySnapshotSuccess(t *testing.T) {
 
 func TestSnapshotScripts(t *testing.T) {
 	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Couldn't get image from metadata %v", err)
+	}
+
+	if utils.IsWindowsClient(image) {
+		t.Skip("Skipping test on Windows client")
+	}
+
 	snapshotTestPrep(t)
 
 	prj, zone, err := utils.GetProjectZone(ctx)

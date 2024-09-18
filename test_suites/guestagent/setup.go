@@ -51,14 +51,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	telemetryenabledvm.AddMetadata("disable-guest-telemetry", "false")
 	telemetryenabledvm.RunTests("TestTelemetryEnabled")
 
-	snapshotinst := &daisy.Instance{}
-	snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
-	snapshotinst.Name = "snapshotScripts"
-	snapshotvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: snapshotinst.Name, Type: diskType}}, snapshotinst)
-	if err != nil {
-		return err
+	if !utils.IsWindowsClient(t.Image.Name) {
+		snapshotinst := &daisy.Instance{}
+		snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
+		snapshotinst.Name = "snapshotScripts"
+		snapshotvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: snapshotinst.Name, Type: diskType}}, snapshotinst)
+		if err != nil {
+			return err
+		}
+		snapshotvm.RunTests("TestSnapshotScripts")
 	}
-	snapshotvm.RunTests("TestSnapshotScripts")
 
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		passwordInst := &daisy.Instance{}
