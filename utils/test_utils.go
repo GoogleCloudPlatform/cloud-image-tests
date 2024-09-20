@@ -375,6 +375,17 @@ func WindowsOnly(t *testing.T) {
 	}
 }
 
+// SkipWindowsClientImages skips tests on Windows Client Images.
+func SkipWindowsClientImages(t *testing.T) {
+	image, err := GetMetadata(Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Couldn't get image from metadata %v", err)
+	}
+	if IsWindowsClient(image) {
+		t.Skip("Tests do not run on Windows Client Images.")
+	}
+}
+
 // Is32BitWindows returns true if the image contains -x86.
 func Is32BitWindows(image string) bool {
 	return strings.Contains(image, "-x86")

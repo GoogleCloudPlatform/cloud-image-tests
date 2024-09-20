@@ -27,6 +27,9 @@ const user = "test-user"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if utils.IsWindowsClient(t.Image.Name) {
+		t.Skip("Skipping winrm test for Windows Client Images.")
+	}
 	if !utils.HasFeature(t.Image, "WINDOWS") {
 		return nil
 	}

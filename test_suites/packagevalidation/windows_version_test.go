@@ -144,6 +144,7 @@ func TestPowershellVersion(t *testing.T) {
 
 func TestServerGuiShell(t *testing.T) {
 	utils.WindowsOnly(t)
+	utils.SkipWindowsClientImages(t)
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
 	if err != nil {
 		t.Fatalf("could not get image name: %v", err)

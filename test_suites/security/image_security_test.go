@@ -393,6 +393,7 @@ var (
 
 // TestSockets tests that only allowlisted ports are listening globally.
 func TestSockets(t *testing.T) {
+	utils.SkipWindowsClientImages(t)
 	if utils.IsWindows() {
 		validateSocketsWindows(t)
 		return
