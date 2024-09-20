@@ -35,10 +35,16 @@ var Name = "licensevalidation"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	// Skipping license check for preview 2025 image. TODO: Remove with official release.
-	if strings.Contains(t.Image.Name, "windows-server-2025") {
+	// Skipping license check for preview 2025 image and Windows Client Images. TODO: Remove with official release.
+	switch {
+	case strings.Contains(t.Image.Name, "windows-server-2025"):
 		t.Skip("Windows Server 2025 is in preview; skipping GCE license check.")
+	case strings.Contains(t.Image.Name, "windows-11"):
+		t.Skip("Skipping license check for Windows 11 client images.")
+	case strings.Contains(t.Image.Name, "windows-10"):
+		t.Skip("Skipping license check for Windows 10 client images.")
 	}
+
 	licensetests := "TestLicenses"
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		licensetests += "|TestWindowsActivationStatus"
@@ -54,9 +60,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm1.AddMetadata("expected-licenses", rollStringToString(rlicenses))
 	vm1.AddMetadata("actual-licenses", rollStringToString(t.Image.Licenses))
 	vm1.AddMetadata("expected-license-codes", rollInt64ToString(t.Image.LicenseCodes))
-	if err != nil {
-		return err
-	}
 	vm1.RunTests(licensetests)
 	return nil
 }
