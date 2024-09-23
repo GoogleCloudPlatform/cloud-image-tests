@@ -341,6 +341,20 @@ func GetInterface(ctx context.Context, index int) (net.Interface, error) {
 	return GetInterfaceByMAC(mac)
 }
 
+// ParseInterfaceIPv4 parses the interface's IPv4 address.
+func ParseInterfaceIPv4(iface net.Interface) (net.IP, error) {
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+			return ipnet.IP, nil
+		}
+	}
+	return nil, fmt.Errorf("no ipv4 address found for interface %s", iface.Name)
+}
+
 // CheckLinuxCmdExists checks that a command exists on the linux image, and is executable.
 func CheckLinuxCmdExists(cmd string) bool {
 	cmdPath, err := exec.LookPath(cmd)

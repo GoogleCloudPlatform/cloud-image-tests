@@ -15,65 +15,61 @@
 package mdsroutes
 
 import (
-	"fmt"
-	"os/exec"
-	"strings"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+)
+
+const (
+	metadataServerURL = "http://metadata.google.internal/"
 )
 
 // Test that only the primary NIC has a route to the MDS.
 func TestMDSRoutes(t *testing.T) {
 	ctx := utils.Context(t)
-	ifaceIndexes, err := utils.GetMetadata(ctx, "instance", "network-interfaces")
+
+	allIfaces, err := net.Interfaces()
 	if err != nil {
-		t.Errorf("Could not get interfaces: %s.", err)
+		t.Fatalf("net.Interfaces() failed: %v", err)
 	}
-	for _, ifaceIndex := range strings.Split(ifaceIndexes, "\n") {
-		ifaceIndex = strings.TrimSuffix(ifaceIndex, "/")
-		if ifaceIndex == "" {
-			continue
+	ifaces := allIfaces[1:] // Leave out the loopback interface.
+
+	for i, iface := range ifaces {
+		httpClient := &http.Client{
+			Timeout: 2 * time.Second,
 		}
-		mac, err := utils.GetMetadata(ctx, "instance", "network-interfaces", ifaceIndex, "mac")
+
+		// Make a new HTTP request to the metadata server.
+		req, err := http.NewRequestWithContext(ctx, "GET", metadataServerURL, nil)
 		if err != nil {
-			t.Errorf("Could not get interface %s mac address: %v.", ifaceIndex, err)
-			continue
+			t.Fatalf("http.NewRequestWithContext(ctx, GET, %v, nil) failed: %v", metadataServerURL, err)
 		}
-		iface, err := utils.GetInterfaceByMAC(mac)
+
+		// Obtain its IPv4 address.
+		ipAddr, err := utils.ParseInterfaceIPv4(iface)
 		if err != nil {
-			t.Errorf("Could not get interface index %s with mac %s: %v.", ifaceIndex, mac, err)
-			continue
+			t.Fatalf("utils.ParseInterfaceIPv4(%v) failed: %v", iface.Name, err)
 		}
-		if utils.IsWindows() {
-			out, err := utils.RunPowershellCmd(fmt.Sprintf(`(Get-NetRoute -InterfaceAlias %s).DestinationPrefix`, iface.Name))
-			if err != nil {
-				t.Fatalf("utils.RunPowershellCmd(%q) failed: %v", fmt.Sprintf(`(Get-NetRoute -InterfaceAlias %s).DestinationPrefix`, iface.Name), err)
-			}
-			if strings.Contains(out.Stdout, "169.254.169.254/") != (ifaceIndex == "0") {
-				t.Errorf("Want route to 169.254.169.254 only on NIC 0, found route to MDS = %t on NIC %s.", strings.Contains(out.Stdout, "169.254.169.254/"), ifaceIndex)
-				t.Logf("Route destinations for NIC %s: %s", ifaceIndex, out.Stdout)
-			}
-		} else {
-			out, err := exec.CommandContext(ctx, "ip", "route", "show", "dev", iface.Name).Output()
-			if err != nil {
-				t.Fatalf("exec.CommandContext(ctx, %q) failed: %v", fmt.Sprintf("ip route show dev %s", iface.Name), err)
-			}
-			var hasMDSRoute bool
-			for _, line := range strings.Split(string(out), "\n") {
-				f := strings.Fields(line)
-				if len(f) < 1 {
-					continue
-				}
-				hasMDSRoute = (f[0] == "169.254.169.254")
-				if hasMDSRoute {
-					break
-				}
-			}
-			if hasMDSRoute != (ifaceIndex == "0") {
-				t.Errorf("Want route to 169.254.169.254 only on NIC 0, found route to MDS = %t on NIC %s.", hasMDSRoute, ifaceIndex)
-				t.Logf("Route table for NIC %s: %s", ifaceIndex, out)
-			}
+
+		// Set up the request to use the NIC.
+		req.Header.Add("Metadata-Flavor", "Google")
+		dialer := &net.Dialer{
+			Timeout:   5 * time.Second,
+			LocalAddr: &net.TCPAddr{IP: ipAddr},
+		}
+		httpClient.Transport = &http.Transport{
+			DialContext: dialer.DialContext,
+		}
+
+		// Make the request.
+		_, err = httpClient.Do(req)
+		if err != nil && i == 0 {
+			t.Errorf("error connecting to metadata server on primary nic %s: %v", iface.Name, err)
+		} else if err == nil && i != 0 {
+			t.Errorf("unexpected success connecting to metadata server on nic %s", iface.Name)
 		}
 	}
 }

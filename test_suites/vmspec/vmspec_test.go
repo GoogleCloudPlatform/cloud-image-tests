@@ -132,7 +132,7 @@ func TestWindowsPing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error getting interface %q: %v", nic.MAC, err)
 		}
-		ipAddr, err := parseInterfaceIpv4Addr(&iface)
+		ipAddr, err := utils.ParseInterfaceIPv4(iface)
 		if err != nil {
 			t.Fatalf("error getting %s ipv4 address: %v", nic, err)
 		}
@@ -171,7 +171,7 @@ func TestMetadataServer(t *testing.T) {
 	}
 
 	// Obtain its IPv4 address.
-	ipAddr, err := parseInterfaceIpv4Addr(&iface)
+	ipAddr, err := utils.ParseInterfaceIPv4(iface)
 	if err != nil {
 		t.Fatalf("error getting %s ipv4 address: %v", nic, err)
 	}
@@ -237,17 +237,4 @@ func parseInterfaceLinks(ctx context.Context, t *testing.T) []*ipLink {
 
 	// The first interface is the loopback interface, so leave it out.
 	return iflinks[1:]
-}
-
-func parseInterfaceIpv4Addr(iface *net.Interface) (net.IP, error) {
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil, err
-	}
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-			return ipnet.IP, nil
-		}
-	}
-	return nil, fmt.Errorf("no ipv4 address found for interface %s", iface.Name)
 }
