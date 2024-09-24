@@ -100,6 +100,7 @@ func testNTPServiceLinux(t *testing.T) {
 }
 
 func testNTPWindows(t *testing.T) {
+	ensureNTPServiceRunning(t)
 	command := "w32tm /query /peers /verbose"
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
@@ -140,5 +141,20 @@ func testNTPWindows(t *testing.T) {
 
 	if remainingTime > 900.0 {
 		t.Fatalf("Time remaining is longer than the 15 minute poll interval: %f", remainingTime)
+	}
+}
+
+func ensureNTPServiceRunning(t *testing.T) {
+	t.Helper()
+	command := "(Get-Service w32time).Status"
+	output, err := utils.RunPowershellCmd(command)
+	if err != nil {
+		t.Fatalf("RunPowershellCmd(%s) failed: %v", command, err)
+	}
+	if output.Stdout != "Running" {
+		output, err = utils.RunPowershellCmd("Start-Service w32time")
+		if err != nil {
+			t.Fatalf("RunPowershellCmd(%s) failed: %v", "Start-Service w32time", err)
+		}
 	}
 }
