@@ -15,10 +15,11 @@
 package hostnamevalidation
 
 import (
+	"bufio"
 	"crypto/md5"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -154,7 +155,7 @@ type sshKeyHash struct {
 func TestHostKeysGeneratedOnce(t *testing.T) {
 	utils.LinuxOnly(t)
 	sshDir := "/etc/ssh/"
-	sshfiles, err := ioutil.ReadDir(sshDir)
+	sshfiles, err := os.ReadDir(sshDir)
 	if err != nil {
 		t.Fatalf("Couldn't read files from ssh dir")
 	}
@@ -168,7 +169,11 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't hash file: %v", err)
 		}
-		hashes = append(hashes, sshKeyHash{file, hash})
+		info, err := file.Info()
+		if err != nil {
+			t.Fatalf("Couldn't get file info for file %q: %v", file.Name(), err)
+		}
+		hashes = append(hashes, sshKeyHash{info, hash})
 	}
 
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
@@ -190,7 +195,7 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 		t.Errorf("Failed to restart guest agent: %v", err)
 	}
 
-	sshfiles, err = ioutil.ReadDir(sshDir)
+	sshfiles, err = os.ReadDir(sshDir)
 	if err != nil {
 		t.Fatalf("Couldn't read files from ssh dir")
 	}
@@ -204,7 +209,11 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't hash file: %v", err)
 		}
-		hashesAfter = append(hashesAfter, sshKeyHash{file, hash})
+		info, err := file.Info()
+		if err != nil {
+			t.Fatalf("Couldn't get file info for file %q: %v", file.Name(), err)
+		}
+		hashesAfter = append(hashesAfter, sshKeyHash{info, hash})
 	}
 
 	if len(hashes) != len(hashesAfter) {
@@ -242,24 +251,55 @@ func TestHostsFile(t *testing.T) {
 		t.Skip("Not supported on ubuntu")
 	}
 
-	b, err := ioutil.ReadFile("/etc/hosts")
-	if err != nil {
-		t.Fatalf("Couldn't read /etc/hosts")
-	}
-	ip, err := utils.GetMetadata(ctx, "instance", "network-interfaces", "0", "ip")
-	if err != nil {
-		t.Fatalf("Couldn't get ip from metadata")
-	}
 	hostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
-		t.Fatalf("Couldn't get hostname from metadata")
+		t.Fatalf("Couldn't get hostname from metadata: %v", err)
 	}
-	targetLineHost := fmt.Sprintf("%s %s %s  %s\n", ip, hostname, strings.Split(hostname, ".")[0], gcomment)
-	targetLineMetadata := fmt.Sprintf("%s %s  %s\n", "169.254.169.254", "metadata.google.internal", gcomment)
-	if !strings.Contains(string(b), targetLineHost) {
-		t.Fatalf("/etc/hosts does not contain host record.")
+
+	testHostsEntry(t, hostname)
+}
+
+func testHostsEntry(t *testing.T, hostname string) {
+	t.Helper()
+	hostsFile, err := os.Open("/etc/hosts")
+	if err != nil {
+		t.Fatalf("os.Open(/etc/hosts) = %v, want nil", err)
 	}
-	if !strings.Contains(string(b), targetLineMetadata) {
-		t.Fatalf("/etc/hosts does not contain metadata server record.")
+	defer hostsFile.Close()
+
+	targetLineHost := fmt.Sprintf("%s %s  %s", hostname, strings.Split(hostname, ".")[0], gcomment)
+	targetLineMetadata := fmt.Sprintf("%s %s  %s", "169.254.169.254", "metadata.google.internal", gcomment)
+
+	scanner := bufio.NewScanner(hostsFile)
+	var gotLines []string
+	var foundHost bool
+	var foundMetadata bool
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		gotLines = append(gotLines, line)
+		if line == targetLineMetadata {
+			foundMetadata = true
+		} else if strings.Contains(line, targetLineHost) {
+			ip := strings.TrimSpace(strings.Replace(line, targetLineHost, "", 1))
+			wantLine := fmt.Sprintf("%s %s", ip, targetLineHost)
+			// Check that the IP is a valid Ipv4/Ipv6 address and that the line is
+			// formatted correctly.
+			if net.ParseIP(ip) != nil && line == wantLine {
+				foundHost = true
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			t.Fatalf("scanner.Err() on /etc/hosts = %v, want nil", err)
+		}
+	}
+
+	if !foundHost {
+		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target host line with: <IP> %s", strings.Join(gotLines[:], "\n"), targetLineHost)
+	}
+
+	if !foundMetadata {
+		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target metadata line: %q", strings.Join(gotLines[:], "\n"), targetLineMetadata)
 	}
 }
