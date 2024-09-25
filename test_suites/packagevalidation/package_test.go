@@ -41,15 +41,15 @@ type osPackage struct {
 
 	// imagesSkip are the image name matching expression for images we don't want
 	// to check this package rule.
-	// The expression matching is applied with strings.Contains() so if the image
-	// name contains the substring it will match.
-	imagesSkip []string
+	// The expression matching is applied with exp.MatchString(image-name). If
+	// the expression matches, the image will be skipped.
+	imagesSkip []*regexp.Regexp
 
-	// images is the oposite of imagesSkip and defines the image name matching
+	// images is the opposite of imagesSkip and defines the image name matching
 	// expression of the images this rule must apply.
-	// The expression matching is applied with strings.Contains() so if the image
-	// name contains the substring it will match.
-	images []string
+	// The expression matching is applied with exp.MatchString(image-name). If
+	// the expression matches, the image will be checked.
+	images []*regexp.Regexp
 }
 
 func TestStandardPrograms(t *testing.T) {
@@ -153,60 +153,77 @@ func TestGuestPackages(t *testing.T) {
 		},
 		{
 			name:       "google-compute-engine",
-			imagesSkip: []string{"sles", "suse", "cos"},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("cos")},
 		},
 		{
 			name:   "google-guest-configs",
-			images: []string{"sles", "suse", "cos"},
+			images: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("cos")},
 		},
 		{
 			name:   "google-guest-oslogin",
-			images: []string{"sles", "suse"},
+			images: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse")},
 		},
 		{
 			name:   "oslogin",
-			images: []string{"cos"},
+			images: []*regexp.Regexp{regexp.MustCompile("cos")},
 		},
 		{
 			name:       "gce-disk-expand",
-			imagesSkip: []string{"sles", "suse", "ubuntu", "cos"},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu"), regexp.MustCompile("cos")},
 		},
 		{
 			name:   "cloud-disk-resize",
-			images: []string{"cos"},
+			images: []*regexp.Regexp{regexp.MustCompile("cos")},
 		},
 		{
 			name:       "google-cloud-cli",
-			imagesSkip: []string{"sles", "suse", "ubuntu-1604", "ubuntu-pro-1604", "cos"},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu-1604"), regexp.MustCompile("ubuntu-pro-1604"), regexp.MustCompile("cos")},
 		},
 		{
 			name:       "google-compute-engine-oslogin",
-			imagesSkip: []string{"sles", "suse", "cos"},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("cos")},
 		},
 		{
 			name:   "epel-release",
-			images: []string{"centos-7", "rhel-7"},
+			images: []*regexp.Regexp{regexp.MustCompile("centos-7"), regexp.MustCompile("rhel-7")},
 		},
 		{
 			name:   "haveged",
-			images: []string{"debian"},
+			images: []*regexp.Regexp{regexp.MustCompile("debian")},
 		},
 		{
 			name:   "net-tools",
-			images: []string{"debian", "cos"},
+			images: []*regexp.Regexp{regexp.MustCompile("debian"), regexp.MustCompile("cos")},
 		},
 		{
 			name:   "google-cloud-packages-archive-keyring",
-			images: []string{"debian"},
+			images: []*regexp.Regexp{regexp.MustCompile("debian")},
 		},
 		{
 			name:   "isc-dhcp-client",
-			images: []string{"debian"},
+			images: []*regexp.Regexp{regexp.MustCompile("debian")},
 		},
 		{
 			name:                 "cloud-initramfs-growroot",
 			shouldNotBeInstalled: true,
-			images:               []string{"debian"},
+			images:               []*regexp.Regexp{regexp.MustCompile("debian")},
+		},
+		{
+			name:   "rdma-core",
+			images: []*regexp.Regexp{regexp.MustCompile("accelerator"), regexp.MustCompile("nvidia")},
+		},
+		{
+			name:   "nvidia-kernel-common-550-server",
+			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
+		},
+		{
+			name:   "nvidia-kernel-common-560-server",
+			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-560")},
+		},
+		{
+			name:         "nvidia-kernel-common",
+			alternatives: []string{"nvidia-kernel-common-550-server", "nvidia-kernel-common-560-server"},
+			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
 	}
 
@@ -224,7 +241,7 @@ func TestGuestPackages(t *testing.T) {
 	for _, curr := range pkgs {
 		skipPackage := false
 		for _, skipExpression := range curr.imagesSkip {
-			if strings.Contains(image, skipExpression) {
+			if skipExpression.MatchString(image) {
 				skipPackage = true
 				break
 			}
@@ -232,7 +249,7 @@ func TestGuestPackages(t *testing.T) {
 
 		imageMatched := len(curr.images) == 0
 		for _, matchExpression := range curr.images {
-			if strings.Contains(image, matchExpression) {
+			if matchExpression.MatchString(image) {
 				imageMatched = true
 				break
 			}
