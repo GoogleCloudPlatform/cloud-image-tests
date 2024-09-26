@@ -56,12 +56,19 @@ const (
 	FirstBootGAKey = "first-boot-key"
 )
 
-var windowsClientImagePatterns = []string{
-	"windows-7-",
-	"windows-8-",
-	"windows-10-",
-	"windows-11-",
-}
+var (
+	windowsClientImagePatterns = []string{
+		"windows-7-",
+		"windows-8-",
+		"windows-10-",
+		"windows-11-",
+	}
+
+	skipInterfaces = []string{
+		"isatap", // isatap tunnel on windows.
+		"teredo", // teredo tunnel on windows.
+	}
+)
 
 // BlockDeviceList gives full information about blockdevices, from the output of lsblk.
 type BlockDeviceList struct {
@@ -353,6 +360,32 @@ func ParseInterfaceIPv4(iface net.Interface) (net.IP, error) {
 		}
 	}
 	return nil, fmt.Errorf("no ipv4 address found for interface %s", iface.Name)
+}
+
+// FilterLoopbackTunnelingInterfaces filters the list of interfaces to contain
+// only the actual NICs, removing the loopback and tunneling interfaces listed
+// in skipInterfaces.
+func FilterLoopbackTunnelingInterfaces(ifaces []net.Interface) []net.Interface {
+	var filtered []net.Interface
+	for _, iface := range ifaces {
+		// Remove the loopback interface.
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		// Remove the tunneling interfaces listed in skipInterfaces.
+		skip := false
+		for _, skipIface := range skipInterfaces {
+			if strings.Contains(strings.ToLower(iface.Name), skipIface) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			filtered = append(filtered, iface)
+		}
+	}
+	return filtered
 }
 
 // CheckLinuxCmdExists checks that a command exists on the linux image, and is executable.

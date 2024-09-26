@@ -17,6 +17,7 @@ package mdsroutes
 import (
 	"net"
 	"net/http"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -35,9 +36,15 @@ func TestMDSRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("net.Interfaces() failed: %v", err)
 	}
-	ifaces := allIfaces[1:] // Leave out the loopback interface.
+	ifaces := utils.FilterLoopbackTunnelingInterfaces(allIfaces)
 
 	for i, iface := range ifaces {
+		// Skip secondary NICs on Windows. Guest agent doesn't manage NICs on
+		// windows, so the routes/behavior are more unpredictable.
+		if i != 0 && utils.IsWindows() {
+			break
+		}
+
 		httpClient := &http.Client{
 			Timeout: 2 * time.Second,
 		}
@@ -71,5 +78,40 @@ func TestMDSRoutes(t *testing.T) {
 		} else if err == nil && i != 0 {
 			t.Errorf("unexpected success connecting to metadata server on nic %s", iface.Name)
 		}
+	}
+}
+
+func TestDNS(t *testing.T) {
+	if _, err := exec.LookPath("dig"); err != nil {
+		t.Skipf("error finding dig: %v", err)
+	}
+	ctx := utils.Context(t)
+
+	// TCP test.
+	cmd := exec.CommandContext(ctx, "dig", "+tcp", "@169.254.169.254", "www.google.com")
+	if res, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("error running dig tcp: %v: %s", err, string(res))
+	} else {
+		t.Logf("dig tcp output: %s", string(res))
+	}
+
+	// UDP test.
+	cmd = exec.CommandContext(ctx, "dig", "+notcp", "@169.254.169.254", "www.google.com")
+	if res, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("error running dig udp: %v: %s", err, string(res))
+	} else {
+		t.Logf("dig udp output: %s", string(res))
+	}
+}
+
+func TestWindowsDNS(t *testing.T) {
+	ctx := utils.Context(t)
+
+	// Run nslookup
+	cmd := exec.CommandContext(ctx, "nslookup", "www.google.com", "169.254.169.254")
+	if res, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("error running nslookup: %v: %s", err, string(res))
+	} else {
+		t.Logf("nslookup output: %s", string(res))
 	}
 }

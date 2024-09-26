@@ -36,11 +36,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
-	if utils.HasFeature(t.Image, "WINDOWS") {
-		t.Skip("vmspec not supported on windows images")
-		return nil
-	}
-
 	// Create new networks and subnetworks for multinic.
 	network1, err := t.CreateNetwork("test-network", false)
 	if err != nil {

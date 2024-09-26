@@ -15,8 +15,6 @@
 package vmspec
 
 import (
-	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -28,14 +26,6 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-// JSON representation of the ip link command output.
-type ipLink struct {
-	IfName    string
-	OperState string
-	MAC       string
-	Flags     []string
-}
-
 const (
 	interfaceNameLinuxFile   = "/var/tmp/interface_names.txt"
 	interfaceNameWindowsFile = "C:\\interface_names.txt"
@@ -43,14 +33,13 @@ const (
 
 var (
 	// Cache the interfaces so we don't have to run ip link between tests.
-	interfaces []*ipLink
+	interfaces []net.Interface
 )
 
 // This will write a file with the original names of the interfaces. The
 // derivative VM will check that its interfaces do not match.
 func TestEmpty(t *testing.T) {
-	ctx := utils.Context(t)
-	interfaces = parseInterfaceLinks(ctx, t)
+	interfaces = parseInterfaces(t)
 	interfaceNameFile := interfaceNameLinuxFile
 	if utils.IsWindows() {
 		interfaceNameFile = interfaceNameWindowsFile
@@ -58,7 +47,7 @@ func TestEmpty(t *testing.T) {
 
 	var names []string
 	for _, iface := range interfaces {
-		names = append(names, iface.MAC)
+		names = append(names, iface.Name)
 	}
 	content := strings.Join(names, "\n")
 	if err := os.WriteFile(interfaceNameFile, []byte(content), 0755); err != nil {
@@ -68,9 +57,8 @@ func TestEmpty(t *testing.T) {
 
 // This tests that the PCIe configuration did change after a vmspec change.
 func TestPCIEChanged(t *testing.T) {
-	ctx := utils.Context(t)
 	if len(interfaces) == 0 {
-		interfaces = parseInterfaceLinks(ctx, t)
+		interfaces = parseInterfaces(t)
 	}
 	interfaceNameFile := interfaceNameLinuxFile
 	if utils.IsWindows() {
@@ -84,7 +72,7 @@ func TestPCIEChanged(t *testing.T) {
 	oldIfaces := strings.Split(string(oldIfaceContent), "\n")
 
 	if len(interfaces) == len(oldIfaces) {
-		t.Fatalf("failed to change vmspec: same number of nics")
+		t.Fatalf("failed to change vmspec: same number of nics:\n%v\n%v", interfaces, oldIfaces)
 	}
 }
 
@@ -93,7 +81,7 @@ func TestPCIEChanged(t *testing.T) {
 func TestPing(t *testing.T) {
 	ctx := utils.Context(t)
 	if len(interfaces) == 0 {
-		interfaces = parseInterfaceLinks(ctx, t)
+		interfaces = parseInterfaces(t)
 	}
 
 	baseArgs := []string{
@@ -105,17 +93,17 @@ func TestPing(t *testing.T) {
 		"www.google.com",
 	}
 	nic := interfaces[0]
-	pingArgs := append(baseArgs, "-I", nic.IfName)
+	pingArgs := append(baseArgs, "-I", nic.Name)
 	cmd := exec.CommandContext(ctx, "ping", pingArgs...)
 	if res, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("error pinging google.com on nic %s: %v", nic, string(res))
+		t.Fatalf("error pinging google.com on nic %s: %v", nic.Name, string(res))
 	}
 }
 
 func TestWindowsPing(t *testing.T) {
 	ctx := utils.Context(t)
 	if len(interfaces) == 0 {
-		interfaces = parseInterfaceLinks(ctx, t)
+		interfaces = parseInterfaces(t)
 	}
 
 	baseArgs := []string{
@@ -127,23 +115,17 @@ func TestWindowsPing(t *testing.T) {
 		"www.google.com",
 	}
 
-	for i, nic := range interfaces {
-		iface, err := utils.GetInterfaceByMAC(nic.MAC)
-		if err != nil {
-			t.Fatalf("error getting interface %q: %v", nic.MAC, err)
-		}
-		ipAddr, err := utils.ParseInterfaceIPv4(iface)
-		if err != nil {
-			t.Fatalf("error getting %s ipv4 address: %v", nic, err)
-		}
-		pingArgs := append(baseArgs, "-S", ipAddr.String())
+	// Focus on primary NIC.
+	iface := interfaces[0]
+	ipAddr, err := utils.ParseInterfaceIPv4(iface)
+	if err != nil {
+		t.Fatalf("error getting %s ipv4 address: %v", iface.Name, err)
+	}
+	pingArgs := append(baseArgs, "-S", ipAddr.String())
 
-		cmd := exec.CommandContext(ctx, "ping", pingArgs...)
-		if res, err := cmd.CombinedOutput(); err != nil && i == 0 {
-			t.Fatalf("error pinging google.com on nic %s: %v", nic, string(res))
-		} else if err == nil && i != 0 {
-			t.Fatalf("unexpected success pinging google.com on nic %s", nic)
-		}
+	cmd := exec.CommandContext(ctx, "ping", pingArgs...)
+	if res, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("error pinging google.com on nic %s: %v", iface.Name, string(res))
 	}
 }
 
@@ -153,7 +135,7 @@ func TestMetadataServer(t *testing.T) {
 	ctx := utils.Context(t)
 
 	// Focus on primary NIC.
-	nic := interfaces[0]
+	iface := interfaces[0]
 	httpClient := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -161,19 +143,13 @@ func TestMetadataServer(t *testing.T) {
 	// Make a new HTTP request to the metadata server.
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://metadata.google.internal/", nil)
 	if err != nil {
-		t.Fatalf("error creating request for %s: %v", nic, err)
-	}
-
-	// Get the interface by its name.
-	iface, err := utils.GetInterfaceByMAC(nic.MAC)
-	if err != nil {
-		t.Fatalf("error getting interface %s: %v", nic, err)
+		t.Fatalf("error creating request for %s: %v", iface.Name, err)
 	}
 
 	// Obtain its IPv4 address.
 	ipAddr, err := utils.ParseInterfaceIPv4(iface)
 	if err != nil {
-		t.Fatalf("error getting %s ipv4 address: %v", nic, err)
+		t.Fatalf("error getting %s ipv4 address: %v", iface.Name, err)
 	}
 
 	// Set up the request to use the NIC.
@@ -189,52 +165,18 @@ func TestMetadataServer(t *testing.T) {
 	// Make the request.
 	_, err = httpClient.Do(req)
 	if err != nil {
-		t.Errorf("error connecting to metadata server on primary nic %s: %v", nic, err)
+		t.Errorf("error connecting to metadata server on primary nic %s: %v", iface.Name, err)
 	}
 }
 
-// parseInterfaceLinks returns the names of all the interfaces on the system.
-func parseInterfaceLinks(ctx context.Context, t *testing.T) []*ipLink {
-	if utils.IsWindows() {
-		res, err := utils.RunPowershellCmd("Get-NetAdapter -Name * -Physical | Format-Table -Property MacAddress -HideTableHeaders")
-		if err != nil {
-			t.Fatalf("error getting interface links: %v", res.Stderr)
-		}
+// parseInterfaces returns the names of all the interfaces on the system.
+func parseInterfaces(t *testing.T) []net.Interface {
+	t.Helper()
 
-		var links []*ipLink
-		for _, mac := range strings.Split(strings.TrimSpace(res.Stdout), "\r\n") {
-			if mac == "" {
-				continue
-			}
-			links = append(links, &ipLink{MAC: mac})
-		}
-		return links
-	}
-	out, err := exec.CommandContext(ctx, "ip", "-brief", "link").Output()
+	allIfaces, err := net.Interfaces()
 	if err != nil {
-		stderr := string(err.(*exec.ExitError).Stderr)
-		t.Fatalf("error getting interface names: %v", stderr)
-	}
-	fmt.Printf("Output: %v\n\n", string(out))
-
-	var iflinks []*ipLink
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 4 {
-			continue
-		}
-
-		fmt.Printf("Fields: %v\n", fields)
-
-		iflink := &ipLink{
-			IfName:    fields[0],
-			OperState: fields[1],
-			MAC:       fields[2],
-			Flags:     strings.Split(strings.Trim(fields[3], "<>"), ","),
-		}
-		iflinks = append(iflinks, iflink)
+		t.Fatalf("net.Interfaces() failed: %v", err)
 	}
 
-	// The first interface is the loopback interface, so leave it out.
-	return iflinks[1:]
+	return utils.FilterLoopbackTunnelingInterfaces(allIfaces)
 }

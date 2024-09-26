@@ -17,7 +17,11 @@
 package mdsroutes
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -25,6 +29,11 @@ var Name = "mdsroutes"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if strings.Contains(t.Image.Family, "cos") {
+		t.Skip("MDS routes not supported on COS")
+		return nil
+	}
+
 	network1, err := t.CreateNetwork("network-1", false)
 	if err != nil {
 		return err
@@ -44,7 +53,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 
-	// VM2 for multiNIC
+	// VM for multiNIC
 	multinicVM, err := t.CreateTestVM("multinic")
 	if err != nil {
 		return err
@@ -61,7 +70,12 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err := multinicVM.AddAliasIPRanges("10.14.8.0/24", "secondary-range"); err != nil {
 		return err
 	}
-	multinicVM.RunTests("TestMDSRoutes")
+
+	dnsTest := "TestDNS"
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		dnsTest = "TestWindowsDNS"
+	}
+	multinicVM.RunTests(fmt.Sprintf("TestMDSRoutes|%s", dnsTest))
 
 	return nil
 }
