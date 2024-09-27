@@ -92,11 +92,22 @@ func TestPing(t *testing.T) {
 		"5",
 		"www.google.com",
 	}
+	command := "ping"
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if strings.Contains(image, "cos") {
+		command = "toolbox"
+		baseArgs = append([]string{"ping"}, baseArgs...)
+	}
+
 	nic := interfaces[0]
 	pingArgs := append(baseArgs, "-I", nic.Name)
-	cmd := exec.CommandContext(ctx, "ping", pingArgs...)
+	cmd := exec.CommandContext(ctx, command, pingArgs...)
 	if res, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("error pinging google.com on nic %s: %v", nic.Name, string(res))
+		t.Fatalf("error pinging google.com on nic %s, result: %s, err: %v", nic.Name, string(res), err)
 	}
 }
 
@@ -125,7 +136,7 @@ func TestWindowsPing(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, "ping", pingArgs...)
 	if res, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("error pinging google.com on nic %s: %v", iface.Name, string(res))
+		t.Fatalf("error pinging google.com on nic %s, result: %s, err: %v", iface.Name, string(res), err)
 	}
 }
 
