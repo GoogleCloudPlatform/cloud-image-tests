@@ -218,12 +218,18 @@ func TestTDXAttestation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("kernelRev, err := strconv.Atoi(kernelRevStr): %v, want nil", err)
 			}
-
-			// Kernel revisions assuming 2204 image
+			// Kernel revisions for 22.04 6.5 kernel
 			lowerKernelRev := 1016
 			upperKernelRev := 1021
 
+			if kernelParts[0] == "6.8.0" {
+				// Kernel revisions for 22.04 6.8 kernel
+				lowerKernelRev = 1013
+				upperKernelRev = 1014
+			}
+
 			if strings.Contains(image, "-2404-") {
+				// Kernel revisions for 24.04
 				lowerKernelRev = 1006
 				upperKernelRev = 1008
 			}
@@ -237,6 +243,7 @@ func TestTDXAttestation(t *testing.T) {
 				if err != nil {
 					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-gcp").CombinedOutput() = %v, want nil`, err)
 				}
+				t.Logf("Installing linux-modules-extra-gcp")
 				output2, err := exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput()
 				if err != nil {
 					t.Fatalf(`exec.CommandContext(ctx, "apt-get", "install", "-y", "linux-modules-extra-gcp").CombinedOutput() = %v, want nil`, err)
