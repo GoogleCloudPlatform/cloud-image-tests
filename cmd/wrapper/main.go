@@ -227,12 +227,25 @@ func uploadGCSObject(ctx context.Context, client *storage.Client, path string, d
 	object := strings.TrimPrefix(u.Path, "/")
 	log.Printf("uploading to bucket %s object %s\n", u.Host, object)
 
-	dst := client.Bucket(u.Host).Object(object).NewWriter(ctx)
-	if _, err := io.Copy(dst, data); err != nil {
-		return fmt.Errorf("failed to write file: %v", err)
+	upload := func() error {
+		dst := client.Bucket(u.Host).Object(object).NewWriter(ctx)
+		if _, err := io.Copy(dst, data); err != nil {
+			return fmt.Errorf("failed to write to gcs: %w", err)
+		}
+		if err := dst.Close(); err != nil {
+			return fmt.Errorf("failed to close gcs writer: %w", err)
+		}
+		return nil
 	}
-	// GCS has a limit of 1 write per object per second (https://cloud.google.com/storage/quotas#objects)
-	time.Sleep(time.Second)
-	dst.Close()
-	return nil
+
+	var uploadErr error
+	for i := 1; i <= 5; i++ {
+		if uploadErr = upload(); uploadErr != nil {
+			time.Sleep(time.Duration(i) * time.Second)
+			continue
+		}
+		break
+	}
+
+	return uploadErr
 }
