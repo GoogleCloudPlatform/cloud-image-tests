@@ -146,6 +146,11 @@ func requiredLicenseList(image *compute.Image) ([]string, error) {
 		project = "suse-sap-cloud"
 	case strings.Contains(image.Name, "sles"):
 		project = "suse-cloud"
+		transform = func() {
+			for i := range requiredLicenses {
+				requiredLicenses[i] = strings.TrimSuffix(requiredLicenses[i], "-sp5")
+			}
+		}
 	case strings.Contains(image.Name, "ubuntu-pro"):
 		project = "ubuntu-os-pro-cloud"
 	case strings.Contains(image.Name, "ubuntu"):
