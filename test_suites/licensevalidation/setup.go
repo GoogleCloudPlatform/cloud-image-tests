@@ -135,6 +135,17 @@ func requiredLicenseList(image *compute.Image) ([]string, error) {
 				requiredLicenses[len(requiredLicenses)-1] = requiredLicenses[len(requiredLicenses)-1][:len(requiredLicenses[len(requiredLicenses)-1])-2]
 			}
 		}
+	case strings.Contains(image.Name, "rocky") && strings.Contains(image.Name, "nvidia"):
+		project = "rocky-linux-cloud"
+		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("rocky-linux-[0-9]{1}").FindString(image.Name), "rocky-linux-")
+		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-[0-9]{3}").FindString(image.Name), "nvidia-")
+		transform = func() {
+			requiredLicenses[0] = strings.TrimSuffix(requiredLicenses[0], fmt.Sprintf("-with-nvidia-%s", gpuDriverVersion))
+			requiredLicenses = append(requiredLicenses,
+				fmt.Sprintf(licenseURLTmpl, "rocky-linux-accelerator-cloud", fmt.Sprintf("rocky-linux-%s-accelerated", ubuntuVersion)),
+				fmt.Sprintf(licenseURLTmpl, "rocky-linux-accelerator-clouds", fmt.Sprintf("nvidia-%s", gpuDriverVersion)),
+			)
+		}
 	case strings.Contains(image.Name, "rocky-linux"):
 		project = "rocky-linux-cloud"
 	case strings.Contains(image.Name, "almalinux"):
@@ -150,6 +161,20 @@ func requiredLicenseList(image *compute.Image) ([]string, error) {
 			for i := range requiredLicenses {
 				requiredLicenses[i] = strings.TrimSuffix(requiredLicenses[i], "-sp5")
 			}
+		}
+	case strings.Contains(image.Name, "ubuntu") && strings.Contains(image.Name, "nvidia"):
+		project = "ubuntu-os-cloud"
+		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("ubuntu-[0-9]{4}").FindString(image.Name), "ubuntu-")
+		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-[0-9]{3}").FindString(image.Name), "nvidia-")
+		transform = func() {
+			requiredLicenses[0] = strings.TrimSuffix(requiredLicenses[0], fmt.Sprintf("-with-nvidia-%s", gpuDriverVersion))
+			if ubuntuVersion[2:] == "04" {
+				requiredLicenses[0] += "-lts"
+			}
+			requiredLicenses = append(requiredLicenses,
+				fmt.Sprintf(licenseURLTmpl, "ubuntu-os-accelerator-images", fmt.Sprintf("ubuntu-%s-accelerated", ubuntuVersion)),
+				fmt.Sprintf(licenseURLTmpl, "ubuntu-os-accelerator-images", fmt.Sprintf("nvidia-%s", gpuDriverVersion)),
+			)
 		}
 	case strings.Contains(image.Name, "ubuntu-pro"):
 		project = "ubuntu-os-pro-cloud"
