@@ -18,10 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const (
@@ -108,17 +109,33 @@ func doHTTPGet(ctx context.Context, path string) (string, http.Header, error) {
 		return "", nil, fmt.Errorf("failed to create a http request with context: %+v", err)
 	}
 
-	resp, err := doHTTPRequest(req)
-	if err != nil {
-		return "", nil, err
+	httpGet := func() (string, http.Header, error) {
+		resp, err := doHTTPRequest(req)
+		if err != nil {
+			return "", nil, err
+		}
+
+		val, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to read http request body: %+v", err)
+		}
+
+		return string(val), resp.Header, nil
 	}
 
-	val, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to read http request body: %+v", err)
+	var resp string
+	var header http.Header
+	var getErr error
+
+	for i := 1; i <= 5; i++ {
+		if resp, header, getErr = httpGet(); getErr != nil {
+			time.Sleep(time.Duration(i) * time.Second)
+			continue
+		}
+		break
 	}
 
-	return string(val), resp.Header, nil
+	return resp, header, getErr
 }
 
 func doHTTPPut(ctx context.Context, path string, data string) error {
@@ -127,6 +144,13 @@ func doHTTPPut(ctx context.Context, path string, data string) error {
 		return fmt.Errorf("failed to create a http request with context: %+v", err)
 	}
 
-	_, err = doHTTPRequest(req)
+	for i := 1; i <= 5; i++ {
+		if _, err = doHTTPRequest(req); err != nil {
+			time.Sleep(time.Duration(i) * time.Second)
+			continue
+		}
+		break
+	}
+
 	return err
 }

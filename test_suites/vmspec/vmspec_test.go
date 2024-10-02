@@ -72,7 +72,7 @@ func TestPCIEChanged(t *testing.T) {
 	oldIfaces := strings.Split(string(oldIfaceContent), "\n")
 
 	if len(interfaces) == len(oldIfaces) {
-		t.Fatalf("failed to change vmspec: same number of nics:\n%v\n%v", interfaces, oldIfaces)
+		t.Fatalf("failed to change vmspec: same number of nics, current:\n%v old:\n%v", interfaces, oldIfaces)
 	}
 }
 
