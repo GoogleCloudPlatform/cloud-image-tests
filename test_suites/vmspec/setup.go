@@ -63,7 +63,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return fmt.Errorf("failed to get zone: %v", err)
 	}
 	sourceInst := &daisy.Instance{}
-	disks := []*compute.Disk{&compute.Disk{Name: "source", Type: imagetest.PdBalanced, Zone: zone.Name}}
+	disks := []*compute.Disk{{Name: "source", Type: imagetest.PdBalanced, Zone: zone.Name}}
 	source, err := t.CreateTestVMMultipleDisks(disks, sourceInst)
 	if err != nil {
 		return err

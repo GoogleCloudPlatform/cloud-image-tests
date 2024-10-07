@@ -46,7 +46,7 @@ func TestAddNewVMStep(t *testing.T) {
 	if twf.wf == nil {
 		t.Fatal("test workflow is malformed")
 	}
-	step, _, err := twf.addNewVMStep([]*compute.Disk{&compute.Disk{Name: "test"}}, &daisy.Instance{})
+	step, _, err := twf.addNewVMStep([]*compute.Disk{{Name: "test"}}, &daisy.Instance{})
 	if err != nil {
 		t.Errorf("failed to add new VM step to test workflow: %v", err)
 	}
