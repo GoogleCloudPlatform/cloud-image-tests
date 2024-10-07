@@ -115,8 +115,9 @@ func (t *TestWorkflow) addNewVMStep(disks []*compute.Disk, instanceParams *daisy
 		return nil, nil, fmt.Errorf("dashes are disallowed in testworkflow vm names: %s", name)
 	}
 
+	isWindows := utils.HasFeature(t.Image, "WINDOWS")
 	var suffix string
-	if utils.HasFeature(t.Image, "WINDOWS") {
+	if isWindows {
 		suffix = ".exe"
 	}
 
@@ -139,6 +140,7 @@ func (t *TestWorkflow) addNewVMStep(disks []*compute.Disk, instanceParams *daisy
 	}
 
 	t.setInstanceTestMetadata(instance, suffix)
+	t.skipWindowsStagingKMS(isWindows, instance)
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.Instances = append(createInstances.Instances, instance)
@@ -162,8 +164,9 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 		return nil, nil, fmt.Errorf("dashes are disallowed in testworkflow vm names: %s", name)
 	}
 
+	isWindows := utils.HasFeature(t.Image, "WINDOWS")
 	var suffix string
-	if utils.HasFeature(t.Image, "WINDOWS") {
+	if isWindows {
 		suffix = ".exe"
 	}
 
@@ -187,6 +190,7 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	}
 
 	t.setInstanceTestMetadata(instance, suffix)
+	t.skipWindowsStagingKMS(isWindows, instance)
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.Instances = append(createInstances.Instances, instance)
@@ -1136,4 +1140,13 @@ func (t *TestWorkflow) getLastStepForVM(vmname string) (*daisy.Step, error) {
 		step = deps[0]
 	}
 	return t.wf.Steps[step], nil
+}
+
+func (t *TestWorkflow) skipWindowsStagingKMS(isWindows bool, instance *daisy.Instance) {
+	if isWindows && t.wf.ComputeEndpoint == "https://www.googleapis.com/compute/staging_v1/" {
+		if instance.Metadata == nil {
+			instance.Metadata = make(map[string]string)
+		}
+		instance.Metadata["sysprep-specialize-script-ps1"] = `New-Item -Path "C:\Program Files\Google\Compute Engine\sysprep\byol_image" -ItemType directory`
+	}
 }
