@@ -225,6 +225,10 @@ func TestGuestPackages(t *testing.T) {
 			alternatives: []string{"nvidia-kernel-common-550-server", "nvidia-kernel-common-560-server"},
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
+		{
+			name:   "mlnx-ofed-guest",
+			images: []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
+		},
 	}
 
 	installedList, err := listPkgs()
