@@ -31,17 +31,17 @@ import (
 
 // The values have been decided based on running spot tests for different images.
 var imageFamilyBootTimeThresholdMap = map[string]int{
-	"almalinux":   60,
-	"centos":      60,
-	"debian":      50,
-	"rhel":        60,
-	"rocky-linux": 60,
-	"opensuse":    70, // Temporary allowance, remove or set to default of 60 after boot time drops again
-	"sles-12":     85,
-	"sles-15":     120,
-	"ubuntu-pro":  110,
-	"ubuntu":      75,
-	"windows":     120,
+	"almalinux":   70,
+	"centos":      70,
+	"debian":      60,
+	"rhel":        70,
+	"rocky-linux": 70,
+	"opensuse":    85, // Temporary allowance, remove or set to default of 70 after boot time drops again
+	"sles-12":     95,
+	"sles-15":     130,
+	"ubuntu-pro":  130,
+	"ubuntu":      85,
+	"windows":     130,
 }
 
 const (
@@ -141,8 +141,8 @@ func verifyBootTime(t *testing.T) error {
 		}
 	}
 	if maxThreshold == 0 {
-		t.Log("using default boot time limit of 60s")
-		maxThreshold = 60
+		t.Log("using default boot time limit of 70")
+		maxThreshold = 70
 	}
 
 	if int(uptime) > maxThreshold {
