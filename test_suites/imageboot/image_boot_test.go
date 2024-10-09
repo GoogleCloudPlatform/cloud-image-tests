@@ -33,8 +33,8 @@ import (
 var imageFamilyBootTimeThresholdMap = map[string]int{
 	"almalinux":   70,
 	"centos":      70,
-	"debian":      60,
-	"rhel":        70,
+	"debian":      75,
+	"rhel":        85,
 	"rocky-linux": 70,
 	"opensuse":    85, // Temporary allowance, remove or set to default of 70 after boot time drops again
 	"sles-12":     95,
