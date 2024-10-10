@@ -84,7 +84,6 @@ func PutMetadata(ctx context.Context, path string, data string) error {
 }
 
 func doHTTPRequest(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Metadata-Flavor", "Google")
 	client := &http.Client{}
 
 	resp, err := client.Do(req)
@@ -108,6 +107,7 @@ func doHTTPGet(ctx context.Context, path string) (string, http.Header, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create a http request with context: %+v", err)
 	}
+	req.Header.Add("Metadata-Flavor", "Google")
 
 	httpGet := func() (string, http.Header, error) {
 		resp, err := doHTTPRequest(req)
@@ -143,6 +143,7 @@ func doHTTPPut(ctx context.Context, path string, data string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create a http request with context: %+v", err)
 	}
+	req.Header.Add("Metadata-Flavor", "Google")
 
 	for i := 1; i <= 5; i++ {
 		if _, err = doHTTPRequest(req); err != nil {
