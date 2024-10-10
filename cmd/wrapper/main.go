@@ -114,6 +114,11 @@ func main() {
 		testArguments = append(testArguments, "-test.run", testRun)
 	}
 
+	testExcludeFilter, err := utils.GetMetadata(ctx, "instance", "attributes", "_exclude_discrete_tests")
+	if err == nil && testExcludeFilter != "" {
+		testArguments = append(testArguments, "-test.skip", testExcludeFilter)
+	}
+
 	testPackage, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_package_name")
 	if err != nil {
 		log.Fatalf("failed to get metadata _test_package_name: %v", err)

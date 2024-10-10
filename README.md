@@ -28,6 +28,8 @@ Testing components are built into a container image. The entrypoint is
     	skip tests matching filter
     -filter string
     	only run tests matching filter
+    -exclude_discrete_tests string
+        skip individual tests within the suite that match the filter
     -gcs_path string
     	GCS Path for Daisy working directory
     -images string
