@@ -183,7 +183,7 @@ func checkDHCPProcess(t *testing.T) error {
 		return fmt.Errorf("ps command failed %v", err)
 	}
 	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, fmt.Sprintf("dhclient %s", iface.Name)) {
+		if strings.Contains(line, "dhclient") && strings.Contains(line, iface.Name) {
 			return nil
 		}
 	}
