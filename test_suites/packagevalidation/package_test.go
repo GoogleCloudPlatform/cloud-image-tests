@@ -53,7 +53,9 @@ type osPackage struct {
 }
 
 func TestStandardPrograms(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx := utils.Context(t)
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
@@ -66,16 +68,23 @@ func TestStandardPrograms(t *testing.T) {
 		t.Skip("Cloud SDK Not supported on COS")
 	}
 
-	cmd := exec.Command("gcloud", "-h")
+	cmd := exec.CommandContext(ctx, "gcloud", "-h")
 	cmd.Start()
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("gcloud not installed properly")
 	}
-	cmd = exec.Command("gsutil", "help")
+	cmd = exec.CommandContext(ctx, "gsutil", "help")
 	cmd.Start()
 	err = cmd.Wait()
 	if err != nil {
 		t.Fatalf("gsutil not installed properly")
+	}
+
+	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
+		err := exec.CommandContext(ctx, "add-nvidia-repositories").Run()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories).Run() = %v, want nil", err)
+		}
 	}
 }
 
@@ -213,20 +222,20 @@ func TestGuestPackages(t *testing.T) {
 			images: []*regexp.Regexp{regexp.MustCompile("accelerator"), regexp.MustCompile("nvidia")},
 		},
 		{
-			name:   "nvidia-kernel-common-550-server",
+			name:   "linux-modules-nvidia-550-open-gcp",
 			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
 		},
 		{
-			name:   "nvidia-kernel-common-560-server",
-			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-560")},
-		},
-		{
 			name:         "nvidia-kernel-common",
-			alternatives: []string{"nvidia-kernel-common-550-server", "nvidia-kernel-common-560-server"},
+			alternatives: []string{"linux-modules-nvidia-550-open-gcp"},
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
 		{
 			name:   "mlnx-ofed-guest",
+			images: []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
+		},
+		{
+			name:   "nvidia-open-gpu-kernel-modules",
 			images: []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
 		},
 	}
