@@ -81,7 +81,19 @@ func TestStandardPrograms(t *testing.T) {
 	}
 
 	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
-		err := exec.CommandContext(ctx, "add-nvidia-repositories").Run()
+		cmd := exec.CommandContext(ctx, "add-nvidia-repositories")
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			t.Fatalf("cmd.StdinPipe() = %v, want nil", err)
+		}
+		// Respond to prompt.
+		if _, err = stdin.Write([]byte("y\n")); err != nil {
+			t.Fatalf("stdin.Write(y\\n) = %v want nil", err)
+		}
+		if err = stdin.Close(); err != nil {
+			t.Fatalf("stdin.Close() = %v, want nil", err)
+		}
+		err = cmd.Run()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories).Run() = %v, want nil", err)
 		}
