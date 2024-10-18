@@ -234,12 +234,12 @@ func TestGuestPackages(t *testing.T) {
 			images: []*regexp.Regexp{regexp.MustCompile("accelerator"), regexp.MustCompile("nvidia")},
 		},
 		{
-			name:   "linux-modules-nvidia-550-open-gcp",
+			name:   "linux-modules-nvidia-550-server-open-gcp",
 			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
 		},
 		{
 			name:         "nvidia-kernel-common",
-			alternatives: []string{"linux-modules-nvidia-550-open-gcp"},
+			alternatives: []string{"linux-modules-nvidia-550-server-open-gcp"},
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
 		{
