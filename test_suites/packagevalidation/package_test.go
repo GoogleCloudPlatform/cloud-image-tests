@@ -53,8 +53,8 @@ type osPackage struct {
 }
 
 func TestStandardPrograms(t *testing.T) {
-	ctx := utils.Context(t)
-
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
@@ -102,7 +102,9 @@ func TestStandardPrograms(t *testing.T) {
 
 func TestGuestPackages(t *testing.T) {
 	utils.LinuxOnly(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 
 	if err != nil {
 		t.Fatalf("couldn't determine image from metadata")

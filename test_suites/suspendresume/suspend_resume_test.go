@@ -61,7 +61,8 @@ func TestSuspend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not mark beginning of suspend testing: %v", err)
 	}
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	prj, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
 		t.Fatalf("could not find project and zone: %v", err)

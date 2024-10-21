@@ -24,12 +24,16 @@ import (
 )
 
 func TestOsLoginEnabled(t *testing.T) {
-	if err := isOsLoginEnabled(utils.Context(t)); err != nil {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	if err := isOsLoginEnabled(ctx); err != nil {
 		t.Fatalf(err.Error())
 	}
 }
 
 func TestOsLoginDisabled(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	// Check OS Login not enabled in /etc/nsswitch.conf
 	data, err := os.ReadFile("/etc/nsswitch.conf")
 	if err != nil {
@@ -60,13 +64,15 @@ func TestOsLoginDisabled(t *testing.T) {
 		}
 	}
 
-	if err = testSSHDPamConfig(utils.Context(t)); err != nil {
+	if err = testSSHDPamConfig(ctx); err != nil {
 		t.Fatalf("error checking pam config: %v", err)
 	}
 }
 
 func TestGetentPasswdOsloginUser(t *testing.T) {
-	testUsername, _, testUserEntry, err := getTestUserEntry(utils.Context(t))
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	testUsername, _, testUserEntry, err := getTestUserEntry(ctx)
 	if err != nil {
 		t.Fatalf("failed to get test user entry: %v", err)
 	}
@@ -82,7 +88,9 @@ func TestGetentPasswdOsloginUser(t *testing.T) {
 }
 
 func TestGetentPasswdAllUsers(t *testing.T) {
-	_, _, testUserEntry, err := getTestUserEntry(utils.Context(t))
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	_, _, testUserEntry, err := getTestUserEntry(ctx)
 	if err != nil {
 		t.Fatalf("failed to get test user entry: %v", err)
 	}
@@ -104,7 +112,9 @@ func TestGetentPasswdAllUsers(t *testing.T) {
 }
 
 func TestGetentPasswdOsloginUID(t *testing.T) {
-	_, testUUID, testUserEntry, err := getTestUserEntry(utils.Context(t))
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	_, testUUID, testUserEntry, err := getTestUserEntry(ctx)
 	if err != nil {
 		t.Fatalf("failed to get test user entry: %v", err)
 	}

@@ -67,7 +67,8 @@ func TestNICNamingScheme(t *testing.T) {
 		}
 		return
 	}
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("utils.GetMetadata(ctx, instance, image) = err %v want nil", err)

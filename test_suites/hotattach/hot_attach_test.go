@@ -137,7 +137,8 @@ func waitGetMountDisk(ctx context.Context, projectNumber, instanceNameString, in
 
 // TestFileHotAttach is a test which checks that a file on a disk is usable, even after the disk was detached and reattached.
 func TestFileHotAttach(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	fileName := "hotattach.txt"
 	fileContents := "cold Attach"
 	fileContentsBytes := []byte(fileContents)

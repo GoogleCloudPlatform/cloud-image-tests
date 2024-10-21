@@ -49,7 +49,9 @@ func TestNTP(t *testing.T) {
 // sles-12 ntpd
 // other distros chronyd
 func testNTPServiceLinux(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata")
 	}

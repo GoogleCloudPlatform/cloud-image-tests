@@ -87,7 +87,9 @@ func TestKernelSecuritySettings(t *testing.T) {
 
 // TestAutomaticUpdates Check automatic security updates are installed or enabled.
 func TestAutomaticUpdates(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
@@ -140,7 +142,8 @@ func TestAutomaticUpdates(t *testing.T) {
 
 // TestPasswordSecurity Ensure that the system enforces strong passwords and correct lockouts.
 func TestPasswordSecurity(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
@@ -210,20 +213,22 @@ func verifySSHConfig(t *testing.T, image string) error {
 	t.Helper()
 	var sshdConfig []byte
 	var err error
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if utils.IsWindows() {
-		addUser := exec.CommandContext(utils.Context(t), `net`, `user`, `testadmin`, `password123!`, `/add`)
+		addUser := exec.CommandContext(ctx, `net`, `user`, `testadmin`, `password123!`, `/add`)
 		o, err := addUser.Output()
 		if err != nil {
 			t.Fatalf("failed to add testadmin user: %v; output: %s", err, o)
 		}
-		addToGrp := exec.CommandContext(utils.Context(t), `net`, `localgroup`, `administrators`, `testadmin`, `/add`)
+		addToGrp := exec.CommandContext(ctx, `net`, `localgroup`, `administrators`, `testadmin`, `/add`)
 		err = addToGrp.Run()
 		if err != nil {
 			t.Fatalf("failed to add testadmin to administrators: %v; output: %s", err, o)
 		}
-		sshdConfig, err = exec.CommandContext(utils.Context(t), `C:\Program Files\OpenSSH\sshd.exe`, `-C`, `user=testadmin`, "-T").Output()
+		sshdConfig, err = exec.CommandContext(ctx, `C:\Program Files\OpenSSH\sshd.exe`, `-C`, `user=testadmin`, "-T").Output()
 	} else {
-		sshdConfig, err = exec.CommandContext(utils.Context(t), "sshd", "-T").Output()
+		sshdConfig, err = exec.CommandContext(ctx, "sshd", "-T").Output()
 	}
 	if err != nil {
 		return fmt.Errorf("could not get effective sshd config: %s", err)
@@ -393,7 +398,9 @@ var (
 
 // TestSockets tests that only allowlisted ports are listening globally.
 func TestSockets(t *testing.T) {
-	utils.SkipWindowsClientImages(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.SkipWindowsClientImages(ctx, t)
 	if utils.IsWindows() {
 		validateSocketsWindows(t)
 		return
@@ -439,7 +446,7 @@ func TestSockets(t *testing.T) {
 		// SSH. If we didn't match any above, test logic is faulty.
 		t.Fatalf("No listening sockets")
 	}
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}

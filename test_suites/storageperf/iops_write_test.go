@@ -27,6 +27,8 @@ import (
 
 // TestRandomWriteIOPS checks that random write IOPS are around the value listed in public docs.
 func TestRandomWriteIOPS(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var randWriteIOPSJson []byte
 	var err error
 	if runtime.GOOS == "windows" {
@@ -51,7 +53,7 @@ func TestRandomWriteIOPS(t *testing.T) {
 		t.Fatalf("iops string %s was not a float: err %v", finalIOPSValueNumber.String(), err)
 	}
 	finalIOPSValueString := fmt.Sprintf("%f", finalIOPSValue)
-	expectedRandWriteIOPSString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", randWriteAttribute)
+	expectedRandWriteIOPSString, err := utils.GetMetadata(ctx, "instance", "attributes", randWriteAttribute)
 	if err != nil {
 		t.Fatalf("could not get metadata attribut %s: err %v", randWriteAttribute, err)
 	}
@@ -63,7 +65,7 @@ func TestRandomWriteIOPS(t *testing.T) {
 	}
 
 	// suppress the error because the vm name is only for printing out test results, and does not affect test behavior
-	machineName, _ := utils.GetInstanceName(utils.Context(t))
+	machineName, _ := utils.GetInstanceName(ctx)
 	if finalIOPSValue < iopsErrorMargin*expectedRandWriteIOPS {
 		t.Fatalf("iops average for vm %s was too low: expected at least %f of target %s, got %s", machineName, iopsErrorMargin, expectedRandWriteIOPSString, finalIOPSValueString)
 	}
@@ -73,6 +75,8 @@ func TestRandomWriteIOPS(t *testing.T) {
 
 // TestSequentialWriteIOPS checks that sequential write IOPS are around the value listed in public docs.
 func TestSequentialWriteIOPS(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var seqWriteIOPSJson []byte
 	var err error
 	if runtime.GOOS == "windows" {
@@ -103,7 +107,7 @@ func TestSequentialWriteIOPS(t *testing.T) {
 	var finalBandwidthMBps float64 = float64(finalBandwidthBytesPerSecond) / bytesInMB
 	finalBandwidthMBpsString := fmt.Sprintf("%f", finalBandwidthMBps)
 
-	expectedSeqWriteIOPSString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", seqWriteAttribute)
+	expectedSeqWriteIOPSString, err := utils.GetMetadata(ctx, "instance", "attributes", seqWriteAttribute)
 	if err != nil {
 		t.Fatalf("could not get metadata attribute %s: err %v", seqWriteAttribute, err)
 	}
@@ -114,7 +118,7 @@ func TestSequentialWriteIOPS(t *testing.T) {
 		t.Fatalf("benchmark iops string %s was not a float: err %v", expectedSeqWriteIOPSString, err)
 	}
 
-	machineName, _ := utils.GetInstanceName(utils.Context(t))
+	machineName, _ := utils.GetInstanceName(ctx)
 	if finalBandwidthMBps < iopsErrorMargin*expectedSeqWriteIOPS {
 		t.Fatalf("iops average for vm %s was too low: expected at least %f of target %s, got %s", machineName, iopsErrorMargin, expectedSeqWriteIOPSString, finalBandwidthMBpsString)
 	}

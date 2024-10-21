@@ -23,7 +23,8 @@ import (
 )
 
 func TestA3UNicCount(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var wantedCount = 8
 	cmd := exec.CommandContext(ctx, "rdma", "-j", "dev")
 	res, err := cmd.CombinedOutput()

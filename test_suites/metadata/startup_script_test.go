@@ -15,6 +15,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -30,8 +31,8 @@ const (
 )
 
 // TestStartupScriptFailedLinux tests that a script failed execute doesn't crash the vm.
-func testStartupScriptFailedLinux(t *testing.T) error {
-	if _, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "startup-script"); err != nil {
+func testStartupScriptFailedLinux(ctx context.Context, t *testing.T) error {
+	if _, err := utils.GetMetadata(ctx, "instance", "attributes", "startup-script"); err != nil {
 		return fmt.Errorf("couldn't get startup-script from metadata, %v", err)
 	}
 
@@ -39,8 +40,8 @@ func testStartupScriptFailedLinux(t *testing.T) error {
 }
 
 // TestStartupScriptFailedWindows tests that a script failed execute doesn't crash the vm.
-func testStartupScriptFailedWindows(t *testing.T) error {
-	if _, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "windows-startup-script-ps1"); err != nil {
+func testStartupScriptFailedWindows(ctx context.Context, t *testing.T) error {
+	if _, err := utils.GetMetadata(ctx, "instance", "attributes", "windows-startup-script-ps1"); err != nil {
 		return fmt.Errorf("couldn't get windows-startup-script-ps1 from metadata, %v", err)
 	}
 
@@ -85,7 +86,8 @@ func testDaemonScriptWindows() error {
 // by checking the output content of the Startup script. It also checks that
 // the script does not run after a reinstall/upgrade of guest agent.
 func TestStartupScripts(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
 	if err != nil {
 		t.Fatalf("failed to read startup script result key: %v", err)
@@ -119,12 +121,14 @@ func TestStartupScripts(t *testing.T) {
 
 // Determine if the OS is Windows or Linux and run the appropriate failure test.
 func TestStartupScriptsFailed(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if utils.IsWindows() {
-		if err := testStartupScriptFailedWindows(t); err != nil {
+		if err := testStartupScriptFailedWindows(ctx, t); err != nil {
 			t.Fatalf("Startup script failure test failed with error: %v", err)
 		}
 	} else {
-		if err := testStartupScriptFailedLinux(t); err != nil {
+		if err := testStartupScriptFailedLinux(ctx, t); err != nil {
 			t.Fatalf("Shutdown script failure test failed with error: %v", err)
 		}
 	}

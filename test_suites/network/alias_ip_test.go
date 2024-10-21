@@ -36,7 +36,8 @@ var (
 )
 
 func TestAliases(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
@@ -53,7 +54,8 @@ func TestAliases(t *testing.T) {
 }
 
 func TestAliasAfterReboot(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
@@ -81,7 +83,8 @@ func TestAliasAfterReboot(t *testing.T) {
 }
 
 func verifyIPAliases(t *testing.T) error {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	iface, err := utils.GetInterface(ctx, 0)
 	if err != nil {
 		return fmt.Errorf("couldn't get interface: %v", err)
@@ -122,7 +125,8 @@ func getGoogleRoutes(networkInterface string) ([]string, error) {
 }
 
 func TestAliasAgentRestart(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)

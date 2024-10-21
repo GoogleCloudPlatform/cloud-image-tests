@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,15 +63,14 @@ const (
 	defaultMaxBootTime = 20 // In seconds
 )
 
-func mountEFIVarsCOS(t *testing.T) error {
+func mountEFIVarsCOS(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
 	if _, err := os.Stat(secureBootFile); !os.IsNotExist(err) {
 		return nil
 	}
 
-	ctx := utils.Context(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -144,7 +144,9 @@ func TestGuestSecureBoot(t *testing.T) {
 }
 
 func testLinuxGuestSecureBoot(t *testing.T) error {
-	if err := mountEFIVarsCOS(t); err != nil {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	if err := mountEFIVarsCOS(ctx, t); err != nil {
 		return err
 	}
 
@@ -191,7 +193,8 @@ func testWindowsGuestSecureBoot() error {
 }
 
 func TestBootTime(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Errorf("utils.GetMetadata(ctx, instance, image) = err %v want nil", err)
@@ -322,4 +325,36 @@ func findServiceStartTime(ctx context.Context, t *testing.T, service string) tim
 		t.Fatalf("time.Parse(systemdTimeFormat, %q) = %v want nil", timestamp, err)
 	}
 	return serviceStartTime
+}
+
+// DO NOT SUBMIT
+func TestWaitForever(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	for ctx.Err() == nil {
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("failed to wait forever: ctx = %s want nil", ctx.Err())
+}
+
+// DO NOT SUBMIT
+func TestWaitForeverAfterReboot(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	_, err := os.Stat(markerFile)
+	if os.IsNotExist(err) {
+		// first boot
+		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
+			t.Fatalf("failed creating marker file directory: %v", err)
+		}
+		if _, err := os.Create(markerFile); err != nil {
+			t.Fatalf("failed creating marker file: %v", err)
+		}
+		t.Fatal("marker file does not exist")
+	}
+	log.Printf("waiting forever")
+	for ctx.Err() == nil {
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("failed to wait forever: ctx = %v want nil", ctx.Err())
 }

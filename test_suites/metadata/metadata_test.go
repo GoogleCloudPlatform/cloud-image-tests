@@ -34,7 +34,9 @@ type Token struct {
 
 // TestTokenFetch test service-accounts token could be retrieved from metadata.
 func TestTokenFetch(t *testing.T) {
-	metadata, err := utils.GetMetadata(utils.Context(t), "instance", "service-accounts", "default", "token")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	metadata, err := utils.GetMetadata(ctx, "instance", "service-accounts", "default", "token")
 	if err != nil {
 		t.Fatalf("couldn't get token from metadata, err % v", err)
 	}
@@ -45,7 +47,9 @@ func TestTokenFetch(t *testing.T) {
 
 // TestMetaDataResponseHeaders verify that HTTP response headers do not include confidential data.
 func TestMetaDataResponseHeaders(t *testing.T) {
-	_, headers, err := utils.GetMetadataWithHeaders(utils.Context(t), "instance", "id")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	_, headers, err := utils.GetMetadataWithHeaders(ctx, "instance", "id")
 	if err != nil {
 		t.Fatalf("couldn't get id from metadata, err % v", err)
 	}

@@ -27,7 +27,9 @@ import (
 
 // TestMatchingKeysInGuestAttributes validate that host keys in guest attributes match those on disk.
 func TestMatchingKeysInGuestAttributes(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
@@ -40,7 +42,7 @@ func TestMatchingKeysInGuestAttributes(t *testing.T) {
 		t.Fatalf("failed to get host key from disk %v", err)
 	}
 
-	hostkeys, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "hostkeys", "/")
+	hostkeys, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "hostkeys", "/")
 	if err != nil {
 		t.Fatal(err)
 
@@ -51,7 +53,7 @@ func TestMatchingKeysInGuestAttributes(t *testing.T) {
 		if keyType == "" {
 			continue
 		}
-		keyValue, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "hostkeys", keyType)
+		keyValue, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "hostkeys", keyType)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,11 +69,13 @@ func TestMatchingKeysInGuestAttributes(t *testing.T) {
 
 // TestHostKeysAreUnique validate that host keys from disk is unique between instances.
 func TestHostKeysAreUnique(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	vmname, err := utils.GetRealVMName("server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
@@ -154,15 +158,17 @@ func getRemoteHostKeys(client *ssh.Client) (map[string]string, error) {
 }
 
 func TestHostKeysNotOverrideAfterAgentRestart(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	hostKeyBeforeRestart, err := utils.GetHostKeysFileFromDisk()
 	if err != nil {
 		t.Fatalf("failed to get host keys from disk %v", err)
 	}
 	var cmd *exec.Cmd
 	if utils.IsWindows() {
-		cmd = exec.CommandContext(utils.Context(t), "powershell.exe", "-NonInteractive", "-NoLogo", "-NoProfile", `Restart-Service GCEAgent`)
+		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "-NoLogo", "-NoProfile", `Restart-Service GCEAgent`)
 	} else {
-		cmd = exec.CommandContext(utils.Context(t), "systemctl", "restart", "google-guest-agent")
+		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
 	}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to restart google-guest-agent service %v", err)

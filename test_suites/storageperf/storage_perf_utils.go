@@ -494,7 +494,8 @@ func installFioAndFillDisk(symlinkRealPath, diskClass string, t *testing.T) erro
 }
 
 func runFIOLinux(t *testing.T, mode string) ([]byte, error) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	diskClass := getDiskClass(ctx)
 	options := getFIOOptions(mode, diskClass)
 
@@ -506,7 +507,7 @@ func runFIOLinux(t *testing.T, mode string) ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		mountdiskSizeGBString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", diskSizeGBAttribute)
+		mountdiskSizeGBString, err := utils.GetMetadata(ctx, "instance", "attributes", diskSizeGBAttribute)
 		if err != nil {
 			return []byte{}, fmt.Errorf("couldn't get image from metadata")
 		}
@@ -555,7 +556,8 @@ func runFIOLinux(t *testing.T, mode string) ([]byte, error) {
 
 func runFIOWindows(t *testing.T, mode string) ([]byte, error) {
 	IOPSFile := "C:\\fio-iops.txt"
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	// TODO: hyperdisk testing is not yet implemented for windows
 	diskClass := getDiskClass(ctx)
 	if diskClass == "hyperdisk" {

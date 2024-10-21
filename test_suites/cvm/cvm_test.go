@@ -163,7 +163,8 @@ func TestLiveMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not mark beginning of live migrate testing: %v", err)
 	}
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	prj, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
 		t.Fatalf("could not find project and zone: %v", err)
@@ -197,11 +198,12 @@ func TestLiveMigrate(t *testing.T) {
 }
 
 func TestTDXAttestation(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
-	ctx := utils.Context(t)
 	// For Ubuntu image, the tdx_guest module was moved to linux-modules-extra package in the 1016 and newer kernels.
 	if strings.Contains(image, "ubuntu") {
 		kernelVersionCmd := exec.CommandContext(ctx, "uname", "-r")
@@ -295,7 +297,8 @@ func TestTDXAttestation(t *testing.T) {
 }
 
 func TestSEVSNPAttestation(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	ensureSevGuestcmd := exec.CommandContext(ctx, "modprobe", "sev-guest")
 	if err := ensureSevGuestcmd.Run(); err != nil {
 		if err2 := exec.CommandContext(ctx, "modprobe", "sevguest").Run(); err2 != nil {
@@ -350,7 +353,8 @@ func TestSEVSNPAttestation(t *testing.T) {
 }
 
 func TestCheckApicId(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	cmd := "cat /proc/cpuinfo | grep -m 1 ^apicid"
 	apic, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
 	if err != nil {

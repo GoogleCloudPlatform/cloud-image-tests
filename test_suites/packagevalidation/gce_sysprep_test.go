@@ -27,7 +27,8 @@ import (
 
 func TestGCESysprep(t *testing.T) {
 	utils.WindowsOnly(t)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	err := os.WriteFile(`C:\Windows\Temp\test.txt`, []byte(`test file`), 0777)
 	if err != nil {
 		t.Fatal(err)

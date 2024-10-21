@@ -423,8 +423,8 @@ func WindowsOnly(t *testing.T) {
 }
 
 // SkipWindowsClientImages skips tests on Windows Client Images.
-func SkipWindowsClientImages(t *testing.T) {
-	image, err := GetMetadata(Context(t), "instance", "image")
+func SkipWindowsClientImages(ctx context.Context, t *testing.T) {
+	image, err := GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -439,8 +439,8 @@ func Is32BitWindows(image string) bool {
 }
 
 // Skip32BitWindows skips tests on 32-bit client images.
-func Skip32BitWindows(t *testing.T, skipMsg string) {
-	image, err := GetMetadata(Context(t), "instance", "image")
+func Skip32BitWindows(ctx context.Context, t *testing.T, skipMsg string) {
+	image, err := GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata: %v", err)
 	}
@@ -469,9 +469,9 @@ func IsWindowsClient(image string) bool {
 }
 
 // WindowsContainersOnly skips tests not on Windows "for Containers" images.
-func WindowsContainersOnly(t *testing.T) {
+func WindowsContainersOnly(ctx context.Context, t *testing.T) {
 	WindowsOnly(t)
-	image, err := GetMetadata(Context(t), "instance", "image")
+	image, err := GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata: %v", err)
 	}
@@ -622,22 +622,105 @@ func HasFeature(img *compute.Image, feature string) bool {
 // the context cancellation based on the test's timeout(deadline), if no timeout
 // is defined (or the deadline can't be assessed) then a plain background context
 // is returned.
-func Context(t *testing.T) context.Context {
-	// If the test has a deadline defined use it as a last resort
-	// context cancelation.
+func Context(t *testing.T) (context.Context, context.CancelFunc) {
+	// Use the deadline of the user-provided timeout factors if possible.
+	ctxDeadline, err := FindVMDeadline(context.Background())
+	if err == nil {
+		ctx, cancel := context.WithDeadline(context.Background(), ctxDeadline)
+		return ctx, cancel
+	}
+	t.Logf("Could not get context deadline: %v", err)
+	// If the test has a deadline defined use it instead.
 	if deadline, ok := t.Deadline(); ok {
-		ctx, cancel := context.WithCancel(context.Background())
-		timer := time.NewTimer(time.Until(deadline))
-		go func() {
-			<-timer.C
-			cancel()
-		}()
-		return ctx
+		// Add a 2-second grace period to avoid hitting the actual test deadline.
+		// We *really* want to avoid doing that, because it means the test binary
+		// will panic and we can't send results back to the manager.
+		ctxDeadline := deadline.Add(time.Second * -2)
+		ctx, cancel := context.WithDeadline(context.Background(), ctxDeadline)
+		return ctx, cancel
 	}
 
 	// If there's not deadline defined then we just use a
-	// plain background context as we won't need to cancel it.
-	return context.Background()
+	// plain background context.
+	return context.WithCancel(context.Background())
+}
+
+// FindTestBinaryDeadline returns the deadline that should be used internally
+// by the test binary. Tests should report results by this deadline. Most
+// callers should call Context() and check if the context is valid instead.
+func FindTestBinaryDeadline(ctx context.Context) (time.Time, error) {
+	_, d, err := findTestDeadlines(ctx)
+	return d, err
+}
+
+// FindVMDeadline returns the deadline that should be used internally by the
+// wrapper. This is the hard deadline all VM components must complete by.
+func FindVMDeadline(ctx context.Context) (time.Time, error) {
+	d, _, err := findTestDeadlines(ctx)
+	return d, err
+}
+
+// findTestDeadlines returns the deadlines computed from VM timeout and test
+// binary timeout in that order. See TestWorkflow struct in testworkflow.go
+// for details on timeouts. These deadlines must be computed at the same time
+// but callers generally only care about one, so external callers will use the
+// FindXDeadline functions instead.
+func findTestDeadlines(ctx context.Context) (time.Time, time.Time, error) {
+	vmDeadlineKey := "vmDeadline"
+	testBinaryDeadlineKey := "testBinaryDeadline"
+	deadlineRecordLocation := "/"
+	if !IsWindows() {
+		deadlineRecordLocation = filepath.Join(deadlineRecordLocation, "var")
+	}
+	deadlineRecordLocation = filepath.Join(deadlineRecordLocation, "cit_deadline_record.txt")
+	deadlineFormat := time.RFC3339
+
+	// Check for previously computed deadlines, to avoid drift after rebooting.
+	deadlineRecord, err := os.ReadFile(deadlineRecordLocation)
+	if err == nil {
+		timeoutFields := strings.Split(string(deadlineRecord), ";")
+		var vmDeadline, testBinaryDeadline time.Time
+		var err error
+		var failed bool
+		for _, field := range timeoutFields {
+			if strings.HasPrefix(field, vmDeadlineKey) {
+				vmDeadline, err = time.Parse(deadlineFormat, strings.TrimPrefix(field, vmDeadlineKey+"="))
+			} else if strings.HasPrefix(field, testBinaryDeadlineKey) {
+				testBinaryDeadline, err = time.Parse(deadlineFormat, strings.TrimPrefix(field, testBinaryDeadlineKey+"="))
+			}
+			failed = failed || err != nil
+		}
+		// In case of failure, reparse from metadata.
+		if !failed {
+			return vmDeadline, testBinaryDeadline, nil
+		}
+		log.Printf("Deadline record %s exists but was unparseable. This is not a test failure but impacts the ability of the VM to report details in case of test failures.", deadlineRecordLocation)
+	}
+
+	vmTimeoutMDS, err := GetMetadata(ctx, "instance", "attributes", "_vm_timeout")
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not get vm timeout from mds: %v", err)
+	}
+	testBinaryTimeoutMDS, err := GetMetadata(ctx, "instance", "attributes", "_test_binary_timeout")
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not get test binary timeout from mds: %v", err)
+	}
+	vmTimeoutMDSSeconds, err := strconv.ParseInt(vmTimeoutMDS, 10, 64)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("vmTimeoutMDS is unparseable: %v", err)
+	}
+	testBinaryTimeoutMDSSeconds, err := strconv.ParseInt(testBinaryTimeoutMDS, 10, 64)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("testBinaryTimeoutMDS is unparseable: %v", err)
+	}
+	vmDeadline := time.Now().Add(time.Duration(vmTimeoutMDSSeconds) * time.Second)
+	testBinaryDeadline := time.Now().Add(time.Duration(testBinaryTimeoutMDSSeconds) * time.Second)
+	deadlines := fmt.Sprintf("%s=%s;%s=%s", vmDeadlineKey, vmDeadline.Format(deadlineFormat), testBinaryDeadlineKey, testBinaryDeadline.Format(deadlineFormat))
+	err = os.WriteFile(deadlineRecordLocation, []byte(deadlines), 0644)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("could not record deadlines: %v", err)
+	}
+	return vmDeadline, testBinaryDeadline, nil
 }
 
 // ValidWindowsPassword returns a random password of the given length which

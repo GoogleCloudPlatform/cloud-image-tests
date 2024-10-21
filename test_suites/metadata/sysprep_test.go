@@ -22,7 +22,9 @@ import (
 
 func TestSysprepSpecialize(t *testing.T) {
 	utils.WindowsOnly(t)
-	result, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", "result")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
 	if err != nil {
 		t.Fatalf("failed to read startup script result key: %v", err)
 	}

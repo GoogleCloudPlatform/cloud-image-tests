@@ -97,7 +97,8 @@ func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
 // https://github.com/linux-rdma/perftest.
 // This is *not* a performance test, performance numbers aren't checked.
 func TestA3UltraGPUDirectRDMAHost(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
 	ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
@@ -109,7 +110,8 @@ func TestA3UltraGPUDirectRDMAHost(t *testing.T) {
 }
 
 func TestA3UltraGPUDirectRDMAClient(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
 	target, err := utils.GetRealVMName(a3uNode1Name)

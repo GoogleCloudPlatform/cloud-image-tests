@@ -44,7 +44,8 @@ func setupFirewall(t *testing.T) {
 }
 
 func TestSendPing(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if utils.IsWindows() {
 		setupFirewall(t)
 	}
@@ -115,7 +116,8 @@ func TestWaitForPing(t *testing.T) {
 	if err == nil {
 		return
 	}
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	wantPings := 2
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {

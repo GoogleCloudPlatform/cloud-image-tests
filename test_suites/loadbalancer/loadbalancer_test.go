@@ -52,7 +52,8 @@ func setupFirewall(t *testing.T) {
 }
 
 func runBackend(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	setupFirewall(t)
 	host, err := os.Hostname()
 	if err != nil {
@@ -489,7 +490,8 @@ func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, back
 }
 
 func TestL3Client(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	setupFirewall(t)
 	waitForBackends(ctx, t, l3backendVM1IP4addr+":8080", l3backendVM2IP4addr+":8080")
 	setupLoadBalancer(ctx, t, "L3", "l3backend1", "l3backend2", l3IlbIP4Addr)
@@ -497,7 +499,8 @@ func TestL3Client(t *testing.T) {
 }
 
 func TestL7Client(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	setupFirewall(t)
 	waitForBackends(ctx, t, l7backendVM1IP4addr+":8080", l7backendVM2IP4addr+":8080")
 	setupLoadBalancer(ctx, t, "L7", "l7backend1", "l7backend2", l7IlbIP4Addr)

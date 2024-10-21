@@ -79,7 +79,8 @@ func mountLinuxDiskToPath(ctx context.Context, mountDiskDir string, isReattach b
 
 // TestMount tests that a drive can be mounted and written to. Hotattach without the attaching and detaching.
 func TestMount(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	fileName := "hotattach.txt"
 	fileContents := "cold Attach"
 	fileContentsBytes := []byte(fileContents)

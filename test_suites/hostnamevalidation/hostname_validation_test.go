@@ -63,7 +63,9 @@ func testHostnameLinux(shortname string) error {
 }
 
 func TestHostname(t *testing.T) {
-	metadataHostname, err := utils.GetMetadata(utils.Context(t), "instance", "hostname")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	metadataHostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
 		t.Fatalf(" still couldn't determine metadata hostname")
 	}
@@ -84,7 +86,9 @@ func TestHostname(t *testing.T) {
 
 // TestCustomHostname tests the 'fully qualified domain name'.
 func TestCustomHostname(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata")
 	}
@@ -111,7 +115,8 @@ func TestCustomHostname(t *testing.T) {
 // TestFQDN tests the 'fully qualified domain name'.
 func TestFQDN(t *testing.T) {
 	utils.LinuxOnly(t)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	metadataHostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
@@ -176,7 +181,9 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 		hashes = append(hashes, sshKeyHash{info, hash})
 	}
 
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata")
 	}
@@ -229,7 +236,8 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 
 func TestHostsFile(t *testing.T) {
 	utils.LinuxOnly(t)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")

@@ -40,6 +40,21 @@ var sbUnsupported = []*regexp.Regexp{
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	timeout, err := t.CreateTestVM("timeout") // DO NOT SUBMIT
+	if err != nil {
+		return err
+	}
+	timeout.RunTests("TestWaitForever$")
+
+	timeout2, err := t.CreateTestVM("timeoutafterreboot")
+	if err != nil {
+		return err
+	}
+	if err := timeout2.Reboot(); err != nil {
+		return nil
+	}
+	timeout2.RunTests("TestWaitForeverAfterReboot$")
+
 	vm, err := t.CreateTestVM("boot")
 	if err != nil {
 		return err

@@ -51,8 +51,9 @@ func buildNumberIsOk(sqlOutput, serverExpectedVersion string) bool {
 
 func TestSqlVersion(t *testing.T) {
 	utils.WindowsOnly(t)
-
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatal("Failed to get image metadata")
 	}

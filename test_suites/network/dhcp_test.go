@@ -35,8 +35,10 @@ const (
 func TestDHCP(t *testing.T) {
 	var cmd *exec.Cmd
 	var err error
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not get image name: %s", err)
 	}
@@ -83,7 +85,9 @@ func TestDHCP(t *testing.T) {
 }
 
 func checkDhcpWindows(t *testing.T) {
-	ifaceIndexes, err := utils.GetMetadata(utils.Context(t), "instance", "network-interfaces")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	ifaceIndexes, err := utils.GetMetadata(ctx, "instance", "network-interfaces")
 	if err != nil {
 		t.Errorf("could not get interfaces: %s", err)
 	}
@@ -95,7 +99,7 @@ func checkDhcpWindows(t *testing.T) {
 		if err != nil {
 			t.Errorf("can't convert %s to int", ifaceIndex)
 		}
-		iface, err := utils.GetInterface(utils.Context(t), i)
+		iface, err := utils.GetInterface(ctx, i)
 		if err != nil {
 			t.Errorf("could not find interface %d", i)
 		}
@@ -172,7 +176,9 @@ func parseWickedOutput(cmd *exec.Cmd) error {
 }
 
 func checkDHCPProcess(t *testing.T) error {
-	iface, err := utils.GetInterface(utils.Context(t), 1)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	iface, err := utils.GetInterface(ctx, 1)
 	if err != nil {
 		return fmt.Errorf("couldn't get secondary interface: %v", err)
 	}
