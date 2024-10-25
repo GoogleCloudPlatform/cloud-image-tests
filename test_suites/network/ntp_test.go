@@ -109,7 +109,6 @@ func testNTPWindows(t *testing.T) {
 
 	expected := []string{
 		"#Peers: 1",
-		"Peer: metadata.google.internal,0x1",
 		"LastSyncErrorMsgId: 0x00000000 (Succeeded)",
 	}
 
@@ -117,6 +116,16 @@ func testNTPWindows(t *testing.T) {
 		if !strings.Contains(output.Stdout, exp) {
 			t.Fatalf("Expected info %s not found in peer_info: %s", exp, output.Stdout)
 		}
+	}
+
+	expectedAddresses := []string{
+		"Peer: metadata.google.internal,0x1",
+		"Peer: 169.254.169.254,0x1",
+	}
+
+	// At least one of the expected addresses should be present.
+	if !strings.Contains(output.Stdout, expectedAddresses[0]) && !strings.Contains(output.Stdout, expectedAddresses[1]) {
+		t.Fatalf("Expected address %s or %s not found in peer_addresses: %s", expectedAddresses[0], expectedAddresses[1], output.Stdout)
 	}
 
 	// NTP can take time to get to an active state.
