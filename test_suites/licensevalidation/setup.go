@@ -164,11 +164,11 @@ func requiredLicenseList(image *compute.Image) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "ubuntu") && strings.Contains(image.Name, "nvidia"):
 		project = "ubuntu-os-cloud"
-		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("ubuntu-[0-9]{4}").FindString(image.Name), "ubuntu-")
+		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("ubuntu-accelerator-[0-9]{4}").FindString(image.Name), "ubuntu-accelerator-")
 		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-[0-9]{3}").FindString(image.Name), "nvidia-")
 		transform = func() {
 			requiredLicenses[0] = strings.TrimSuffix(requiredLicenses[0], fmt.Sprintf("-with-nvidia-%s", gpuDriverVersion))
-			if ubuntuVersion[2:] == "04" {
+			if strings.HasSuffix(ubuntuVersion, "04") {
 				requiredLicenses[0] += "-lts"
 			}
 			requiredLicenses = append(requiredLicenses,
