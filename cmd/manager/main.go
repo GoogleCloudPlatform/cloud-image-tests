@@ -33,6 +33,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/guestagent"
@@ -170,6 +171,10 @@ func main() {
 		{
 			acceleratorconfig.Name,
 			acceleratorconfig.TestSetup,
+		},
+		{
+			acceleratorrdma.Name,
+			acceleratorrdma.TestSetup,
 		},
 		{
 			cvm.Name,
