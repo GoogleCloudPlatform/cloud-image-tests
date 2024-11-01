@@ -121,7 +121,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	tvm.RunTests("TestA3UGpuCount|TestA3UNicCount")
-
+	tvm.RunTests("TestA3UGpuCount|TestA3UNicCount|TestA3UGPUNumaMapping")
 	return nil
 }
