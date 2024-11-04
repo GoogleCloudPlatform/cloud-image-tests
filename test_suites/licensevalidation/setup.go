@@ -43,6 +43,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		t.Skip("Skipping license check for Windows 11 client images.")
 	case strings.Contains(t.Image.Name, "windows-10"):
 		t.Skip("Skipping license check for Windows 10 client images.")
+	case strings.Contains(t.Image.Name, "opensuse-leap"):
+		t.Skip("Skipping license check for opensuse-leap images.")
+	case strings.Contains(t.Image.Name, "opensuse-leap-arm64"):
+		t.Skip("Skipping license check for opensuse-leap-arm64 images.")
 	}
 
 	licensetests := "TestLicenses"
