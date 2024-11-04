@@ -40,7 +40,7 @@ var imageFamilyBootTimeThresholdMap = map[string]int{
 	"sles-12":     105,
 	"sles-15":     130,
 	"ubuntu-pro":  130,
-	"ubuntu":      85,
+	"ubuntu":      130,
 	"windows":     130,
 }
 

@@ -42,6 +42,9 @@ func TestAliases(t *testing.T) {
 	if strings.Contains(image, "ubuntu-pro-2404-noble") {
 		t.Skipf("Ubuntu Pro 24.04 skipped due to dhclient removal")
 	}
+	if strings.Contains(image, "ubuntu-2404-noble-arm64") || strings.Contains(image, "ubuntu-2404-noble-amd64") {
+		t.Skipf("Ubuntu 24.04 skipped due to dhclient removal")
+	}
 	if err := verifyIPAliases(t); err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +60,9 @@ func TestAliasAfterReboot(t *testing.T) {
 		t.Skipf("COS does not support IP aliases")
 	}
 	if strings.Contains(image, "ubuntu-pro-2404-noble") {
+		t.Skipf("Ubuntu Pro 24.04 skipped due to dhclient removal")
+	}
+	if strings.Contains(image, "ubuntu-2404-noble-arm64") || strings.Contains(image, "ubuntu-2404-noble-amd64") {
 		t.Skipf("Ubuntu Pro 24.04 skipped due to dhclient removal")
 	}
 	_, err = os.Stat(markerFile)
@@ -126,6 +132,9 @@ func TestAliasAgentRestart(t *testing.T) {
 		t.Skipf("COS does not support IP aliases")
 	}
 	if strings.Contains(image, "ubuntu-pro-2404-noble") {
+		t.Skipf("Ubuntu Pro 24.04 skipped due to dhclient removal")
+	}
+	if strings.Contains(image, "ubuntu-2404-noble-arm64") || strings.Contains(image, "ubuntu-2404-noble-amd64") {
 		t.Skipf("Ubuntu Pro 24.04 skipped due to dhclient removal")
 	}
 	iface, err := utils.GetInterface(ctx, 0)
