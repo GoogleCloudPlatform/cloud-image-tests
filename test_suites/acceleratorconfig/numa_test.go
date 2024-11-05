@@ -40,3 +40,25 @@ func TestA3UGPUNumaMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestA3UNICNumaMapping(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		filePath := fmt.Sprintf("/sys/class/net/eth%d/device/numa_node", i)
+		res, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("os.Readfile(%s): %v, want nil", filePath, err)
+		}
+		numaMapping := string(res)
+		t.Logf("Eth%d NUMA node: %s", i, numaMapping)
+		// Eth0 and 2-6 expected to be on numa node 0
+		if i == 0 || (i > 1 && i < 6) {
+			if numaMapping != "0" {
+				t.Fatalf("TestA3UNICNumaMapping: Eth%d has numa node %v, want 0", i, numaMapping)
+			}
+		} else {
+			if numaMapping != "1" {
+				t.Fatalf("TestA3UNICNumaMapping: Eth%d has numa node %v, want 1", i, numaMapping)
+			}
+		}
+	}
+}
