@@ -15,61 +15,111 @@
 package acceleratorrdma
 
 import (
+	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-// Exercise the GPUDirectRDMA stack without involving NCCL by using
-// https://github.com/linux-rdma/perftest.
-// This is *not* a performance test, performance numbers aren't checked.
-func TestA3UltraGPUDirectRDMA(t *testing.T) {
-	ctx := utils.Context(t)
-	var installBuildDepsCmd *exec.Cmd
+func setupPerftest(ctx context.Context, t *testing.T) {
+	t.Helper()
 	switch {
 	case utils.CheckLinuxCmdExists("yum"):
-		installBuildDepsCmd = exec.CommandContext(ctx, "yum", "install", "-y", "git", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel", "nvidia-driver-cuda-libs")
+		out, err := exec.CommandContext(ctx, "yum", "install", "-y", "git", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, yum, install, -y, git, cuda-toolkit, perftest, libtool, automake, autoconf, make, libibverbs-devel, librdmacm-devel, libibumad-devel, pciutils-devel).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
 	case utils.CheckLinuxCmdExists("apt"):
-		installBuildDepsCmd = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make")
+		out, err := exec.CommandContext(ctx, "add-nvidia-repositories", "-y").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories, -y).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
+		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, apt, install, -y, git, ibverbs-utils, cuda-toolkit, perftest, libtool, automake, autoconf, libibverbs-dev, librdmacm-dev, libibumad-dev, libpci-dev, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
 	default:
 		t.Fatalf("Unknown package manager, can't install build deps.")
 	}
-	if err := installBuildDepsCmd.Run(); err != nil {
-		t.Fatalf("installBuildDepsCmd.Run() = %v, want nil", err)
-	}
-	if err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").Run(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).Run() = %v", err)
+	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
 	}
 	if err := os.Chdir("./perftest"); err != nil {
 		t.Fatalf("os.Chdir(./perftest) = %v, want nil", err)
 	}
-	if err := exec.CommandContext(ctx, "./autogen.sh").Run(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, ./autogen.sh).Run() = %v, want nil", err)
+	out, err = exec.CommandContext(ctx, "./autogen.sh").CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, ./autogen.sh).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 	}
 	configure := exec.CommandContext(ctx, "./configure")
 	configure.Env = append(configure.Environ(), "CUDA_H_PATH=/usr/local/cuda/include/cuda.h")
-	if err := configure.Run(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, CUDA_H_PATH=/usr/local/cuda/include/cuda.h ./configure).Run() = %v, want nil", err)
+	out, err = configure.CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, CUDA_H_PATH=/usr/local/cuda/include/cuda.h ./configure).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 	}
 	// -j$(nproc) causes compilation failures in some cases
-	if err := exec.CommandContext(ctx, "make").Run(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, make).Run() = %v, want nil", err)
+	out, err = exec.CommandContext(ctx, "make").CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 	}
-	serverCmd := exec.CommandContext(ctx, "./ib_write_bw", "--report_gbits", "--use_cuda=0", "--use_cuda_dmabuf")
-	if err := serverCmd.Start(); err != nil {
-		t.Fatalf("%s.Start() = %v, want nil", serverCmd.String(), err)
-	}
-	clientCmd := exec.CommandContext(ctx, "./ib_write_bw", "--report_gbits", "--use_cuda=0", "--use_cuda_dmabuf", "localhost")
-	if err := clientCmd.Start(); err != nil {
-		t.Fatalf("%s.Start() = %v, want nil", clientCmd.String(), err)
-	}
+}
 
-	if err := serverCmd.Wait(); err != nil {
-		t.Fatalf("%s.Wait() = %v, want nil", serverCmd.String(), err)
+func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
+	args := []string{"--report_gbits", "--use_cuda=0"}
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("utils.GetMetadata(ctx, instance, image) = %v, want nil", err)
 	}
-	if err := clientCmd.Wait(); err != nil {
-		t.Fatalf("%s.Wait() = %v, want nil", clientCmd.String(), err)
+	if strings.Contains(image, "rocky-linux-8") {
+		// DMABuf support is too new for this kernel, setup peermem.
+		out, err := exec.CommandContext(ctx, "modprobe", "nvidia-peermem").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, modprobe, nvidia-peermem).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
+	} else {
+		// DMABuf is supported, use it.
+		args = append(args, "--use_cuda_dmabuf")
+	}
+	return args
+}
+
+// Exercise the GPUDirectRDMA stack without involving NCCL by using
+// https://github.com/linux-rdma/perftest.
+// This is *not* a performance test, performance numbers aren't checked.
+func TestA3UltraGPUDirectRDMAHost(t *testing.T) {
+	ctx := utils.Context(t)
+	setupPerftest(ctx, t)
+	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
+	ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
+	out, err := ibWriteBWCmd.CombinedOutput()
+	t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
+	if err != nil {
+		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = %v, want nil", ibWriteBWCmd.String(), err)
+	}
+}
+
+func TestA3UltraGPUDirectRDMAClient(t *testing.T) {
+	ctx := utils.Context(t)
+	setupPerftest(ctx, t)
+	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
+	target, err := utils.GetRealVMName(a3uNode1Name)
+	if err != nil {
+		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", a3uNode1Name, err)
+	}
+	ibWriteBWArgs = append(ibWriteBWArgs, target)
+	ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
+	for {
+		out, err := ibWriteBWCmd.CombinedOutput()
+		if err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
+			t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
+		}
 	}
 }

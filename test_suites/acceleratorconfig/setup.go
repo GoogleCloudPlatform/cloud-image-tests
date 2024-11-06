@@ -23,7 +23,11 @@ import (
 )
 
 // Name is the name of the test package. It must match the directory name.
-var Name = "acceleratorconfig"
+var (
+	Name       = "acceleratorconfig"
+	testRegion = "europe-west1"
+	testZone   = "europe-west1-b"
+)
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -35,19 +39,19 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	subnetwork1.SetRegion("us-east4")
+	subnetwork1.SetRegion(testRegion)
 
 	subnetwork2, err := network1.CreateSubnetwork("subnetwork-2", "10.128.1.0/24")
 	if err != nil {
 		return err
 	}
-	subnetwork2.SetRegion("us-east4")
+	subnetwork2.SetRegion(testRegion)
 
 	subnetwork3, err := network1.CreateSubnetwork("subnetwork-3", "10.128.2.0/24")
 	if err != nil {
 		return err
 	}
-	subnetwork3.SetRegion("us-east4")
+	subnetwork3.SetRegion(testRegion)
 
 	vm := &daisy.InstanceBeta{}
 	vm.Name = "gpucount"
@@ -56,66 +60,66 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		{
 			NicType:    "GVNIC",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-1",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-1",
 		},
 		{
 			NicType:    "GVNIC",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-2",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-2",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 		{
 			NicType:    "MRDMA",
 			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/us-east4/subnetworks/subnetwork-3",
+			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
 		},
 	}
 	vm.GuestAccelerators = []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
 			// This may need to be updated to the appropriate zone upon A3U release.
-			AcceleratorType: "zones/us-east4-a/acceleratorTypes/nvidia-h200-141gb",
+			AcceleratorType: "zones/" + testRegion + "-a/acceleratorTypes/nvidia-h200-141gb",
 		},
 	}
 	vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 	disks := []*compute.Disk{
-		{Name: vm.Name, Type: imagetest.PdBalanced, Zone: "us-east4-a"},
+		{Name: vm.Name, Type: imagetest.PdBalanced, Zone: testZone},
 	}
-	vm.Zone = "us-east4-a"
+	vm.Zone = testZone
 
 	tvm, err := t.CreateTestVMFromInstanceBeta(vm, disks)
 	if err != nil {

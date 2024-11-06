@@ -22,20 +22,22 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "acceleratorrdma"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name         = "acceleratorrdma"
+	a3uNode1Name = "a3ultra-node1"
+	a3uNode2Name = "a3ultra-node2"
+	testRegion   = "europe-west1"
+	testZone     = "europe-west1-b"
+)
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
-	a3ultraVM := &daisy.InstanceBeta{}
-	a3ultraVM.Name = "a3ultra_gpudirectrdma"
-	a3ultraVM.MachineType = "a3-ultragpu-8g-nolssd"
-	a3ultraVM.GuestAccelerators = []*computeBeta.AcceleratorConfig{
+	a3UltraAccelConfig := []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
-			// This may need to be updated to the appropriate zone upon A3U release.
-			AcceleratorType: "zones/us-east4-a/acceleratorTypes/nvidia-h200-141gb",
+			AcceleratorType:  "zones/" + testZone + "/acceleratorTypes/nvidia-h200-141gb",
 		},
 	}
 	acceleratorrdmaNetwork, err := t.CreateNetwork("acceleratorrdma", false)
@@ -46,17 +48,17 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	gvnic0Subnet.SetRegion("us-east4")
+	gvnic0Subnet.SetRegion(testRegion)
 	gvnic1Subnet, err := acceleratorrdmaNetwork.CreateSubnetwork("rdma-gvnic-1", "10.1.3.0/24")
 	if err != nil {
 		return err
 	}
-	gvnic1Subnet.SetRegion("us-east4")
+	gvnic1Subnet.SetRegion(testRegion)
 	mrdmaSubnet, err := acceleratorrdmaNetwork.CreateSubnetwork("rdma-mrdma", "10.1.4.0/24")
 	if err != nil {
 		return err
 	}
-	mrdmaSubnet.SetRegion("us-east4")
+	mrdmaSubnet.SetRegion(testRegion)
 	if err := acceleratorrdmaNetwork.CreateFirewallRule("rdma-allow-tcp", "tcp", nil, []string{"10.1.2.0/24", "10.1.3.0/24", "10.1.4.0/24"}); err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err := acceleratorrdmaNetwork.CreateFirewallRule("rdma-allow-icmp", "icmp", nil, []string{"10.1.2.0/24", "10.1.3.0/24", "10.1.4.0/24"}); err != nil {
 		return err
 	}
-	a3ultraVM.NetworkInterfaces = []*computeBeta.NetworkInterface{
+	a3UltraNicConfig := []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
 			Subnetwork: "rdma-gvnic-0",
@@ -108,17 +110,38 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			Subnetwork: "rdma-mrdma",
 		},
 	}
-	a3ultraVM.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
-	disks := []*compute.Disk{
-		{Name: a3ultraVM.Name, Type: imagetest.HyperdiskBalanced, Zone: "us-east4-a"},
-	}
-	a3ultraVM.Zone = "us-east4-a"
+	a3ultraSchedulingConfig := &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 
-	a3ultraTestVM, err := t.CreateTestVMFromInstanceBeta(a3ultraVM, disks)
+	a3UltraNode1 := &daisy.InstanceBeta{}
+	a3UltraNode1.Name = a3uNode1Name
+	a3UltraNode1.MachineType = "a3-ultragpu-8g-nolssd"
+	a3UltraNode1.Zone = testZone
+	a3UltraNode1.Scheduling = a3ultraSchedulingConfig
+	a3UltraNode1.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
+	a3UltraNode1.NetworkInterfaces = a3UltraNicConfig
+	a3UltraNode1.GuestAccelerators = a3UltraAccelConfig
+	node1Disks := []*compute.Disk{{Name: a3uNode1Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+
+	a3UltraNode1VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode1, node1Disks)
 	if err != nil {
 		return err
 	}
-	a3ultraTestVM.RunTests("TestA3UltraGPUDirectRDMA")
+	a3UltraNode1VM.RunTests("TestA3UltraGPUDirectRDMAHost")
 
+	a3UltraNode2 := &daisy.InstanceBeta{}
+	a3UltraNode2.Name = a3uNode2Name
+	a3UltraNode2.MachineType = "a3-ultragpu-8g-nolssd"
+	a3UltraNode2.Zone = testZone
+	a3UltraNode2.Scheduling = a3ultraSchedulingConfig
+	a3UltraNode2.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
+	a3UltraNode2.NetworkInterfaces = a3UltraNicConfig
+	a3UltraNode2.GuestAccelerators = a3UltraAccelConfig
+	node2Disks := []*compute.Disk{{Name: a3uNode2Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+
+	a3UltraNode2VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode2, node2Disks)
+	if err != nil {
+		return err
+	}
+	a3UltraNode2VM.RunTests("TestA3UltraGPUDirectRDMAClient")
 	return nil
 }
