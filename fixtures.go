@@ -887,7 +887,14 @@ func (n *Network) SetMTU(mtu int) {
 // CreateSubnetwork creates custom subnetwork. Using AddCustomNetwork method
 // provided by TestVM to config network on vm
 func (n *Network) CreateSubnetwork(name string, ipRange string) (*Subnetwork, error) {
-	createSubnetworksStep, subnetwork, err := n.testWorkflow.appendCreateSubnetworksStep(name, ipRange, n.name)
+	subnetwork := &daisy.Subnetwork{
+		Subnetwork: compute.Subnetwork{
+			Name:        name,
+			IpCidrRange: ipRange,
+			Network:     n.name,
+		},
+	}
+	createSubnetworksStep, subnetwork, err := n.testWorkflow.appendCreateSubnetworksStep(subnetwork)
 	if err != nil {
 		return nil, err
 	}
@@ -900,6 +907,26 @@ func (n *Network) CreateSubnetwork(name string, ipRange string) (*Subnetwork, er
 	}
 
 	return &Subnetwork{name, n.testWorkflow, subnetwork, n}, nil
+}
+
+// CreateSubnetworkFromDaisySubnetwork creates custom subnetwork from daisy
+// subnetwork. Callers that don't need to specify properties beyond ip ranges,
+// region, purpose, and role should call CreateSubnetwork instead.
+func (n *Network) CreateSubnetworkFromDaisySubnetwork(subnetwork *daisy.Subnetwork) (*Subnetwork, error) {
+	subnetwork.Network = n.name
+	createSubnetworksStep, subnetwork, err := n.testWorkflow.appendCreateSubnetworksStep(subnetwork)
+	if err != nil {
+		return nil, err
+	}
+	createNetworkStep, ok := n.testWorkflow.wf.Steps[createNetworkStepName]
+	if !ok {
+		return nil, fmt.Errorf("create-network step missing")
+	}
+	if err := n.testWorkflow.wf.AddDependency(createSubnetworksStep, createNetworkStep); err != nil {
+		return nil, err
+	}
+
+	return &Subnetwork{subnetwork.Name, n.testWorkflow, subnetwork, n}, nil
 }
 
 // SetRegion sets the subnetwork region

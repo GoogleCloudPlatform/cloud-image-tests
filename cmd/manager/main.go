@@ -48,8 +48,10 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsroutes"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/metadata"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkinterfacenaming"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkperf"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/oslogin"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagemanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packageupgrade"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/security"
@@ -192,6 +194,11 @@ func main() {
 			networkperf.Name,
 			networkperf.TestSetup,
 		},
+
+		{
+			networkinterfacenaming.Name,
+			networkinterfacenaming.TestSetup,
+		},
 		{
 			loadbalancer.Name,
 			loadbalancer.TestSetup,
@@ -235,6 +242,10 @@ func main() {
 		{
 			shapevalidation.Name,
 			shapevalidation.TestSetup,
+		},
+		{
+			packagemanager.Name,
+			packagemanager.TestSetup,
 		},
 		{
 			packageupgrade.Name,

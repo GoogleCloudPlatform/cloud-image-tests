@@ -303,6 +303,16 @@ Reaching 100% of the advertised speeds is unrealistic in real scenarios.
 network speeds. This test launches up to 3 sets of servers and clients: default
 network, jumbo frames network, and tier1 networking tier.
 
+### Test suite: networkinterfacenaming
+
+#### TestNetworkInterfaceNamingScheme
+
+Tests that the network interface names follow an acceptable scheme. On Linux,
+only older images should be using the `eth0` scheme. New images should use Predictable Network
+Interface names. IDPF and MLX5 NICs should follow their own scheme.
+
+On Windows, interfaces should be named Ethernet*
+
 ### Test suite: oslogin
 Validate that the user can SSH using OSLogin, and that the guest agent can correctly provision a
 VM to utilize OSLogin.
@@ -315,6 +325,12 @@ make sure the guest agent responds correctly to OSLogin metadata changes, and th
 test users to SSH to each of the server VMs. The methods covered by this test are normal SSH and 2FA SSH.
 
 Note that this test must be run in a specifically prepared project. See the [OSlogin test README](oslogin/README.md) for more information.
+
+### Test suite: packagemanager
+
+#### TestRepoAvailabilityDualStack TestRepoAvailabilityIPv6Only TestRepoAvailabilityIPv4Only
+
+Test that repositories are reachable from an instance with a NIC configured for ipv4, ipv6, and dual stack.
 
 ### Test suite: packageupgrade
 

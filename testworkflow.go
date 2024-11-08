@@ -507,14 +507,7 @@ func (t *TestWorkflow) appendCreateNetworkStep(networkName string, mtu int, auto
 	return createNetworkStep, network, nil
 }
 
-func (t *TestWorkflow) appendCreateSubnetworksStep(name, ipRange, networkName string) (*daisy.Step, *daisy.Subnetwork, error) {
-	subnetwork := &daisy.Subnetwork{
-		Subnetwork: compute.Subnetwork{
-			Name:        name,
-			IpCidrRange: ipRange,
-			Network:     networkName,
-		},
-	}
+func (t *TestWorkflow) appendCreateSubnetworksStep(subnetwork *daisy.Subnetwork) (*daisy.Step, *daisy.Subnetwork, error) {
 	createSubnetworks := &daisy.CreateSubnetworks{}
 	*createSubnetworks = append(*createSubnetworks, subnetwork)
 
