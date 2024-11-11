@@ -15,6 +15,7 @@
 package imageboot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -30,152 +31,36 @@ import (
 )
 
 // The values have been decided based on running spot tests for different images.
-var imageFamilyBootTimeThresholdMap = map[string]int{
-	"almalinux":   70,
-	"centos":      70,
-	"debian":      75,
-	"rhel":        85,
-	"rocky-linux": 70,
-	"opensuse":    85, // Temporary allowance, remove or set to default of 70 after boot time drops again
-	"sles-12":     105,
-	"sles-15":     130,
-	"ubuntu-pro":  130,
-	"ubuntu":      130,
-	"windows":     130,
+var imageBootTimeThresholds = []imageBootTimeThreshold{
+	{Image: "almalinux", MaxTime: 20},
+	{Image: "centos", MaxTime: 20},
+	{Image: "debian", MaxTime: 20},
+	{Image: "rhel", MaxTime: 30},
+	{Image: "rocky-linux", MaxTime: 20},
+	{Image: "opensuse", MaxTime: 40},
+	{Image: "sles-12", MaxTime: 40},
+	{Image: "sles-15", MaxTime: 40},
+	{Image: "ubuntu", MaxTime: 30},
+	{Image: "windows-11-", MaxTime: 200},
+	{Image: "windows-server-2025", MaxTime: 200},
+	{Image: "windows", MaxTime: 190},
+}
+
+type imageBootTimeThreshold struct {
+	Image   string
+	MaxTime int // In seconds
 }
 
 const (
-	markerFile     = "/var/boot-marker"
-	secureBootFile = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
-	setupModeFile  = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+	// See man 7 systemd.time
+	systemdTimeFormat = "Mon 2006-01-02 15:04:05 MST"
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-uptime?view=powershell-7.4#example-2-show-the-time-of-the-last-boot
+	windowsTimeFormat  = "Monday, January 2, 2006 3:04:05 PM"
+	markerFile         = "/var/boot-marker"
+	secureBootFile     = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+	setupModeFile      = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+	defaultMaxBootTime = 20 // In seconds
 )
-
-func lookForSshdAndGuestAgentProcess() error {
-	dir, _ := os.Open("/proc")
-	defer dir.Close()
-
-	names, err := dir.Readdirnames(0)
-	if err != nil {
-		return err
-	}
-
-	var foundSshd bool
-	var foundGuestAgent bool
-
-	for _, name := range names {
-		// Continue if the directory name does start with a number
-		if name[0] < '0' || name[0] > '9' {
-			continue
-		}
-
-		// Continue if the directory name is not an integer
-		_, err := strconv.ParseInt(name, 10, 0)
-		if err != nil {
-			continue
-		}
-
-		// Gets the symbolic link to the executable
-		link, err := os.Readlink("/proc/" + name + "/exe")
-		if err != nil {
-			continue
-		}
-
-		if strings.Trim(link, "\n") == "/usr/sbin/sshd" {
-			foundSshd = true
-		}
-
-		if strings.Trim(link, "\n") == "/usr/bin/google_guest_agent" {
-			foundGuestAgent = true
-		}
-
-	}
-
-	if foundSshd && foundGuestAgent {
-		return nil
-	}
-
-	return fmt.Errorf("guest agent and/or sshd not found")
-}
-
-func lookForGuestAgentProcessWindows() error {
-	command := `$agentservice = Get-Service GCEAgent
-	$agentservice.Status`
-	output, err := utils.RunPowershellCmd(command)
-	if err != nil {
-		return fmt.Errorf("failed to find Guest Agent service")
-	}
-
-	agentStatus := strings.TrimSpace(output.Stdout)
-	if agentStatus == "Running" {
-		return nil
-	}
-
-	return fmt.Errorf("guest agent not found")
-}
-
-func verifyBootTime(t *testing.T) error {
-	// Reading the system uptime once both guest agent and sshd are found in the processes
-	uptimeData, err := os.ReadFile("/proc/uptime")
-	if err != nil {
-		return fmt.Errorf("Failed to read uptime file")
-	}
-	fields := strings.Split(string(uptimeData), " ")
-	uptime, err := strconv.ParseFloat(fields[0], 64)
-	if err != nil {
-		return fmt.Errorf("Failed to read uptime numeric value")
-	}
-	fmt.Println("found guest agent and sshd running at ", int(uptime), " seconds")
-
-	//Validating the uptime against the allowed threshold value
-	var maxThreshold int
-
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		return fmt.Errorf("couldn't get image from metadata")
-	}
-
-	for family, threshold := range imageFamilyBootTimeThresholdMap {
-		if strings.Contains(image, family) {
-			maxThreshold = threshold
-			break
-		}
-	}
-	if maxThreshold == 0 {
-		t.Log("using default boot time limit of 70")
-		maxThreshold = 70
-	}
-
-	if int(uptime) > maxThreshold {
-		return fmt.Errorf("Boot time too long: %v is beyond max of %v", uptime, maxThreshold)
-	}
-
-	return nil
-}
-
-func verifyBootTimeWindows() error {
-	command := `$boot = Get-WmiObject win32_operatingsystem
-	$uptime = (Get-Date) - $boot.ConvertToDateTime($boot.LastBootUpTime)
-	$uptime.TotalSeconds`
-	output, err := utils.RunPowershellCmd(command)
-	if err != nil {
-		return fmt.Errorf("Failed to read uptime value")
-	}
-	uptimeString := strings.TrimSpace(output.Stdout)
-	uptime, err := strconv.ParseFloat(uptimeString, 64)
-	if err != nil {
-		return fmt.Errorf("Failed to convert output to Integer: %v", err)
-	}
-
-	fmt.Println("found guest agent running at ", uptime, " seconds")
-
-	var maxThreshold float64
-	maxThreshold = 300
-	if uptime > maxThreshold {
-		return fmt.Errorf("Boot time too long: %v is beyond max of %v", uptime, maxThreshold)
-	}
-
-	return nil
-}
 
 func mountEFIVarsCOS(t *testing.T) error {
 	t.Helper()
@@ -305,49 +190,136 @@ func testWindowsGuestSecureBoot() error {
 	return nil
 }
 
-func TestStartTime(t *testing.T) {
-	metadata, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "start-time")
-	if err != nil {
-		t.Fatalf("couldn't get start time from metadata")
-	}
-	startTime, err := strconv.Atoi(metadata)
-	if err != nil {
-		t.Fatalf("failed to convet start time %s", metadata)
-	}
-	t.Logf("image start time is %d", time.Now().Second()-startTime)
-}
-
 func TestBootTime(t *testing.T) {
-
-	var foundPassCondition bool
-
-	// 300 is the current maximum number of seconds to allow any distro to start sshd and guest-agent before returning a test failure
-	for i := 0; i < 300; i++ {
-		if utils.IsWindows() {
-			if err := lookForGuestAgentProcessWindows(); err == nil {
-				foundPassCondition = true
-				break
-			}
-		} else if err := lookForSshdAndGuestAgentProcess(); err == nil {
-			foundPassCondition = true
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Errorf("utils.GetMetadata(ctx, instance, image) = err %v want nil", err)
+	}
+	startTime := findInstanceStartTime(ctx, t)
+	essentialServiceStartTime := findEssentialServiceStartTime(ctx, t, image)
+	bootTime := int(essentialServiceStartTime.Sub(startTime).Seconds())
+	t.Logf("Instance start time: %s", startTime.Format(time.ANSIC))
+	t.Logf("Service start time: %s", essentialServiceStartTime.Format(time.ANSIC))
+	if bootTime < 0 {
+		t.Fatalf("Invalid boot time, services started before boot.")
+	}
+	maxBootTime := defaultMaxBootTime
+	for _, threshold := range imageBootTimeThresholds {
+		if strings.Contains(image, threshold.Image) {
+			maxBootTime = threshold.MaxTime
 			break
 		}
-		time.Sleep(1 * time.Second)
 	}
-
-	if !foundPassCondition {
-		t.Fatalf("Condition for guest agent and/or sshd process to start not reached within timeout")
+	if bootTime > maxBootTime {
+		t.Errorf("Boot time of %d is greater than limit of %d", bootTime, maxBootTime)
 	}
+	if bootTime+10 < maxBootTime {
+		t.Logf("Boot time of %d is more than 10 seconds below limit of %d. Consider lowering the limit if this is consistent.", bootTime, maxBootTime)
+	}
+}
 
+func findInstanceStartTime(ctx context.Context, t *testing.T) time.Time {
+	t.Helper()
 	if utils.IsWindows() {
-		err := verifyBootTimeWindows()
+		cmd := "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime"
+		output, err := utils.RunPowershellCmd(cmd)
 		if err != nil {
-			t.Fatalf("Failed to verify boot time: %v", err)
+			t.Fatalf("utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
 		}
-	} else {
-		err := verifyBootTime(t)
+		timestamp := strings.TrimSpace(output.Stdout)
+		instanceStartTime, err := time.Parse(windowsTimeFormat, timestamp)
 		if err != nil {
-			t.Fatalf("Failed to verify boot time: %v", err)
+			t.Fatalf("time.Parse(windowsTimeFormat, %s) = %v want nil", timestamp, err)
+		}
+		return instanceStartTime
+	}
+	uptimeData, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		t.Fatalf("os.ReadFile(/proc/uptime) = %v want nil", err)
+	}
+	fields := strings.Split(string(uptimeData), " ")
+	uptime, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		t.Fatalf("strconv.ParseFloat(%s, 64) = %v want nil", fields, err)
+	}
+	instanceStartTime := time.Now().Add(time.Duration(-1*uptime) * time.Second)
+	return instanceStartTime
+}
+
+// Find the time at which all essential services have been started. The list of
+// essential services is decided from the image name.
+func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image string) time.Time {
+	t.Helper()
+	essentialServices := []string{"google-guest-agent.service", "sshd.service"}
+	if strings.Contains(image, "windows") {
+		essentialServices = []string{"GCEAgent"}
+	} else if strings.Contains(image, "ubuntu") {
+		essentialServices = []string{"google-guest-agent.service", "ssh.service"}
+	}
+	latestStartTime := time.Time{}
+	for _, svc := range essentialServices {
+		svcStart := findServiceStartTime(ctx, t, svc)
+		if svcStart.After(latestStartTime) {
+			latestStartTime = svcStart
 		}
 	}
+	return latestStartTime
+}
+
+// Calling this function before the service is started will wait for it to be
+// started before returning the start time.
+func findServiceStartTime(ctx context.Context, t *testing.T, service string) time.Time {
+	t.Helper()
+	if utils.IsWindows() {
+		for {
+			output, err := utils.RunPowershellCmd(fmt.Sprintf(`(Get-Service -Name "%s").Status`, service))
+			if err != nil {
+				t.Fatalf("utils.RunPowershellCmd((Get-Service -Name %q).Status) = stderr: %v err: %v want err: nil", service, output.Stderr, err)
+			}
+			if strings.Contains(output.Stdout, "Running") {
+				break
+			}
+			time.Sleep(time.Second)
+			if ctx.Err() != nil {
+				t.Fatalf("context expired before service %s was started: %v", service, ctx.Err())
+			}
+		}
+		cmd := fmt.Sprintf(`(Get-Process -Id ((Get-CimInstance -ClassName Win32_Service | Where-Object {$_.Name -eq "%s"}).ProcessId)).StartTime`, service)
+		output, err := utils.RunPowershellCmd(cmd)
+		if err != nil {
+			t.Fatalf("utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
+		}
+		timestamp := strings.TrimSpace(output.Stdout)
+		serviceStartTime, err := time.Parse(windowsTimeFormat, timestamp)
+		if err != nil {
+			t.Fatalf("time.Parse(windowsServiceTimeFormat, %q) = %v want nil", timestamp, err)
+		}
+		return serviceStartTime
+	}
+	for {
+		cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveState", service)
+		output, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
+		}
+		if strings.Contains(string(output), "ActiveState=active") {
+			break
+		}
+		time.Sleep(time.Second)
+		if ctx.Err() != nil {
+			t.Fatalf("context expired before service %s was started: %v", service, ctx.Err())
+		}
+	}
+	cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveEnterTimestamp", service)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
+	}
+	timestamp := strings.TrimPrefix(strings.TrimSpace(string(output)), "ActiveEnterTimestamp=")
+	serviceStartTime, err := time.Parse(systemdTimeFormat, timestamp)
+	if err != nil {
+		t.Fatalf("time.Parse(systemdTimeFormat, %q) = %v want nil", timestamp, err)
+	}
+	return serviceStartTime
 }

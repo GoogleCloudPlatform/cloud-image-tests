@@ -18,8 +18,6 @@ package imageboot
 
 import (
 	"regexp"
-	"strconv"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -61,8 +59,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	vm3.AddMetadata("start-time", strconv.Itoa(time.Now().Second()))
-	vm3.RunTests("TestStartTime|TestBootTime")
+	vm3.RunTests("TestBootTime")
 
 	for _, r := range sbUnsupported {
 		if r.MatchString(t.Image.Name) {
