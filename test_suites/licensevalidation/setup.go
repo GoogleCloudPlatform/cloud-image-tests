@@ -169,12 +169,12 @@ func requiredLicenseList(image *compute.Image) ([]string, error) {
 	case strings.Contains(image.Name, "ubuntu") && strings.Contains(image.Name, "nvidia"):
 		project = "ubuntu-os-cloud"
 		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("ubuntu-accelerator-[0-9]{4}").FindString(image.Name), "ubuntu-accelerator-")
-		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-[0-9]{3}").FindString(image.Name), "nvidia-")
+		if strings.HasSuffix(ubuntuVersion, "04") {
+			ubuntuVersion += "-lts"
+		}
+		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-([0-9]{3}|latest)").FindString(image.Name), "nvidia-")
 		transform = func() {
-			requiredLicenses[0] = strings.TrimSuffix(requiredLicenses[0], fmt.Sprintf("-with-nvidia-%s", gpuDriverVersion))
-			if strings.HasSuffix(ubuntuVersion, "04") {
-				requiredLicenses[0] += "-lts"
-			}
+			requiredLicenses[0] = fmt.Sprintf(licenseURLTmpl, "ubuntu-os-cloud", fmt.Sprintf("ubuntu-%s", ubuntuVersion))
 			requiredLicenses = append(requiredLicenses,
 				fmt.Sprintf(licenseURLTmpl, "ubuntu-os-accelerator-images", fmt.Sprintf("ubuntu-%s-accelerated", ubuntuVersion)),
 				fmt.Sprintf(licenseURLTmpl, "ubuntu-os-accelerator-images", fmt.Sprintf("nvidia-%s", gpuDriverVersion)),
