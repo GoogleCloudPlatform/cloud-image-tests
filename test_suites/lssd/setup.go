@@ -26,7 +26,7 @@ import (
 var Name = "lssd"
 
 const (
-	bootDiskSizeGB = 10
+	bootDiskSizeGB = 75
 
 	// the path to write the file on linux
 	linuxMountPath          = "/mnt/disks/hotattach"
