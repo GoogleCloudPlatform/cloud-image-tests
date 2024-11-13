@@ -79,10 +79,11 @@ type TestWorkflow struct {
 	Project     *compute.Project
 	Zone        *compute.Zone
 	// GCSPath is the destination for workflow outputs in gs://[...] form.
-	GCSPath        string
-	skipped        bool
-	skippedMessage string
-	wf             *daisy.Workflow
+	GCSPath           string
+	skipped           bool
+	skippedMessage    string
+	testExcludeFilter string
+	wf                *daisy.Workflow
 	// Global counter for all daisy steps on all VMs. This is an interim solution in order to prevent step-name collisions.
 	counter int
 	// Does this test require exclusive project
@@ -100,6 +101,7 @@ func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix 
 	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 	instance.Metadata["_cit_timeout"] = t.wf.DefaultTimeout
+	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
 }
 
 // addNewVMStep adds an entirely new addVM step, separate from the step used and
@@ -246,6 +248,7 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
+	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.InstancesBeta = append(createInstances.InstancesBeta, instance)
@@ -694,12 +697,13 @@ func getTestResults(ctx context.Context, ts *TestWorkflow) ([]string, error) {
 }
 
 // NewTestWorkflow returns a new TestWorkflow.
-func NewTestWorkflow(client daisycompute.Client, computeEndpointOverride, name, image, timeout, project, zone, x86Shape string, arm64Shape string) (*TestWorkflow, error) {
+func NewTestWorkflow(client daisycompute.Client, computeEndpointOverride, name, image, timeout, project, zone, excludeFilter string, x86Shape string, arm64Shape string) (*TestWorkflow, error) {
 	t := &TestWorkflow{}
 	t.counter = 0
 	t.Name = name
 	t.ImageURL = image
 	t.Client = client
+	t.testExcludeFilter = excludeFilter
 
 	var err error
 	t.Project, err = t.Client.GetProject(project)

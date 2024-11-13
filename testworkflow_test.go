@@ -533,6 +533,7 @@ func TestNewTestWorkflow(t *testing.T) {
 		arm64Shape          string
 		timeout             string
 		expectedMachineType string
+		testExcludeFilter   string
 	}{
 		{
 			name:                "arm",
@@ -545,6 +546,7 @@ func TestNewTestWorkflow(t *testing.T) {
 			arm64Shape:          "t2a-standard-1",
 			timeout:             "30m",
 			expectedMachineType: "t2a-standard-1",
+			testExcludeFilter:   "",
 		},
 		{
 			name:                "x86",
@@ -557,6 +559,7 @@ func TestNewTestWorkflow(t *testing.T) {
 			arm64Shape:          "t2a-standard-1",
 			timeout:             "20m",
 			expectedMachineType: "n1-standard-1",
+			testExcludeFilter:   "",
 		},
 		{
 			name:                "unspecified arch",
@@ -569,6 +572,7 @@ func TestNewTestWorkflow(t *testing.T) {
 			arm64Shape:          "t2a-standard-1",
 			timeout:             "20m",
 			expectedMachineType: "n1-standard-1",
+			testExcludeFilter:   "TestSSH",
 		},
 	}
 	for _, tc := range testcases {
@@ -593,7 +597,7 @@ func TestNewTestWorkflow(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer srv.Close()
-			twf, err := NewTestWorkflow(client, "", tc.name, tc.image, tc.timeout, tc.project, tc.zone, tc.x86Shape, tc.arm64Shape)
+			twf, err := NewTestWorkflow(client, "", tc.name, tc.image, tc.timeout, tc.project, tc.zone, tc.testExcludeFilter, tc.x86Shape, tc.arm64Shape)
 			if err != nil {
 				t.Fatalf("failed to create test workflow: %v", err)
 			}
