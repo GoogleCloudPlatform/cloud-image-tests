@@ -277,6 +277,7 @@ func (t *TestWorkflow) appendCreateDisksStep(diskParams *compute.Disk) (*daisy.S
 	bootdisk.SourceImage = t.ImageURL
 	bootdisk.Type = diskParams.Type
 	bootdisk.Zone = diskParams.Zone
+	bootdisk.SizeGb = strconv.FormatInt(diskParams.SizeGb, 10)
 
 	createDisks := &daisy.CreateDisks{bootdisk}
 

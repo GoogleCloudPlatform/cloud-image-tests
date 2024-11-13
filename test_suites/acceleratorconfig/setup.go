@@ -16,6 +16,8 @@
 package acceleratorconfig
 
 import (
+	"fmt"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
 	computeBeta "google.golang.org/api/compute/v0.beta"
@@ -31,93 +33,85 @@ var (
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	network1, err := t.CreateNetwork("a3u-net1", false)
-	if err != nil {
-		return err
-	}
-	subnetwork1, err := network1.CreateSubnetwork("subnetwork-1", "10.128.0.0/24")
-	if err != nil {
-		return err
-	}
-	subnetwork1.SetRegion(testRegion)
-
-	subnetwork2, err := network1.CreateSubnetwork("subnetwork-2", "10.128.1.0/24")
-	if err != nil {
-		return err
-	}
-	subnetwork2.SetRegion(testRegion)
-
-	subnetwork3, err := network1.CreateSubnetwork("subnetwork-3", "10.128.2.0/24")
-	if err != nil {
-		return err
-	}
-	subnetwork3.SetRegion(testRegion)
-
 	vm := &daisy.InstanceBeta{}
-	vm.Name = "gpucount"
+	vm.Name = "a3ultraconfig"
 	vm.MachineType = "a3-ultragpu-8g-nolssd"
 	vm.NetworkInterfaces = []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-1",
+			Network:    fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-net-0-do-not-delete"),
+			Subnetwork: fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-sub-0-do-not-delete"),
 		},
 		{
 			NicType:    "GVNIC",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-2",
+			Network:    fmt.Sprintf("projects/%s/global/networks/%s", "compute-image-test-pool-001", "a3ultra-test-net-1-do-not-delete"),
+			Subnetwork: fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", "compute-image-test-pool-001", testRegion, "a3ultra-test-sub-1-do-not-delete"),
+		},
+		// go/go-style/decisions#nil-slices
+		// "Do not create APIs that force their clients to make distinctions
+		// between nil and the empty slice."
+		//
+		// This is bad readability-wise, but we are using an API that makes
+		// distinctions between nil and empty slices so not much choice.
+		{
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-0-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-1-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-2-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-3-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-4-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-5-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-6-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
-		},
-		{
-			NicType:    "MRDMA",
-			Network:    "global/networks/a3u-net1",
-			Subnetwork: "regions/" + testRegion + "/subnetworks/subnetwork-3",
+			NicType:       "MRDMA",
+			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
+			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-7-do-not-delete"),
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 	}
 	vm.GuestAccelerators = []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
 			// This may need to be updated to the appropriate zone upon A3U release.
-			AcceleratorType: "zones/" + testRegion + "-a/acceleratorTypes/nvidia-h200-141gb",
+			AcceleratorType: "zones/" + testZone + "/acceleratorTypes/nvidia-h200-141gb",
 		},
 	}
 	vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 	disks := []*compute.Disk{
-		{Name: vm.Name, Type: imagetest.PdBalanced, Zone: testZone},
+		{Name: vm.Name, Type: imagetest.HyperdiskBalanced, Zone: testZone},
 	}
 	vm.Zone = testZone
 
