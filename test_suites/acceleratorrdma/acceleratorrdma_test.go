@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -111,15 +112,24 @@ func TestA3UltraGPUDirectRDMAClient(t *testing.T) {
 		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", a3uNode1Name, err)
 	}
 	ibWriteBWArgs = append(ibWriteBWArgs, target)
-	ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
 	for {
+		ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
 		out, err := ibWriteBWCmd.CombinedOutput()
 		if err == nil {
+			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
 			break
 		}
-		if ctx.Err() != nil {
-			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-			t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
+		// Client may be ready before host, retry connection errors.
+		if strings.Contains(string(out), "Couldn't connect to "+target) {
+			time.Sleep(time.Second)
+			if ctx.Err() != nil {
+				t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
+				t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
+			}
+			continue
 		}
+
+		t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
+		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = err %v, want nil", ibWriteBWCmd.String(), err)
 	}
 }
