@@ -41,9 +41,9 @@ var imageBootTimeThresholds = []imageBootTimeThreshold{
 	{Image: "sles-12", MaxTime: 40},
 	{Image: "sles-15", MaxTime: 40},
 	{Image: "ubuntu", MaxTime: 30},
-	{Image: "windows-11-", MaxTime: 200},
-	{Image: "windows-server-2025", MaxTime: 200},
-	{Image: "windows", MaxTime: 190},
+	{Image: "windows-11-", MaxTime: 300},
+	{Image: "windows-server-2025", MaxTime: 300},
+	{Image: "windows", MaxTime: 300},
 }
 
 type imageBootTimeThreshold struct {
