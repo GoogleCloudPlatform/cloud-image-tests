@@ -26,8 +26,6 @@ import (
 var Name = "lssd"
 
 const (
-	bootDiskSizeGB = 75
-
 	// the path to write the file on linux
 	linuxMountPath          = "/mnt/disks/hotattach"
 	mkfsCmd                 = "mkfs.ext4"
@@ -41,7 +39,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		lssdMountInst.Zone = "us-central1-a"
 		lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced, SizeGb: bootDiskSizeGB}}, lssdMountInst)
+		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
 		if err != nil {
 			return err
 		}

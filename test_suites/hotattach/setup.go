@@ -27,8 +27,6 @@ import (
 var Name = "hotattach"
 
 const (
-	bootDiskSizeGB = 75
-
 	// the path to write the file on linux
 	linuxMountPath          = "/mnt/disks/hotattach"
 	mkfsCmd                 = "mkfs.ext4"
@@ -45,7 +43,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		diskType = imagetest.HyperdiskBalanced
 	}
 
-	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: diskType, SizeGb: bootDiskSizeGB}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
+	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "reattachPDBalanced", Type: diskType}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
 	if err != nil {
 		return err
 	}
