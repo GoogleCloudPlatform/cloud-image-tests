@@ -631,6 +631,36 @@ func TestUseGVNIC(t *testing.T) {
 	}
 }
 
+// TestAddDisk tests that *TestVM.AddDisk succeeds and attaches a custom disk
+// to the VM.
+func TestAddDisk(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	tvm, err := twf.CreateTestVM("vm")
+	if err != nil {
+		t.Errorf("failed to create test vm: %v", err)
+	}
+	initParams := &compute.AttachedDiskInitializeParams{
+		DiskSizeGb: 375,
+		DiskType:   "zones/us-central1-a/diskTypes/local-ssd",
+	}
+	if err := tvm.AddDisk("SCRATCH", initParams); err != nil {
+		t.Errorf("failed to add disk: %v", err)
+	}
+	if tvm.instance.Disks == nil {
+		t.Errorf("VM Disks is nil")
+	}
+
+	// There should be 2 disks, the boot disk and one local SSD.
+	if len(tvm.instance.Disks) != 2 {
+		t.Errorf("VM Disks length is not 2")
+	}
+
+	// The local SSDs should be the last two disks.
+	if tvm.instance.Disks[1].Type != "SCRATCH" {
+		t.Errorf("VM Disk 1 not type SCRATCH")
+	}
+}
+
 // TestAddAliasIPRanges tests that *TestVM.AddAliasIPRanges succeeds and that
 // it fails if *TestVM.AddCustomNetwork hasn't been called first.
 func TestAddAliasIPRanges(t *testing.T) {

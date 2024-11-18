@@ -58,6 +58,8 @@ const (
 	HyperdiskThroughput = "hyperdisk-throughput"
 	// HyperdiskBalanced disktype string
 	HyperdiskBalanced = "hyperdisk-balanced"
+	// LocalSsd disktype string
+	LocalSsd = "local-ssd"
 
 	testWrapperPath        = "/wrapper"
 	testWrapperPathWindows = "/wrapp"
@@ -622,6 +624,17 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPref
 							if attachedDisk.Source == disk.Name && disk.Type == "" {
 								disk.Type = HyperdiskBalanced
 							}
+						}
+					}
+				}
+
+				// Correct initialize params disk types for custom attached disks.
+				for _, attachedDisk := range vm.Disks {
+					if attachedDisk.InitializeParams != nil {
+						// Default to standard if no disk type is specified.
+						if attachedDisk.InitializeParams.DiskType != "" && !strings.HasPrefix(attachedDisk.InitializeParams.DiskType, "zones/") {
+							// Qualify the disk type with the zone if it's missing.
+							attachedDisk.InitializeParams.DiskType = fmt.Sprintf("zones/%s/diskTypes/%s", vm.Zone, attachedDisk.InitializeParams.DiskType)
 						}
 					}
 				}

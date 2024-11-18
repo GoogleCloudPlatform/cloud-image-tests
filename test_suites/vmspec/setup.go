@@ -18,6 +18,7 @@ package vmspec
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -27,6 +28,27 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "vmspec"
+
+var (
+	// zones are the list of zones in `us-central1`that have LSSD capacity.
+	zones = []string{"us-central1-a", "us-central1-b", "us-central1-c"}
+	// machineTypes are the list of machine types in `us-central1` that have LSSD capacity.
+	machineTypes = []string{
+		"n1-standard-1",
+		"n2-standard-2",
+		"n2d-standard-2",
+	}
+	// counter keeps track of the number of vmspec tests running.
+	// This is used to stagger the zones to avoid hitting resource exhaustion.
+	counter int
+	// machineType keeps track of the machine type to use for the test.
+	machineTypeCounter int
+)
+
+func init() {
+	counter = rand.Intn(len(zones))
+	machineTypeCounter = rand.Intn(len(machineTypes))
+}
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -57,19 +79,21 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	subnet2.SetRegion("us-central1")
 
-	// Create the source VM. The VMs will be made and run in us-central1-a.
-	zone, err := t.Client.GetZone(t.Project.Name, "us-central1-a")
+	// Create the source VM
+	zoneString := zones[counter%len(zones)]
+	zone, err := t.Client.GetZone(t.Project.Name, zoneString)
 	if err != nil {
 		return fmt.Errorf("failed to get zone: %v", err)
 	}
+	machineType := machineTypes[machineTypeCounter%len(machineTypes)]
 	sourceInst := &daisy.Instance{}
 	disks := []*compute.Disk{&compute.Disk{Name: "source", Type: imagetest.PdBalanced, Zone: zone.Name}}
 	source, err := t.CreateTestVMMultipleDisks(disks, sourceInst)
 	if err != nil {
 		return err
 	}
-	source.ForceMachineType("c3-standard-4")
-	source.ForceZone("us-central1-a")
+	source.ForceMachineType(machineType)
+	source.ForceZone(zoneString)
 	source.RunTests("TestEmpty")
 
 	// Create a derivative VM. This is the actual meat of the test.
@@ -79,8 +103,21 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// The machine type should stay in the same generation as the source VM.
-	vmspec.ForceMachineType("c3-standard-8-lssd")
-	vmspec.ForceZone("us-central1-a")
+	vmspec.ForceMachineType(machineType)
+	vmspec.ForceZone(zoneString)
+
+	// Add two local SSDs to the derivative VM. This should guarantee the new NIC
+	// names do not overlap with the existing NIC names.
+	attachedDiskParams := &compute.AttachedDiskInitializeParams{
+		DiskSizeGb: 375,
+		DiskType:   imagetest.LocalSsd,
+	}
+	if err := vmspec.AddDisk("SCRATCH", attachedDiskParams); err != nil {
+		return err
+	}
+	if err := vmspec.AddDisk("SCRATCH", attachedDiskParams); err != nil {
+		return err
+	}
 	if err := vmspec.AddCustomNetwork(network1, subnet1); err != nil {
 		return err
 	}
@@ -93,9 +130,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		pingTest = "TestWindowsPing"
 	}
 	vmspec.RunTests(fmt.Sprintf("TestPCIEChanged|%s|TestMetadataServer", pingTest))
-	if err := t.WaitForVMQuota(&daisy.QuotaAvailable{Metric: "C3_CPUS", Units: 8, Region: "us-central1"}); err != nil {
-		return err
-	}
 
+	counter++
+	machineTypeCounter++
 	return nil
 }

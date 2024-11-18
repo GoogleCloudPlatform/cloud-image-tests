@@ -428,6 +428,24 @@ func (t *TestVM) CreateDerivativeVM(name string) (*TestVM, error) {
 	return &TestVM{name: vmname, testWorkflow: t.testWorkflow, instance: i}, nil
 }
 
+// AddDisk adds a given number of disks to the VM.
+func (t *TestVM) AddDisk(diskType string, initializeParams *compute.AttachedDiskInitializeParams) error {
+	// Empty string defaults to PERSISTENT.
+	if diskType != "SCRATCH" && diskType != "PERSISTENT" && diskType != "" {
+		return fmt.Errorf("disk type %s not one of SCRATCH or PERSISTENT", diskType)
+	}
+
+	t.instance.Disks = append(t.instance.Disks, &compute.AttachedDisk{
+		AutoDelete:       true,
+		Boot:             false,
+		DeviceName:       fmt.Sprintf("custom-disk-%d", len(t.instance.Disks)),
+		InitializeParams: initializeParams,
+		Mode:             "READ_WRITE",
+		Type:             diskType,
+	})
+	return nil
+}
+
 // AddMetadata adds the specified key:value pair to metadata during VM creation.
 func (t *TestVM) AddMetadata(key, value string) {
 	if t.instance != nil {
