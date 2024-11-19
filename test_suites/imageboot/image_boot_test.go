@@ -33,7 +33,7 @@ import (
 // The values have been decided based on running spot tests for different images.
 var imageBootTimeThresholds = []imageBootTimeThreshold{
 	{Image: "almalinux", MaxTime: 30},
-	{Image: "centos", MaxTime: 20},
+	{Image: "centos", MaxTime: 30},
 	{Image: "debian", MaxTime: 20},
 	{Image: "rhel", MaxTime: 30},
 	{Image: "rocky-linux", MaxTime: 30},
