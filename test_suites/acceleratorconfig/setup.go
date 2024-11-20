@@ -33,6 +33,7 @@ var (
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	t.LockProject()
 	vm := &daisy.InstanceBeta{}
 	vm.Name = "a3ultraconfig"
 	vm.MachineType = "a3-ultragpu-8g-nolssd"
