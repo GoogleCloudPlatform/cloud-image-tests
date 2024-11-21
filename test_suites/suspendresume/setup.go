@@ -23,20 +23,30 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "suspendresume"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name = "suspendresume"
+	// unsupportedImages is a list of images which do not support secure boot. These strings will be match against the name field.
+	unsupportedImages = []string{"windows-server-2025", "windows-11-24h2", "windows-server-2012-r2", "rhel-8-2-sap", "rhel-8-1-sap", "debian-10", "ubuntu-pro-1804-bionic-arm64"}
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	if !strings.Contains(t.Image.Name, "windows-server-2025") && !strings.Contains(t.Image.Name, "windows-11-24h2") && !strings.Contains(t.Image.Name, "windows-server-2012-r2") && !strings.Contains(t.Image.Name, "rhel-8-2-sap") && !strings.Contains(t.Image.Name, "rhel-8-1-sap") && !strings.Contains(t.Image.Name, "debian-10") && !strings.Contains(t.Image.Family, "ubuntu-pro-1804-lts-arm64") {
-		suspend := &daisy.Instance{}
-		suspend.Scopes = append(suspend.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-		suspendvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "suspend"}}, suspend)
-		if err != nil {
-			return err
-		}
-		suspendvm.RunTests("TestSuspend")
-		suspendvm.Resume()
+	if t.Image.Architecture == "ARM64" {
+		return nil
 	}
+	for _, match := range unsupportedImages {
+		if strings.Contains(t.Image.Name, match) {
+			return nil
+		}
+	}
+	suspend := &daisy.Instance{}
+	suspend.Scopes = append(suspend.Scopes, "https://www.googleapis.com/auth/cloud-platform")
+	suspendvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "suspend"}}, suspend)
+	if err != nil {
+		return err
+	}
+	suspendvm.RunTests("TestSuspend")
+	suspendvm.Resume()
 	return nil
 }

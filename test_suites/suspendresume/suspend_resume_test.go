@@ -17,7 +17,6 @@ package suspendresume
 import (
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -56,9 +55,6 @@ func TestSuspend(t *testing.T) {
 	if _, err := os.Stat(marker); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("could not determine if suspend testing has already started: %v", err)
 	} else if err == nil {
-		if runtime.GOARCH == "arm64" {
-			t.Skip("arm instance rebooted during suspend test")
-		}
 		t.Fatal("unexpected reboot during suspend test")
 	}
 	err := os.WriteFile(marker, nil, 0777)
