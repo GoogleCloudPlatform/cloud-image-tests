@@ -23,7 +23,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	"google.golang.org/api/compute/v1"
 )
 
 var imageSuffixRe = regexp.MustCompile(`-(arm|amd|x86_)64$`)
@@ -57,7 +56,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	rlicenses, err := requiredLicenseList(t.Image)
+	rlicenses, err := requiredLicenseList(t)
 	if err != nil {
 		return err
 	}
@@ -90,9 +89,20 @@ func rollInt64ToString(list []int64) string {
 	return result
 }
 
-// generate a list of license URLs we should expect to see on the image from the Name and Family properties
-func requiredLicenseList(image *compute.Image) ([]string, error) {
-	licenseURLTmpl := "https://www.googleapis.com/compute/v1/projects/%s/global/licenses/%s"
+// generate a list of license URLs we should expect to see on the
+// testworkflow's image from the Name and Family properties
+func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
+	image := t.Image
+	licenseURLTmpl := t.Client.BasePath()
+
+	if licenseURLTmpl == "" || licenseURLTmpl == "https://compute.googleapis.com/compute/v1/" {
+		licenseURLTmpl = "https://www.googleapis.com/compute/v1/"
+	}
+	// None of the url, file, or path Join functions handle this correctly.
+	if !strings.HasSuffix(licenseURLTmpl, "/") {
+		licenseURLTmpl += "/"
+	}
+	licenseURLTmpl += "projects/%s/global/licenses/%s"
 	transform := func() {}
 	var requiredLicenses []string
 	var project string
