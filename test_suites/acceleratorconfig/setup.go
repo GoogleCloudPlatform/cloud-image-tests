@@ -36,7 +36,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
 	vm := &daisy.InstanceBeta{}
 	vm.Name = "a3ultraconfig"
-	vm.MachineType = "a3-ultragpu-8g-nolssd"
+	vm.MachineType = "a3-ultragpu-8g"
 	vm.NetworkInterfaces = []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",

@@ -24,6 +24,8 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	daisycompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
+	"github.com/google/go-cmp/cmp"
+	computeBeta "google.golang.org/api/compute/v0.beta"
 	"google.golang.org/api/compute/v1"
 )
 
@@ -373,6 +375,8 @@ func TestAppendCreateVMStep(t *testing.T) {
 	if _, ok := twf.wf.Steps["create-disks"]; ok {
 		t.Fatal("create-disks step already exists")
 	}
+	reservationAffinity := &compute.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"}
+	twf.ReservationAffinity = reservationAffinity
 	daisyInst := &daisy.Instance{}
 	daisyInst.Hostname = ""
 	step, _, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vmname"}}, daisyInst)
@@ -409,6 +413,9 @@ func TestAppendCreateVMStep(t *testing.T) {
 	if instances[1].Name != "vmname2" {
 		t.Error("CreateInstances step is malformed")
 	}
+	if diff := cmp.Diff(instances[1].ReservationAffinity, reservationAffinity); diff != "" {
+		t.Errorf("cmp.Diff(instances[1].ReservationAffinity, reservationAffinity) != nil (-want +got):\n%s", diff)
+	}
 }
 
 func TestAppendCreateVMStepBeta(t *testing.T) {
@@ -419,6 +426,8 @@ func TestAppendCreateVMStepBeta(t *testing.T) {
 	if _, ok := twf.wf.Steps["create-disks"]; ok {
 		t.Fatal("create-disks step already exists")
 	}
+	reservationAffinity := &computeBeta.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"}
+	twf.ReservationAffinityBeta = reservationAffinity
 	daisyInst := &daisy.InstanceBeta{}
 	daisyInst.Hostname = ""
 	step, _, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vmname"}}, daisyInst)
@@ -454,6 +463,9 @@ func TestAppendCreateVMStepBeta(t *testing.T) {
 	}
 	if instances[1].Name != "vmname2" {
 		t.Error("CreateInstances step is malformed")
+	}
+	if diff := cmp.Diff(instances[1].ReservationAffinity, reservationAffinity); diff != "" {
+		t.Errorf("cmp.Diff(instances[1].ReservationAffinity, reservationAffinity) != nil (-want +got):\n%s", diff)
 	}
 }
 
@@ -523,20 +535,26 @@ func TestAppendCreateVMStepCustomHostname(t *testing.T) {
 
 func TestNewTestWorkflow(t *testing.T) {
 	testcases := []struct {
-		name                string
-		arch                string
-		image               string
-		imagename           string
-		project             string
-		zone                string
-		x86Shape            string
-		arm64Shape          string
-		timeout             string
-		expectedMachineType string
-		testExcludeFilter   string
+		name                        string
+		wantDaisyName               string
+		arch                        string
+		image                       string
+		imagename                   string
+		project                     string
+		zone                        string
+		x86Shape                    string
+		arm64Shape                  string
+		timeout                     string
+		expectedMachineType         string
+		testExcludeFilter           string
+		useReservations             bool
+		reservationURLs             []string
+		wantReservationAffinity     *compute.ReservationAffinity
+		wantReservationAffinityBeta *computeBeta.ReservationAffinity
 	}{
 		{
 			name:                "arm",
+			wantDaisyName:       "arm",
 			arch:                "ARM64",
 			image:               "projects/fake-cloud/global/images/fakeos-v1",
 			imagename:           "fakeos-v1",
@@ -550,6 +568,7 @@ func TestNewTestWorkflow(t *testing.T) {
 		},
 		{
 			name:                "x86",
+			wantDaisyName:       "x86",
 			arch:                "X86_64",
 			image:               "projects/fake-cloud/global/images/family/fakeos",
 			imagename:           "fakeos",
@@ -563,6 +582,7 @@ func TestNewTestWorkflow(t *testing.T) {
 		},
 		{
 			name:                "unspecified arch",
+			wantDaisyName:       "unspecified arch",
 			arch:                "",
 			image:               "projects/fake-cloud/global/images/family/fakeos",
 			imagename:           "fakeos",
@@ -573,6 +593,41 @@ func TestNewTestWorkflow(t *testing.T) {
 			timeout:             "20m",
 			expectedMachineType: "n1-standard-1",
 			testExcludeFilter:   "TestSSH",
+		},
+		{
+			name:                        "any_reservation",
+			wantDaisyName:               "any-reservation",
+			arch:                        "X86_64",
+			image:                       "projects/fake-cloud/global/images/family/fakeos",
+			imagename:                   "fakeos",
+			project:                     "gcp-guest",
+			zone:                        "us-central1-a",
+			x86Shape:                    "n1-standard-1",
+			arm64Shape:                  "t2a-standard-1",
+			timeout:                     "20m",
+			expectedMachineType:         "n1-standard-1",
+			testExcludeFilter:           "",
+			useReservations:             true,
+			wantReservationAffinity:     &compute.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
+			wantReservationAffinityBeta: &computeBeta.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
+		},
+		{
+			name:                        "specific_reservation",
+			wantDaisyName:               "specific-reservation",
+			arch:                        "X86_64",
+			image:                       "projects/fake-cloud/global/images/family/fakeos",
+			imagename:                   "fakeos",
+			project:                     "gcp-guest",
+			zone:                        "us-central1-a",
+			x86Shape:                    "n1-standard-1",
+			arm64Shape:                  "t2a-standard-1",
+			timeout:                     "20m",
+			expectedMachineType:         "n1-standard-1",
+			testExcludeFilter:           "",
+			useReservations:             true,
+			reservationURLs:             []string{"fake-reservation"},
+			wantReservationAffinity:     &compute.ReservationAffinity{ConsumeReservationType: "SPECIFIC_RESERVATION", Values: []string{"fake-reservation"}, Key: "compute.googleapis.com/reservation-name"},
+			wantReservationAffinityBeta: &computeBeta.ReservationAffinity{ConsumeReservationType: "SPECIFIC_RESERVATION", Values: []string{"fake-reservation"}, Key: "compute.googleapis.com/reservation-name"},
 		},
 	}
 	for _, tc := range testcases {
@@ -597,33 +652,60 @@ func TestNewTestWorkflow(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer srv.Close()
-			twf, err := NewTestWorkflow(client, "", tc.name, tc.image, tc.timeout, tc.project, tc.zone, tc.testExcludeFilter, tc.x86Shape, tc.arm64Shape)
+			twf, err := NewTestWorkflow(&TestWorkflowOpts{
+				Client:          client,
+				Name:            tc.name,
+				Image:           tc.image,
+				Timeout:         tc.timeout,
+				Project:         tc.project,
+				Zone:            tc.zone,
+				ExcludeFilter:   tc.testExcludeFilter,
+				X86Shape:        tc.x86Shape,
+				ARM64Shape:      tc.arm64Shape,
+				UseReservations: tc.useReservations,
+				ReservationURLs: tc.reservationURLs,
+			})
 			if err != nil {
-				t.Fatalf("failed to create test workflow: %v", err)
+				t.Fatalf("NewTestWorkflow() failed: %v want nil", err)
 			}
 			if twf.Name != tc.name {
-				t.Errorf("unexpected workflow name, want %s got %s", tc.name, twf.Name)
+				t.Errorf("NewTestWorkflow() workflow name = %s, want %s", twf.Name, tc.name)
+			}
+			if twf.wf.Name != tc.wantDaisyName {
+				t.Errorf("NewTestWorkflow() daisy workflow name = %v, want %v", twf.wf.Name, tc.wantDaisyName)
 			}
 			if twf.Image.Architecture != tc.arch {
-				t.Errorf("unexpected image architecture, want %s got %s", tc.arch, twf.Image.Architecture)
+				t.Errorf("NewTestWorkflow() image architecture = %s, want %s", twf.Image.Architecture, tc.arch)
 			}
 			if twf.Image.Name != tc.imagename {
-				t.Errorf("unexpected image name, want %s got %s", tc.imagename, twf.Image.Name)
+				t.Errorf("NewTestWorkflow() image name = %s, want %s", twf.Image.Name, tc.imagename)
+			}
+			if twf.ImageURL != tc.image {
+				t.Errorf("twf.ImageURL = %s, want %s", twf.ImageURL, tc.image)
+			}
+			if twf.testExcludeFilter != tc.testExcludeFilter {
+				t.Errorf("NewTestWorkflow() ExcludeFilter = %s, want %s", twf.testExcludeFilter, tc.testExcludeFilter)
 			}
 			if twf.Project.Name != tc.project {
-				t.Errorf("unexpected project name, want %s got %s", tc.project, twf.Project.Name)
+				t.Errorf("NewTestWorkflow() project name = %s, want %s", twf.Project.Name, tc.project)
 			}
 			if twf.Zone.Name != tc.zone {
-				t.Errorf("unexpected zone name, want %s got %s", tc.zone, twf.Zone.Name)
+				t.Errorf("NewTestWorkflow() zone name = %s, want %s", twf.Zone.Name, tc.zone)
 			}
 			if twf.MachineType.Name != tc.expectedMachineType {
-				t.Errorf("unexpected machine type, want %q got %q", twf.MachineType.Name, tc.expectedMachineType)
+				t.Errorf("NewTestWorkflow() machine type = %q, want %q", twf.MachineType.Name, tc.expectedMachineType)
 			}
 			if twf.wf.DefaultTimeout != tc.timeout {
-				t.Errorf("unexpected workflow timeout, want %v got %v", tc.timeout, twf.wf.DefaultTimeout)
+				t.Errorf("NewTestWorkflow() workflow timeout = %v, want %v", twf.wf.DefaultTimeout, tc.timeout)
 			}
 			if len(twf.wf.Steps) > 0 {
-				t.Errorf("workflow has initial steps: %v", twf.wf.Steps)
+				t.Errorf("NewTestWorkflow() workflow has initial steps: %v", twf.wf.Steps)
+			}
+			if diff := cmp.Diff(twf.ReservationAffinity, tc.wantReservationAffinity); diff != "" {
+				t.Errorf("cmp.Diff(twf.ReservationAffinity, tc.wantReservationAffinity) != nil (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(twf.ReservationAffinityBeta, tc.wantReservationAffinityBeta); diff != "" {
+				t.Errorf("cmp.Diff(twf.ReservationAffinityBeta, tc.wantReservationAffinityBeta) != nil (-want +got):\n%s", diff)
 			}
 		})
 	}

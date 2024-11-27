@@ -65,6 +65,34 @@ const (
 	testWrapperPathWindows = "/wrapp"
 )
 
+// TestWorkflowOpts is an options struct for the NewTestWorkflow function.
+type TestWorkflowOpts struct {
+	// Client is the client used to call the compute service
+	Client daisycompute.Client
+	// ComputeEndpointOverride is an alternate compute endpoint to send requests to compute service to.
+	ComputeEndpointOverride string
+	// Name is the name of the TestWorkflow
+	Name string
+	// Image is an image partial URL, or an image family partial URL
+	Image string
+	// The daisy step timeout
+	Timeout string
+	// Project is the project used to look up images and set up the test workflow.
+	Project string
+	// Zone is the zone used to run the test workflow.
+	Zone string
+	// ExcludeFilter is a filter used to exclude individual test cases within a test suite. Can break test suites if used incorrectly, be careful.
+	ExcludeFilter string
+	// X86Shape is the default shape for x86 images being tested.
+	X86Shape string
+	// ARM64Shape is the default shape for ARM images being tested.
+	ARM64Shape string
+	// UseReservations is whether to consume reservations to create VMs. If true but ReservationURLs is empty, ANY_RESERVATION will be used.
+	UseReservations bool
+	// ReservationURLs is a list of specific reservation URLs to consume.
+	ReservationURLs []string
+}
+
 // TestWorkflow defines a test workflow which creates at least one test VM.
 type TestWorkflow struct {
 	Name string
@@ -90,6 +118,10 @@ type TestWorkflow struct {
 	counter int
 	// Does this test require exclusive project
 	lockProject bool
+	// ReservationAffinity is the reservation affinity used for VM creation.
+	ReservationAffinity *compute.ReservationAffinity
+	// ReservationAffinityBeta is the reservation affinity used for VM creation with the beta API.
+	ReservationAffinityBeta *computeBeta.ReservationAffinity
 }
 
 func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
@@ -182,6 +214,7 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
+	instance.ReservationAffinity = t.ReservationAffinity
 
 	for _, disk := range disks {
 		currentDisk := &compute.AttachedDisk{Source: disk.Name, AutoDelete: true}
@@ -234,6 +267,7 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
+	instance.ReservationAffinity = t.ReservationAffinityBeta
 
 	for _, disk := range disks {
 		instance.Disks = append(instance.Disks, &computeBeta.AttachedDisk{Source: disk.Name, AutoDelete: true})
@@ -710,34 +744,45 @@ func getTestResults(ctx context.Context, ts *TestWorkflow) ([]string, error) {
 }
 
 // NewTestWorkflow returns a new TestWorkflow.
-func NewTestWorkflow(client daisycompute.Client, computeEndpointOverride, name, image, timeout, project, zone, excludeFilter string, x86Shape string, arm64Shape string) (*TestWorkflow, error) {
+func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 	t := &TestWorkflow{}
 	t.counter = 0
-	t.Name = name
-	t.ImageURL = image
-	t.Client = client
-	t.testExcludeFilter = excludeFilter
+	t.Name = opts.Name
+	t.ImageURL = opts.Image
+	t.Client = opts.Client
+	t.testExcludeFilter = opts.ExcludeFilter
+
+	if opts.UseReservations {
+		reservationType := "ANY_RESERVATION"
+		var reservationKey string
+		if len(opts.ReservationURLs) > 0 {
+			reservationKey = "compute.googleapis.com/reservation-name"
+			reservationType = "SPECIFIC_RESERVATION"
+		}
+		t.ReservationAffinity = &compute.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
+		t.ReservationAffinityBeta = &computeBeta.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
+	}
 
 	var err error
-	t.Project, err = t.Client.GetProject(project)
+	t.Project, err = t.Client.GetProject(opts.Project)
 	if err != nil {
 		return nil, err
 	}
-	t.Zone, err = t.Client.GetZone(t.Project.Name, zone)
+	t.Zone, err = t.Client.GetZone(t.Project.Name, opts.Zone)
 	if err != nil {
 		return nil, err
 	}
 
 	// Initializing Image inside the TestWorkflow
-	split := strings.Split(image, "/")
-	if strings.Contains(image, "family") {
+	split := strings.Split(opts.Image, "/")
+	if strings.Contains(opts.Image, "family") {
 		t.Image, err = t.Client.GetImageFromFamily(split[1], split[len(split)-1])
 	} else {
 		t.Image, err = t.Client.GetImage(split[1], split[len(split)-1])
 	}
 
 	// Initializing ImageBeta inside the TestWorkflow, this is required to provide Beta support to cvm testsuite
-	if strings.Contains(image, "family") {
+	if strings.Contains(opts.Image, "family") {
 		t.ImageBeta, err = t.Client.GetImageFromFamilyBeta(split[1], split[len(split)-1])
 	} else {
 		t.ImageBeta, err = t.Client.GetImageBeta(split[1], split[len(split)-1])
@@ -746,21 +791,21 @@ func NewTestWorkflow(client daisycompute.Client, computeEndpointOverride, name, 
 		return nil, err
 	}
 	if t.Image.Architecture == "ARM64" {
-		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, arm64Shape)
+		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, opts.ARM64Shape)
 	} else {
-		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, x86Shape)
+		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, opts.X86Shape)
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	t.wf = daisy.New()
-	if computeEndpointOverride != "" {
-		t.wf.ComputeEndpoint = computeEndpointOverride
+	if opts.ComputeEndpointOverride != "" {
+		t.wf.ComputeEndpoint = opts.ComputeEndpointOverride
 	}
-	t.wf.Name = strings.ReplaceAll(name, "_", "-")
-	t.wf.DefaultTimeout = timeout
-	t.wf.Zone = zone
+	t.wf.Name = strings.ReplaceAll(opts.Name, "_", "-")
+	t.wf.DefaultTimeout = opts.Timeout
+	t.wf.Zone = opts.Zone
 
 	t.wf.DisableCloudLogging()
 	t.wf.DisableStdoutLogging()

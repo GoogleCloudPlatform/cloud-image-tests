@@ -90,6 +90,8 @@ var (
 	x86Shape                = flag.String("x86_shape", "n1-standard-1", "default x86(-32 and -64) vm shape for tests not requiring a specific shape")
 	arm64Shape              = flag.String("arm64_shape", "t2a-standard-1", "default arm64 vm shape for tests not requiring a specific shape")
 	setExitStatus           = flag.Bool("set_exit_status", true, "Exit with non-zero exit code if test suites are failing")
+	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
+	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 )
 
 var (
@@ -168,6 +170,11 @@ func main() {
 		log.Printf("The -machine_type flag is deprecated, please use -x86_shape and -arm64_shape instead. Retaining legacy behavior while this is set.")
 		*x86Shape = *machineType
 		*arm64Shape = *machineType
+	}
+
+	var reservationURLSlice []string
+	if *reservationURLs != "" {
+		reservationURLSlice = strings.Split(*reservationURLs, ",")
 	}
 
 	// Setup tests.
@@ -358,7 +365,20 @@ func main() {
 			}
 
 			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
-			test, err := imagetest.NewTestWorkflow(computeclient, *computeEndpointOverride, testPackage.name, image, *timeout, *project, *zone, *testExcludeFilter, *x86Shape, *arm64Shape)
+			test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
+				Client:                  computeclient,
+				ComputeEndpointOverride: *computeEndpointOverride,
+				Name:                    testPackage.name,
+				Image:                   image,
+				Timeout:                 *timeout,
+				Project:                 *project,
+				Zone:                    *zone,
+				ExcludeFilter:           *testExcludeFilter,
+				X86Shape:                *x86Shape,
+				ARM64Shape:              *arm64Shape,
+				UseReservations:         *useReservations,
+				ReservationURLs:         reservationURLSlice,
+			})
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)
 			}

@@ -112,7 +112,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	a3UltraNode1 := &daisy.Instance{}
 	a3UltraNode1.Name = a3uNode1Name
-	a3UltraNode1.MachineType = "a3-ultragpu-8g-nolssd"
+	a3UltraNode1.MachineType = "a3-ultragpu-8g"
 	a3UltraNode1.Zone = testZone
 	a3UltraNode1.Scheduling = a3ultraSchedulingConfig
 	a3UltraNode1.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
@@ -128,7 +128,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	a3UltraNode2 := &daisy.Instance{}
 	a3UltraNode2.Name = a3uNode2Name
-	a3UltraNode2.MachineType = "a3-ultragpu-8g-nolssd"
+	a3UltraNode2.MachineType = "a3-ultragpu-8g"
 	a3UltraNode2.Zone = testZone
 	a3UltraNode2.Scheduling = a3ultraSchedulingConfig
 	a3UltraNode2.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
