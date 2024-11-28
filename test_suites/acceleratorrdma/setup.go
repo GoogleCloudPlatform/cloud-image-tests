@@ -20,6 +20,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
+	computeBeta "google.golang.org/api/compute/v0.beta"
 	"google.golang.org/api/compute/v1"
 )
 
@@ -35,14 +36,14 @@ var (
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
-	a3UltraAccelConfig := []*compute.AcceleratorConfig{
+	a3UltraAccelConfig := []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
 			AcceleratorType:  "zones/" + testZone + "/acceleratorTypes/nvidia-h200-141gb",
 		},
 	}
 
-	a3UltraNicConfig := []*compute.NetworkInterface{
+	a3UltraNicConfig := []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
 			Network:    fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-net-0-do-not-delete"),
@@ -63,80 +64,78 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-0-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-1-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-2-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-3-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-4-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-5-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-6-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 		{
 			NicType:       "MRDMA",
 			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
 			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-7-do-not-delete"),
-			AccessConfigs: []*compute.AccessConfig{},
+			AccessConfigs: []*computeBeta.AccessConfig{},
 		},
 	}
-	a3ultraSchedulingConfig := &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
+	a3ultraSchedulingConfig := &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 
-	a3UltraNode1 := &daisy.Instance{}
+	a3UltraNode1 := &daisy.InstanceBeta{}
 	a3UltraNode1.Name = a3uNode1Name
 	a3UltraNode1.MachineType = "a3-ultragpu-8g"
 	a3UltraNode1.Zone = testZone
 	a3UltraNode1.Scheduling = a3ultraSchedulingConfig
-	a3UltraNode1.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
 	a3UltraNode1.NetworkInterfaces = a3UltraNicConfig
 	a3UltraNode1.GuestAccelerators = a3UltraAccelConfig
 	node1Disks := []*compute.Disk{{Name: a3uNode1Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode1VM, err := t.CreateTestVMMultipleDisks(node1Disks, a3UltraNode1)
+	a3UltraNode1VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode1, node1Disks)
 	if err != nil {
 		return err
 	}
 	a3UltraNode1VM.RunTests("TestA3UltraGPUDirectRDMAHost")
 
-	a3UltraNode2 := &daisy.Instance{}
+	a3UltraNode2 := &daisy.InstanceBeta{}
 	a3UltraNode2.Name = a3uNode2Name
 	a3UltraNode2.MachineType = "a3-ultragpu-8g"
 	a3UltraNode2.Zone = testZone
 	a3UltraNode2.Scheduling = a3ultraSchedulingConfig
-	a3UltraNode2.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
 	a3UltraNode2.NetworkInterfaces = a3UltraNicConfig
 	a3UltraNode2.GuestAccelerators = a3UltraAccelConfig
 	node2Disks := []*compute.Disk{{Name: a3uNode2Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode2VM, err := t.CreateTestVMMultipleDisks(node2Disks, a3UltraNode2)
+	a3UltraNode2VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode2, node2Disks)
 	if err != nil {
 		return err
 	}
