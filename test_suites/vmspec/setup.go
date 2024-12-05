@@ -60,8 +60,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// Skip Ubuntu-2204 until new agent is available.
-	if strings.Contains(t.Image.Name, "ubuntu-2204") {
-		t.Skip("vmspec not supported on Ubuntu-2204 until new agent is available")
+	if strings.Contains(t.Image.Name, "ubuntu") && strings.Contains(t.Image.Name, "2204") {
+		t.Skip("vmspec not supported on ubuntu-2204 until new agent is available")
 		return nil
 	}
 
