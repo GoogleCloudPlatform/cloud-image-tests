@@ -70,7 +70,12 @@ func setupPerftest(ctx context.Context, t *testing.T) {
 }
 
 func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
-	args := []string{"--report_gbits", "--use_cuda=0"}
+	args := []string{
+		"--report_gbits", // Generate report in Gb/s for human readability.
+		"--use_cuda=0",   // Use the first cuda device.
+		"--all",          // Test all message sizes.
+		"--qp=200",       // 200 active Queue Pair operations. 200 was suggested by netinfra team.
+	}
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("utils.GetMetadata(ctx, instance, image) = %v, want nil", err)
