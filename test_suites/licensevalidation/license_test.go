@@ -23,7 +23,9 @@ import (
 )
 
 func TestWindowsActivationStatus(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -43,7 +45,8 @@ func TestWindowsActivationStatus(t *testing.T) {
 }
 
 func TestLicenses(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	elicensecodes, err := utils.GetMetadata(ctx, "instance", "attributes", "expected-license-codes")
 	if err != nil {
 		t.Fatalf("Failed to get expected licenses: %v", err)

@@ -15,6 +15,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"strings"
@@ -30,8 +31,8 @@ const (
 )
 
 // TestShutdownScriptFailedLinux tests that a script failed execute doesn't crash the vm.
-func testShutdownScriptFailedLinux(t *testing.T) error {
-	if _, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "shutdown-script"); err != nil {
+func testShutdownScriptFailedLinux(ctx context.Context, t *testing.T) error {
+	if _, err := utils.GetMetadata(ctx, "instance", "attributes", "shutdown-script"); err != nil {
 		return fmt.Errorf("couldn't get shutdown-script from metadata")
 	}
 
@@ -40,8 +41,8 @@ func testShutdownScriptFailedLinux(t *testing.T) error {
 }
 
 // TestShutdownScriptFailedWindows tests that a script failed execute doesn't crash the vm.
-func testShutdownScriptFailedWindows(t *testing.T) error {
-	if _, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "windows-shutdown-script-ps1"); err != nil {
+func testShutdownScriptFailedWindows(ctx context.Context, t *testing.T) error {
+	if _, err := utils.GetMetadata(ctx, "instance", "attributes", "windows-shutdown-script-ps1"); err != nil {
 		return fmt.Errorf("couldn't get windows-shutdown-script-ps1 from metadata")
 	}
 
@@ -53,7 +54,8 @@ func testShutdownScriptFailedWindows(t *testing.T) error {
 // by checking the output content of the Shutdown script. It also checks that
 // shutdown scripts don't run on reinstall or upgrade of the guest-agent.
 func TestShutdownScripts(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
 	if err != nil {
 		t.Fatalf("failed to read shutdown script result key: %v", err)
@@ -87,12 +89,14 @@ func TestShutdownScripts(t *testing.T) {
 
 // Determine if the OS is Windows or Linux and run the appropriate failure test.
 func TestShutdownScriptsFailed(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if utils.IsWindows() {
-		if err := testShutdownScriptFailedWindows(t); err != nil {
+		if err := testShutdownScriptFailedWindows(ctx, t); err != nil {
 			t.Fatalf("Shutdown script failure test failed with error: %v", err)
 		}
 	} else {
-		if err := testShutdownScriptFailedLinux(t); err != nil {
+		if err := testShutdownScriptFailedLinux(ctx, t); err != nil {
 			t.Fatalf("Shutdown script failure test failed with error: %v", err)
 		}
 	}
@@ -100,7 +104,9 @@ func TestShutdownScriptsFailed(t *testing.T) {
 
 // Determine if the OS is Windows or Linux and run the appropriate daemon test.
 func TestShutdownURLScripts(t *testing.T) {
-	result, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", "result")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
 	if err != nil {
 		t.Fatalf("failed to read shutdown script result key: %v", err)
 	}

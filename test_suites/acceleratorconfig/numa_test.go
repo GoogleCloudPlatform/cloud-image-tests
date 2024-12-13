@@ -45,7 +45,8 @@ func TestA3UGPUNumaMapping(t *testing.T) {
 }
 
 func TestA3UNICNumaMapping(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	for i := 0; i < 10; i++ {
 		mac, err := utils.GetMetadata(ctx, "instance", "network-interfaces", fmt.Sprintf("%d", i), "mac")
 		if err != nil {

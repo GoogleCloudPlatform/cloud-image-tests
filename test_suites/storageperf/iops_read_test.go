@@ -27,6 +27,8 @@ import (
 
 // TestRandomReadIOPS checks that random read IOPS are around the value listed in public docs.
 func TestRandomReadIOPS(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var randReadIOPSJson []byte
 	var err error
 	if runtime.GOOS == "windows" {
@@ -51,7 +53,7 @@ func TestRandomReadIOPS(t *testing.T) {
 		t.Fatalf("iops json number %s was not a float: %v", finalIOPSValueNumber.String(), err)
 	}
 	finalIOPSValueString := fmt.Sprintf("%f", finalIOPSValue)
-	expectedRandReadIOPSString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", randReadAttribute)
+	expectedRandReadIOPSString, err := utils.GetMetadata(ctx, "instance", "attributes", randReadAttribute)
 	if err != nil {
 		t.Fatalf("could not get metadata attribute %s: err %v", randReadAttribute, err)
 	}
@@ -62,7 +64,7 @@ func TestRandomReadIOPS(t *testing.T) {
 		t.Fatalf("benchmark iops string %s was not a float: err %v", expectedRandReadIOPSString, err)
 	}
 
-	machineName, _ := utils.GetInstanceName(utils.Context(t))
+	machineName, _ := utils.GetInstanceName(ctx)
 	if finalIOPSValue < iopsErrorMargin*expectedRandReadIOPS {
 		t.Fatalf("iops average for vm %s was too low: expected at least %f of target %s, got %s", machineName, iopsErrorMargin, expectedRandReadIOPSString, finalIOPSValueString)
 	}
@@ -72,6 +74,8 @@ func TestRandomReadIOPS(t *testing.T) {
 
 // TestSequentialReadIOPS checks that sequential read IOPS are around the value listed in public docs.
 func TestSequentialReadIOPS(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var seqReadIOPSJson []byte
 	var err error
 	if runtime.GOOS == "windows" {
@@ -104,7 +108,7 @@ func TestSequentialReadIOPS(t *testing.T) {
 	var finalBandwidthMBps float64 = float64(finalBandwidthBytesPerSecond) / bytesInMB
 	finalBandwidthMBpsString := fmt.Sprintf("%f", finalBandwidthMBps)
 
-	expectedSeqReadIOPSString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", seqReadAttribute)
+	expectedSeqReadIOPSString, err := utils.GetMetadata(ctx, "instance", "attributes", seqReadAttribute)
 	if err != nil {
 		t.Fatalf("could not get guest metadata %s: err r%v", seqReadAttribute, err)
 	}
@@ -116,7 +120,7 @@ func TestSequentialReadIOPS(t *testing.T) {
 	}
 
 	// suppress the error because the vm name is only for printing out test results, and does not affect test behavior
-	machineName, _ := utils.GetInstanceName(utils.Context(t))
+	machineName, _ := utils.GetInstanceName(ctx)
 	if finalBandwidthMBps < iopsErrorMargin*expectedSeqReadIOPS {
 		t.Fatalf("iops average was too low for vm %s: expected at least %f of target %s, got %s", machineName, iopsErrorMargin, expectedSeqReadIOPSString, finalBandwidthMBpsString)
 	}

@@ -69,29 +69,32 @@ import (
 )
 
 var (
-	project                 = flag.String("project", "", "project to use for test runner")
-	testProjects            = flag.String("test_projects", "", "comma separated list of projects to be used for tests. defaults to the test runner project")
-	zone                    = flag.String("zone", "us-central1-a", "zone to be used for tests")
-	printwf                 = flag.Bool("print", false, "print out the parsed test workflows and exit")
-	validate                = flag.Bool("validate", false, "validate all the test workflows and exit")
-	outPath                 = flag.String("out_path", "junit.xml", "junit xml path")
-	gcsPath                 = flag.String("gcs_path", "", "GCS Path for Daisy working directory")
-	writeLocalArtifacts     = flag.String("write_local_artifacts", "", "Local path to download test artifacts from gcs.")
-	localPath               = flag.String("local_path", "", "path where test output files are stored, can be modified for local testing")
-	images                  = flag.String("images", "", "comma separated list of images to test")
-	timeout                 = flag.String("timeout", "45m", "timeout for the test suite")
-	computeEndpointOverride = flag.String("compute_endpoint_override", "", "compute client endpoint override")
-	parallelCount           = flag.Int("parallel_count", 5, "TestParallelCount")
-	parallelStagger         = flag.String("parallel_stagger", "60s", "parseable time.Duration to stagger each parallel test")
-	filter                  = flag.String("filter", "", "only run test suites matching filter")
-	exclude                 = flag.String("exclude", "", "skip test suites matching filter")
-	testExcludeFilter       = flag.String("exclude_discrete_tests", "", "skip individual tests within suites that match the regexp filter")
-	machineType             = flag.String("machine_type", "", "deprecated, use -x86_shape and/or -arm64_shape instead")
-	x86Shape                = flag.String("x86_shape", "n1-standard-1", "default x86(-32 and -64) vm shape for tests not requiring a specific shape")
-	arm64Shape              = flag.String("arm64_shape", "t2a-standard-1", "default arm64 vm shape for tests not requiring a specific shape")
-	setExitStatus           = flag.Bool("set_exit_status", true, "Exit with non-zero exit code if test suites are failing")
-	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
-	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
+	project                    = flag.String("project", "", "project to use for test runner")
+	testProjects               = flag.String("test_projects", "", "comma separated list of projects to be used for tests. defaults to the test runner project")
+	zone                       = flag.String("zone", "us-central1-a", "zone to be used for tests")
+	printwf                    = flag.Bool("print", false, "print out the parsed test workflows and exit")
+	validate                   = flag.Bool("validate", false, "validate all the test workflows and exit")
+	outPath                    = flag.String("out_path", "junit.xml", "junit xml path")
+	gcsPath                    = flag.String("gcs_path", "", "GCS Path for Daisy working directory")
+	writeLocalArtifacts        = flag.String("write_local_artifacts", "", "Local path to download test artifacts from gcs.")
+	localPath                  = flag.String("local_path", "", "path where test output files are stored, can be modified for local testing")
+	images                     = flag.String("images", "", "comma separated list of images to test")
+	timeout                    = flag.String("timeout", "45m", "timeout for the test suite")
+	vmTimeoutFactor            = flag.Float64("vm_timeout_factor", 0.95, "The factor to multiply the workflow timeout by to compute timeout for components executed in the VM.")
+	testBinaryTimeoutFactor    = flag.Float64("test_binary_timeout_factor", 0.98, "The factor to multiply the vm timeout by to compute timeout for test procedures in the VM.")
+	windowsVMTimeoutAdjustment = flag.Int64("windows_vm_timeout_adjustment", 225, "Seconds to lower VM timeout on windows images to account for the longer first boot due to sysprep.")
+	computeEndpointOverride    = flag.String("compute_endpoint_override", "", "compute client endpoint override")
+	parallelCount              = flag.Int("parallel_count", 5, "TestParallelCount")
+	parallelStagger            = flag.String("parallel_stagger", "60s", "parseable time.Duration to stagger each parallel test")
+	filter                     = flag.String("filter", "", "only run test suites matching filter")
+	exclude                    = flag.String("exclude", "", "skip test suites matching filter")
+	testExcludeFilter          = flag.String("exclude_discrete_tests", "", "skip individual tests within suites that match the regexp filter")
+	machineType                = flag.String("machine_type", "", "deprecated, use -x86_shape and/or -arm64_shape instead")
+	x86Shape                   = flag.String("x86_shape", "n1-standard-1", "default x86(-32 and -64) vm shape for tests not requiring a specific shape")
+	arm64Shape                 = flag.String("arm64_shape", "t2a-standard-1", "default arm64 vm shape for tests not requiring a specific shape")
+	setExitStatus              = flag.Bool("set_exit_status", true, "Exit with non-zero exit code if test suites are failing")
+	useReservations            = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
+	reservationURLs            = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 )
 
 var (
@@ -366,18 +369,21 @@ func main() {
 
 			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
 			test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
-				Client:                  computeclient,
-				ComputeEndpointOverride: *computeEndpointOverride,
-				Name:                    testPackage.name,
-				Image:                   image,
-				Timeout:                 *timeout,
-				Project:                 *project,
-				Zone:                    *zone,
-				ExcludeFilter:           *testExcludeFilter,
-				X86Shape:                *x86Shape,
-				ARM64Shape:              *arm64Shape,
-				UseReservations:         *useReservations,
-				ReservationURLs:         reservationURLSlice,
+				Client:                     computeclient,
+				ComputeEndpointOverride:    *computeEndpointOverride,
+				Name:                       testPackage.name,
+				Image:                      image,
+				Timeout:                    *timeout,
+				Project:                    *project,
+				Zone:                       *zone,
+				ExcludeFilter:              *testExcludeFilter,
+				X86Shape:                   *x86Shape,
+				ARM64Shape:                 *arm64Shape,
+				UseReservations:            *useReservations,
+				ReservationURLs:            reservationURLSlice,
+				VMTimeoutFactor:            *vmTimeoutFactor,
+				TestBinaryFactor:           *testBinaryTimeoutFactor,
+				WindowsVMTimeoutAdjustment: *windowsVMTimeoutAdjustment,
 			})
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)

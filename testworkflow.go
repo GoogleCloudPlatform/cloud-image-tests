@@ -91,6 +91,14 @@ type TestWorkflowOpts struct {
 	UseReservations bool
 	// ReservationURLs is a list of specific reservation URLs to consume.
 	ReservationURLs []string
+	// Test wrapper timeout factor. Timeout x VMTimeoutFactor = timeout for
+	// binaries executed inside the VM.
+	VMTimeoutFactor float64
+	// Test binary timeout factor. Timeout x VMTimeoutFactor x TestBinaryFactor
+	// = timeout for the test context inside the vm.
+	TestBinaryFactor float64
+	// Lower VM timeout by this number of seconds for windows images (to account for delay from sysprep boot stage).
+	WindowsVMTimeoutAdjustment int64
 }
 
 // TestWorkflow defines a test workflow which creates at least one test VM.
@@ -104,7 +112,8 @@ type TestWorkflow struct {
 	ImageBeta *computeBeta.Image
 	// ImageURL will be the partial URL of a GCE image.
 	ImageURL string
-	// MachineType is the machine type to be used for the test. This can be overridden by individual test suites.
+	// MachineType is the machine type to be used for the test. This can be
+	// overridden by individual test suites.
 	MachineType *compute.MachineType
 	Project     *compute.Project
 	Zone        *compute.Zone
@@ -113,6 +122,10 @@ type TestWorkflow struct {
 	skipped           bool
 	skippedMessage    string
 	testExcludeFilter string
+	// Timeout for components run in the VM, in seconds.
+	vmTimeout int64
+	// Timeout for the context derived for test procedures, in seconds.
+	testBinaryTimeout int64
 	wf                *daisy.Workflow
 	// Global counter for all daisy steps on all VMs. This is an interim solution in order to prevent step-name collisions.
 	counter int
@@ -124,18 +137,21 @@ type TestWorkflow struct {
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
 }
 
-func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
-	name := instance.Name
-
-	instance.Metadata["_test_vmname"] = name
-	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
-	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", instance.Name)
-	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
-	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
-	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
-	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
-	instance.Metadata["_cit_timeout"] = t.wf.DefaultTimeout
-	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
+// given a map representing instance metadata, an instance name, and binary
+// suffix ("" on linux, ".exe" on windows), set appropriate metadata to inform
+// the CIT test wrapper.
+func (t *TestWorkflow) setInstanceTestMetadata(instanceMetadata map[string]string, binarySuffix string, instanceName string) {
+	instanceMetadata["_test_vmname"] = instanceName
+	instanceMetadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
+	instanceMetadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", instanceName)
+	instanceMetadata["_test_package_name"] = fmt.Sprintf("image_test%s", binarySuffix)
+	instanceMetadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", instanceName)
+	instanceMetadata["_test_suite_name"] = getTestSuiteName(t)
+	instanceMetadata["_compute_endpoint"] = t.wf.ComputeEndpoint
+	instanceMetadata["_cit_timeout"] = t.wf.DefaultTimeout
+	instanceMetadata["_exclude_discrete_tests"] = t.testExcludeFilter
+	instanceMetadata["_vm_timeout"] = fmt.Sprintf("%d", t.vmTimeout)
+	instanceMetadata["_test_binary_timeout"] = fmt.Sprintf("%d", t.testBinaryTimeout)
 }
 
 // addNewVMStep adds an entirely new addVM step, separate from the step used and
@@ -175,7 +191,7 @@ func (t *TestWorkflow) addNewVMStep(disks []*compute.Disk, instanceParams *daisy
 		instance.Metadata = make(map[string]string)
 	}
 
-	t.setInstanceTestMetadata(instance, suffix)
+	t.setInstanceTestMetadata(instance.Metadata, instance.Name, suffix)
 	t.skipWindowsStagingKMS(isWindows, instance)
 
 	createInstances := &daisy.CreateInstances{}
@@ -226,7 +242,7 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 		instance.Metadata = make(map[string]string)
 	}
 
-	t.setInstanceTestMetadata(instance, suffix)
+	t.setInstanceTestMetadata(instance.Metadata, instance.Name, suffix)
 	t.skipWindowsStagingKMS(isWindows, instance)
 
 	createInstances := &daisy.CreateInstances{}
@@ -277,14 +293,7 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 		instance.Metadata = make(map[string]string)
 	}
 
-	instance.Metadata["_test_vmname"] = name
-	instance.Metadata["_test_package_url"] = "${SOURCESPATH}/testpackage"
-	instance.Metadata["_test_results_url"] = fmt.Sprintf("${OUTSPATH}/%s.txt", name)
-	instance.Metadata["_test_properties_url"] = fmt.Sprintf("${OUTSPATH}/properties/%s.txt", name)
-	instance.Metadata["_test_suite_name"] = getTestSuiteName(t)
-	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
-	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
-	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
+	t.setInstanceTestMetadata(instance.Metadata, instance.Name, suffix)
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.InstancesBeta = append(createInstances.InstancesBeta, instance)
@@ -780,6 +789,9 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 	} else {
 		t.Image, err = t.Client.GetImage(split[1], split[len(split)-1])
 	}
+	if err != nil {
+		return nil, err
+	}
 
 	// Initializing ImageBeta inside the TestWorkflow, this is required to provide Beta support to cvm testsuite
 	if strings.Contains(opts.Image, "family") {
@@ -790,6 +802,7 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if t.Image.Architecture == "ARM64" {
 		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, opts.ARM64Shape)
 	} else {
@@ -804,8 +817,18 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 		t.wf.ComputeEndpoint = opts.ComputeEndpointOverride
 	}
 	t.wf.Name = strings.ReplaceAll(opts.Name, "_", "-")
-	t.wf.DefaultTimeout = opts.Timeout
 	t.wf.Zone = opts.Zone
+
+	t.wf.DefaultTimeout = opts.Timeout
+	workflowTimeout, err := time.ParseDuration(opts.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("unparseable workflow timeout: %v", err)
+	}
+	t.vmTimeout = int64(workflowTimeout.Seconds() * opts.VMTimeoutFactor)
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		t.vmTimeout = t.vmTimeout - opts.WindowsVMTimeoutAdjustment
+	}
+	t.testBinaryTimeout = int64(float64(t.vmTimeout) * opts.TestBinaryFactor)
 
 	t.wf.DisableCloudLogging()
 	t.wf.DisableStdoutLogging()
@@ -1175,7 +1198,7 @@ func getTestsBySuiteName(name, localPath string) []string {
 func (t *TestWorkflow) getLastStepForVM(vmname string) (*daisy.Step, error) {
 	step := "wait-" + vmname
 	if _, ok := t.wf.Steps[step]; !ok {
-		return nil, fmt.Errorf("no step " + step)
+		return nil, fmt.Errorf("no step %s", step)
 	}
 	rdeps := make(map[string][]string)
 	for dependent, dependencies := range t.wf.Dependencies {

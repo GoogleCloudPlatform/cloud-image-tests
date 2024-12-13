@@ -22,7 +22,9 @@ import (
 )
 
 func TestMem(t *testing.T) {
-	expectedMemory, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "expected_memory")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	expectedMemory, err := utils.GetMetadata(ctx, "instance", "attributes", "expected_memory")
 	if err != nil {
 		t.Fatalf("could not get expected memory from metadata: %v", err)
 	}
@@ -40,7 +42,9 @@ func TestMem(t *testing.T) {
 }
 
 func TestCpu(t *testing.T) {
-	expectedCPU, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "expected_cpu")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	expectedCPU, err := utils.GetMetadata(ctx, "instance", "attributes", "expected_cpu")
 	if err != nil {
 		t.Fatalf("could not get expected cpu count from metadata: %v", err)
 	}
@@ -58,7 +62,9 @@ func TestCpu(t *testing.T) {
 }
 
 func TestNuma(t *testing.T) {
-	expectedNuma, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "expected_numa")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	expectedNuma, err := utils.GetMetadata(ctx, "instance", "attributes", "expected_numa")
 	if err != nil {
 		t.Fatalf("could not get expected numa node count from metadata: %v", err)
 	}

@@ -26,7 +26,8 @@ import (
 
 // Test that interfaces are configured with the ip set by the GCE control plane
 func TestStaticIP(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	ifaceIndexes, err := utils.GetMetadata(ctx, "instance", "network-interfaces")
 	if err != nil {
 		t.Errorf("could not get interfaces: %s", err)

@@ -102,8 +102,9 @@ func verifySnapshotSuccess(t *testing.T) {
 }
 
 func TestSnapshotScripts(t *testing.T) {
-	ctx := utils.Context(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}

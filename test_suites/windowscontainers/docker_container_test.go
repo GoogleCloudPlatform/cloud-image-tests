@@ -38,7 +38,9 @@ func _getDockerContainerID(containerName string) (string, error) {
 }
 
 func TestDockerIsInstalled(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	command := fmt.Sprintf("docker version")
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
@@ -53,7 +55,9 @@ func TestDockerIsInstalled(t *testing.T) {
 }
 
 func TestDockerAvailable(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	command := fmt.Sprintf("(Find-Package -providerName DockerMsftProvider -AllVersions).Version")
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
@@ -66,7 +70,9 @@ func TestDockerAvailable(t *testing.T) {
 }
 
 func TestBaseContainerImagesPresent(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	command := fmt.Sprintf("docker image list")
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
@@ -78,7 +84,9 @@ func TestBaseContainerImagesPresent(t *testing.T) {
 }
 
 func testBaseContainerImagesRun(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	command := fmt.Sprintf("docker run %s:%s", baseContainerImageRepo, baseContainerImageTag)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
@@ -90,7 +98,9 @@ func testBaseContainerImagesRun(t *testing.T) {
 }
 
 func TestCanBuildNewContainerFromDockerfile(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	containerDir := "C:\\containers"
 	dockerFile := containerDir + "\\hello_dockerfile"
 	greeting := "Hello Container"
@@ -129,7 +139,9 @@ func TestCanBuildNewContainerFromDockerfile(t *testing.T) {
 }
 
 func TestRunAndKillBackgroundContainer(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	containerName := "bg_container"
 	command := fmt.Sprintf("docker run --name %s -di %s:%s cmd.exe", containerName, baseContainerImageRepo, baseContainerImageTag)
 	utils.FailOnPowershellFail(command, "Error running container", t)
@@ -149,7 +161,9 @@ func TestRunAndKillBackgroundContainer(t *testing.T) {
 }
 
 func testContainerCanMountStorageVolume(t *testing.T) {
-	utils.WindowsContainersOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.WindowsContainersOnly(ctx, t)
 	containerName := "mycontainer"
 	volumeName := "myvolume"
 	volumeMount := fmt.Sprintf("%s:C:\\%s_dir", volumeName, volumeName)

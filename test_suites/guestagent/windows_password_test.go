@@ -104,7 +104,8 @@ func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
 }
 
 func resetPassword(client daisyCompute.Client, t *testing.T) (string, error) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	instanceName, err := utils.GetInstanceName(ctx)
 	if err != nil {
 		return "", fmt.Errorf("could not get instsance name: err %v", err)
@@ -191,11 +192,11 @@ func verifyPowershellCmd(t *testing.T, cmd string) string {
 }
 
 func TestWindowsPasswordReset(t *testing.T) {
-	utils.WindowsOnly(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	initpwd := "gyug3q445m0!"
 	createUserCmd := fmt.Sprintf("net user %s %s /add", user, initpwd)
 	verifyPowershellCmd(t, createUserCmd)
-	ctx := utils.Context(t)
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("Error creating compute service: %v", err)

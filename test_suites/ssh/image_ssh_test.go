@@ -25,7 +25,9 @@ import (
 )
 
 func TestEmptyTest(t *testing.T) {
-	_, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "ssh-keys")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	_, err := utils.GetMetadata(ctx, "instance", "attributes", "ssh-keys")
 	if err != nil {
 		t.Fatalf("couldn't get ssh public key from metadata")
 	}
@@ -34,11 +36,13 @@ func TestEmptyTest(t *testing.T) {
 
 // TestSSHInstanceKey test SSH completes successfully for an instance metadata key.
 func TestSSHInstanceKey(t *testing.T) {
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	vmname, err := utils.GetRealVMName("server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}

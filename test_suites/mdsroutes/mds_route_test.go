@@ -30,7 +30,8 @@ const (
 
 // Test that only the primary NIC has a route to the MDS.
 func TestMDSRoutes(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	allIfaces, err := net.Interfaces()
 	if err != nil {
@@ -85,7 +86,8 @@ func TestDNS(t *testing.T) {
 	if _, err := exec.LookPath("dig"); err != nil {
 		t.Skipf("error finding dig: %v", err)
 	}
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// TCP test.
 	cmd := exec.CommandContext(ctx, "dig", "+tcp", "@169.254.169.254", "www.google.com")
@@ -105,7 +107,8 @@ func TestDNS(t *testing.T) {
 }
 
 func TestWindowsDNS(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Run nslookup
 	cmd := exec.CommandContext(ctx, "nslookup", "www.google.com", "169.254.169.254")

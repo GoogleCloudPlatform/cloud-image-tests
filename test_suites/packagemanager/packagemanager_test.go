@@ -42,7 +42,8 @@ func TestRepoReachabilityIPv4Only(t *testing.T) {
 }
 
 func testRepoAvailability(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	for pm, args := range repoAvailabilityTestCmdArgs {
 		if !utils.CheckLinuxCmdExists(pm) {
 			continue

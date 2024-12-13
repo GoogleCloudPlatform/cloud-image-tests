@@ -79,7 +79,8 @@ func TestPCIEChanged(t *testing.T) {
 // This is a simple test to ensure that network is functional. Most of the work
 // is done by daisy for modifying the vmspec.
 func TestPing(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if len(interfaces) == 0 {
 		interfaces = parseInterfaces(t)
 	}
@@ -112,7 +113,8 @@ func TestPing(t *testing.T) {
 }
 
 func TestWindowsPing(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if len(interfaces) == 0 {
 		interfaces = parseInterfaces(t)
 	}
@@ -143,7 +145,8 @@ func TestWindowsPing(t *testing.T) {
 // Make sure that the metadata server is accessible from the primary NIC.
 // TODO: Make sure secondary NICs cannot access MDS.
 func TestMetadataServer(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Focus on primary NIC.
 	iface := interfaces[0]

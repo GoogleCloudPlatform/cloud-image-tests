@@ -31,7 +31,8 @@ func runOrFail(t *testing.T, cmd, msg string) {
 }
 
 func TestWaitForWinrmConnection(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	passwd, err := utils.GetMetadata(ctx, "instance", "attributes", "winrm-passwd")
 	if err != nil {
 		t.Fatalf("could not fetch winrm password: %v", err)
@@ -43,7 +44,8 @@ func TestWaitForWinrmConnection(t *testing.T) {
 }
 
 func TestWinrmConnection(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	target, err := utils.GetRealVMName("server")
 	if err != nil {
 		t.Fatalf("could not get target name: %v", err)

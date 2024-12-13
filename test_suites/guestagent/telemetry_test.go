@@ -12,6 +12,7 @@
 package guestagent
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -20,13 +21,13 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func restartAgent(t *testing.T) {
+func restartAgent(ctx context.Context, t *testing.T) {
 	t.Helper()
 	var cmd *exec.Cmd
 	if utils.IsWindows() {
-		cmd = exec.CommandContext(utils.Context(t), "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
+		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
 	} else {
-		cmd = exec.CommandContext(utils.Context(t), "systemctl", "restart", "google-guest-agent")
+		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
 	}
 	err := cmd.Run()
 	if err != nil {
@@ -34,7 +35,7 @@ func restartAgent(t *testing.T) {
 	}
 }
 
-func getAgentOutput(t *testing.T) string {
+func getAgentOutput(ctx context.Context, t *testing.T) string {
 	t.Helper()
 	if utils.IsWindows() {
 		out, err := utils.RunPowershellCmd(`(Get-WinEvent -Providername GCEGuestAgent).Message`)
@@ -43,7 +44,7 @@ func getAgentOutput(t *testing.T) string {
 		}
 		return string(out.Stdout)
 	}
-	out, err := exec.CommandContext(utils.Context(t), "journalctl", "-o", "cat", "-eu", "google-guest-agent").Output()
+	out, err := exec.CommandContext(ctx, "journalctl", "-o", "cat", "-eu", "google-guest-agent").Output()
 	if err != nil {
 		t.Fatalf("could not get agent output: %v", err)
 	}
@@ -51,8 +52,9 @@ func getAgentOutput(t *testing.T) string {
 }
 
 func TestTelemetryEnabled(t *testing.T) {
-	initialoutput := getAgentOutput(t)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	initialoutput := getAgentOutput(ctx, t)
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -79,9 +81,9 @@ func TestTelemetryEnabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartAgent(t)
+	restartAgent(ctx, t)
 	time.Sleep(time.Second)
-	totaloutput := getAgentOutput(t)
+	totaloutput := getAgentOutput(ctx, t)
 	finaloutput := strings.TrimPrefix(totaloutput, initialoutput)
 	if !strings.Contains(totaloutput, "telemetry") {
 		t.Skip("agent does not support telemetry")
@@ -95,8 +97,9 @@ func TestTelemetryEnabled(t *testing.T) {
 }
 
 func TestTelemetryDisabled(t *testing.T) {
-	initialoutput := getAgentOutput(t)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	initialoutput := getAgentOutput(ctx, t)
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -123,9 +126,9 @@ func TestTelemetryDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartAgent(t)
+	restartAgent(ctx, t)
 	time.Sleep(time.Second)
-	totaloutput := getAgentOutput(t)
+	totaloutput := getAgentOutput(ctx, t)
 	finaloutput := strings.TrimPrefix(totaloutput, initialoutput)
 	if !strings.Contains(totaloutput, "telemetry") {
 		t.Skip("agent does not support telemetry")

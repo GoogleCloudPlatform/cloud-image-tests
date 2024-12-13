@@ -144,8 +144,10 @@ func TestPowershellVersion(t *testing.T) {
 
 func TestServerGuiShell(t *testing.T) {
 	utils.WindowsOnly(t)
-	utils.SkipWindowsClientImages(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	utils.SkipWindowsClientImages(ctx, t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not get image name: %v", err)
 	}
@@ -232,8 +234,9 @@ func TestDotNETVersion(t *testing.T) {
 
 func TestServicesState(t *testing.T) {
 	utils.WindowsOnly(t)
-	ctx := utils.Context(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -289,7 +292,9 @@ func TestServicesState(t *testing.T) {
 
 func TestWindowsEdition(t *testing.T) {
 	utils.WindowsOnly(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -308,7 +313,9 @@ func TestWindowsEdition(t *testing.T) {
 
 func TestWindowsCore(t *testing.T) {
 	utils.WindowsOnly(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx, cancel := utils.Context(t)
+	defer cancel()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}

@@ -27,7 +27,8 @@ type Data struct {
 }
 
 func TestA3UGpuCount(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var data Data
 	var wantedCount = "8"
 	cmd := exec.CommandContext(ctx, "nvidia-smi", "-x", "-q")

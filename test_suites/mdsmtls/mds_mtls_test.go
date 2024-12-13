@@ -75,7 +75,8 @@ func checkCredsPresentWindows(t *testing.T) {
 }
 
 func TestMTLSCredsExists(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	if _, err := utils.GetMetadata(ctx, "instance", "credentials", "certs"); err != nil {
 		t.Errorf("MTLs certs are not available from the MDS: utils.GetMetadata(ctx, instance/credentials/certs) = err %v, want nil", err)
 	}
@@ -121,7 +122,8 @@ func TestMTLSCredsExists(t *testing.T) {
 }
 
 func TestMTLSJobScheduled(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	var cmd *exec.Cmd
 	if utils.IsWindows() {
 		cmd = exec.CommandContext(ctx, "powershell.exe", "(Get-WinEvent -Providername GCEGuestAgent).Message")

@@ -140,7 +140,8 @@ func getSudoFile(client *ssh.Client, user string) (string, error) {
 // oslogin on and off.
 func TestAgent(t *testing.T) {
 	// Create instances client
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 	client, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
 		t.Fatalf("failed to create instances client: %v", err)
@@ -206,7 +207,8 @@ func TestSSH(t *testing.T) {
 	// Since this is the first test to be run with the current setup, this is the only test method
 	// that would need to wait for the TestAgent test to finish on the target VMs.
 	time.Sleep(waitAgent)
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Secret Manager Client.
 	secretClient, err := secretmanager.NewClient(ctx)
@@ -248,7 +250,8 @@ func TestSSH(t *testing.T) {
 
 // TestAdminSSH checks if an admin user can use sudo after successfully SSH-ing to an instance.
 func TestAdminSSH(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Secret Manager Client.
 	secretClient, err := secretmanager.NewClient(ctx)
@@ -298,7 +301,8 @@ func TestAdminSSH(t *testing.T) {
 
 // Test2FASSH tests if users set up with 2FA can SSH to a VM using 2FA OSLogin.
 func Test2FASSH(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Obtain the secrets for the 2FA user to use for this test.
 	userSecret, err := utils.GetMetadata(ctx, "instance", "attributes", normal2FAUser)
@@ -399,7 +403,8 @@ func Test2FASSH(t *testing.T) {
 // Test2FAAdminSSH tests whether 2FA authentication with OSLogin admin permissions
 // correctly gives admin users sudo permissions.
 func Test2FAAdminSSH(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := utils.Context(t)
+	defer cancel()
 
 	// Obtain the secrets for the 2FA user to use for this test.
 	userSecret, err := utils.GetMetadata(ctx, "instance", "attributes", admin2FAUser)

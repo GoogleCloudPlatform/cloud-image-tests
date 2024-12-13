@@ -52,17 +52,17 @@ func checkFirstBootSpecialGA(ctx context.Context) bool {
 
 func main() {
 	ctx := context.Background()
+	var cancel context.CancelFunc
 
-	testTimeout, err := utils.GetMetadata(ctx, "instance", "attributes", "_cit_timeout")
+	var testBinaryTimeout string
+	vmDeadline, err := utils.FindVMDeadline(ctx)
 	if err != nil {
-		log.Fatalf("failed to get metadata _cit_timeout: %v", err)
+		testBinaryTimeout = "0"
+		log.Printf("could not find timeout: %v", err)
+	} else {
+		ctx, cancel = context.WithDeadline(ctx, vmDeadline)
+		defer cancel()
 	}
-	d, err := time.ParseDuration(testTimeout)
-	if err != nil {
-		log.Fatalf("_cit_timeout %v is not a valid duration: %v", testTimeout, err)
-	}
-	ctx, cancel := context.WithTimeout(ctx, d)
-	defer cancel()
 
 	client, err := storage.NewClient(ctx)
 	if err != nil {
@@ -107,7 +107,7 @@ func main() {
 		log.Fatalf("failed to get metadata _test_properties_url: %v", err)
 	}
 
-	var testArguments = []string{"-test.v", "-test.timeout", testTimeout}
+	var testArguments = []string{"-test.v"}
 
 	testRun, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_run")
 	if err == nil && testRun != "" {
@@ -167,6 +167,15 @@ func main() {
 	log.Printf("sleep 30s to allow environment to stabilize")
 	time.Sleep(30 * time.Second)
 
+	if testBinaryTimeout != "0" {
+		// One would think that this should be computed from TestBinaryDeadline
+		// instead of VMDeadline, but no. This is a hard deadline by which the
+		// binary must exit, the test will panic if it hits this and we will have
+		// no results. The test binary internally uses a shorter deadline to report
+		// results.
+		testBinaryTimeout = fmt.Sprintf("%ds", int64(time.Until(vmDeadline).Seconds()))
+	}
+	testArguments = append(testArguments, "-test.timeout", testBinaryTimeout)
 	out, err := executeCmd(workDir+testPackage, workDir, testArguments)
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
