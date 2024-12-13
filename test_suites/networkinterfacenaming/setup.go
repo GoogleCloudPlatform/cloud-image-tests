@@ -72,5 +72,17 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	nicnameVM.RunTests("TestNICNamingScheme")
 
+	if t.Image.Architecture == "X86_64" && utils.HasFeature(t.Image, "IDPF") {
+		c3metal := &daisy.Instance{}
+		c3metal.MachineType = "c3-standard-192-metal"
+		c3metal.Zone = "us-central1-a"
+		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
+		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal"}}, c3metal)
+		if err != nil {
+			return err
+		}
+		c3metalVM.RunTests("TestIDPFNICNamingScheme")
+	}
+
 	return nil
 }

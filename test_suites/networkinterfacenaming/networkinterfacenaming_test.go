@@ -44,6 +44,12 @@ var (
 	predictableNICNameRegex = regexp.MustCompile("^en.*")
 )
 
+func TestIDPFNICNamingScheme(t *testing.T) {
+	// Test that the IDPF PF NIC on C3Metal still matches the rest of the NIC
+	// naming scheme.
+	TestNICNamingScheme(t)
+}
+
 func TestNICNamingScheme(t *testing.T) {
 	if utils.IsWindows() {
 		nics, err := net.Interfaces()
