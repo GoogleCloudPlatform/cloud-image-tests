@@ -26,82 +26,80 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var (
-	Name       = "acceleratorconfig"
-	testRegion = "europe-west1"
-	testZone   = "europe-west1-b"
+	Name              = "acceleratorconfig"
+	testRegion        = "europe-west1"
+	testZone          = "europe-west1-b"
+	gvnicNet0Name     = "gvnic-net0"
+	gvnicNet0Sub0Name = "gvnic-net0-sub0"
+	gvnicNet1Name     = "gvnic-net1"
+	gvnicNet1Sub0Name = "gvnic-net1-sub0"
+	mrdmaNetName      = "mrdma-net"
 )
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
+	gvnicNet0, err := t.CreateNetwork(gvnicNet0Name, false)
+	if err != nil {
+		return err
+	}
+	_, err = gvnicNet0.CreateSubnetwork(gvnicNet0Sub0Name, "192.168.0.0/24")
+	if err != nil {
+		return err
+	}
+
+	gvnicNet1, err := t.CreateNetwork(gvnicNet1Name, false)
+	if err != nil {
+		return err
+	}
+	_, err = gvnicNet1.CreateSubnetwork(gvnicNet1Sub0Name, "192.168.1.0/24")
+	if err != nil {
+		return err
+	}
+
+	mrdma := &daisy.Network{}
+	mrdma.Name = mrdmaNetName
+	mrdma.Mtu = 8896                        // Max allowed value
+	mrdma.AutoCreateSubnetworks = new(bool) // false
+	mrdma.NetworkProfile = fmt.Sprintf("global/networkProfiles/%s-vpc-roce", testZone)
+	mrdmaNet, err := t.CreateNetworkFromDaisyNetwork(mrdma)
+	if err != nil {
+		return err
+	}
+
 	vm := &daisy.InstanceBeta{}
 	vm.Name = "a3ultraconfig"
 	vm.MachineType = "a3-ultragpu-8g"
 	vm.NetworkInterfaces = []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
-			Network:    fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-net-0-do-not-delete"),
-			Subnetwork: fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-sub-0-do-not-delete"),
+			Network:    gvnicNet0Name,
+			Subnetwork: gvnicNet0Sub0Name,
 		},
 		{
 			NicType:    "GVNIC",
-			Network:    fmt.Sprintf("projects/%s/global/networks/%s", "compute-image-test-pool-001", "a3ultra-test-net-1-do-not-delete"),
-			Subnetwork: fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", "compute-image-test-pool-001", testRegion, "a3ultra-test-sub-1-do-not-delete"),
+			Network:    gvnicNet1Name,
+			Subnetwork: gvnicNet1Sub0Name,
 		},
+	}
+	for i := 0; i < 8; i++ {
+		name := fmt.Sprintf("mrdma-net-sub-%d", i)
+		_, err := mrdmaNet.CreateSubnetwork(name, fmt.Sprintf("192.168.%d.0/24", i+2))
+		if err != nil {
+			return err
+		}
 		// go/go-style/decisions#nil-slices
 		// "Do not create APIs that force their clients to make distinctions
 		// between nil and the empty slice."
 		//
 		// This is bad readability-wise, but we are using an API that makes
 		// distinctions between nil and empty slices so not much choice.
-		{
+		vm.NetworkInterfaces = append(vm.NetworkInterfaces, &computeBeta.NetworkInterface{
 			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-0-do-not-delete"),
+			Network:       mrdmaNetName,
+			Subnetwork:    name,
 			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-1-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-2-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-3-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-4-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-5-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-6-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
-		{
-			NicType:       "MRDMA",
-			Network:       fmt.Sprintf("projects/%s/global/networks/%s", t.Project.Name, "a3ultra-test-mrdma-do-not-delete"),
-			Subnetwork:    fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", t.Project.Name, testRegion, "a3ultra-test-mrdma-sub-7-do-not-delete"),
-			AccessConfigs: []*computeBeta.AccessConfig{},
-		},
+		})
 	}
 	vm.GuestAccelerators = []*computeBeta.AcceleratorConfig{
 		{
