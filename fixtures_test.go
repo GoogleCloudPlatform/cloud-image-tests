@@ -661,6 +661,20 @@ func TestAddDisk(t *testing.T) {
 	}
 }
 
+func TestCreateNetworkFromDaisyNetwork(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	net := &daisy.Network{}
+	net.Name = "test-network"
+	net.IPv4Range = "10.0.0.0/24"
+	network, err := twf.CreateNetworkFromDaisyNetwork(net)
+	if err != nil {
+		t.Errorf("twf.CreateNetworkFromDaisyNetwork(net) = %v want nil", err)
+	}
+	if network.name != net.Name {
+		t.Errorf("network.name != net.Name, got %q want %q", network.name, net.Name)
+	}
+}
+
 // TestAddAliasIPRanges tests that *TestVM.AddAliasIPRanges succeeds and that
 // it fails if *TestVM.AddCustomNetwork hasn't been called first.
 func TestAddAliasIPRanges(t *testing.T) {

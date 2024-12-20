@@ -877,10 +877,35 @@ type Subnetwork struct {
 	network      *Network
 }
 
+// CreateNetworkFromDaisyNetwork creates a network exactly as specified by the daisy network.
+// Callers who don't need to set custom fields should call CreateNetwork instead.
+func (t *TestWorkflow) CreateNetworkFromDaisyNetwork(net *daisy.Network) (*Network, error) {
+	createNetworkStep, network, err := t.appendCreateNetworkStep(net)
+	if err != nil {
+		return nil, err
+	}
+
+	createVMsStep, ok := t.wf.Steps[createVMsStepName]
+	if ok {
+		if err := t.wf.AddDependency(createVMsStep, createNetworkStep); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Network{net.Name, t, network}, nil
+}
+
 // CreateNetwork creates custom network. Using AddCustomNetwork method provided by
 // TestVM to config network on vm
 func (t *TestWorkflow) CreateNetwork(networkName string, autoCreateSubnetworks bool) (*Network, error) {
-	createNetworkStep, network, err := t.appendCreateNetworkStep(networkName, DefaultMTU, autoCreateSubnetworks)
+	net := &daisy.Network{
+		Network: compute.Network{
+			Name: networkName,
+			Mtu:  DefaultMTU,
+		},
+		AutoCreateSubnetworks: &autoCreateSubnetworks,
+	}
+	createNetworkStep, network, err := t.appendCreateNetworkStep(net)
 	if err != nil {
 		return nil, err
 	}

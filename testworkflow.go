@@ -520,15 +520,7 @@ func (t *TestWorkflow) addStartStep(stepname, vmname string) (*daisy.Step, error
 	return startInstancesStep, nil
 }
 
-func (t *TestWorkflow) appendCreateNetworkStep(networkName string, mtu int, autoCreateSubnetworks bool) (*daisy.Step, *daisy.Network, error) {
-	network := &daisy.Network{
-		Network: compute.Network{
-			Name: networkName,
-			Mtu:  int64(mtu),
-		},
-		AutoCreateSubnetworks: &autoCreateSubnetworks,
-	}
-
+func (t *TestWorkflow) appendCreateNetworkStep(network *daisy.Network) (*daisy.Step, *daisy.Network, error) {
 	createNetworks := &daisy.CreateNetworks{}
 	*createNetworks = append(*createNetworks, network)
 	createNetworkStep, ok := t.wf.Steps[createNetworkStepName]
