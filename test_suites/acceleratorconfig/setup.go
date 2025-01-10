@@ -43,19 +43,21 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	_, err = gvnicNet0.CreateSubnetwork(gvnicNet0Sub0Name, "192.168.0.0/24")
+	gvnicNet0Sub0, err := gvnicNet0.CreateSubnetwork(gvnicNet0Sub0Name, "192.168.0.0/24")
 	if err != nil {
 		return err
 	}
+	gvnicNet0Sub0.SetRegion(testRegion)
 
 	gvnicNet1, err := t.CreateNetwork(gvnicNet1Name, false)
 	if err != nil {
 		return err
 	}
-	_, err = gvnicNet1.CreateSubnetwork(gvnicNet1Sub0Name, "192.168.1.0/24")
+	gvnicNet1Sub0, err := gvnicNet1.CreateSubnetwork(gvnicNet1Sub0Name, "192.168.1.0/24")
 	if err != nil {
 		return err
 	}
+	gvnicNet1Sub0.SetRegion(testRegion)
 
 	mrdma := &daisy.Network{}
 	mrdma.Name = mrdmaNetName
@@ -84,10 +86,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	for i := 0; i < 8; i++ {
 		name := fmt.Sprintf("mrdma-net-sub-%d", i)
-		_, err := mrdmaNet.CreateSubnetwork(name, fmt.Sprintf("192.168.%d.0/24", i+2))
+		mrdmaSubnet, err := mrdmaNet.CreateSubnetwork(name, fmt.Sprintf("192.168.%d.0/24", i+2))
 		if err != nil {
 			return err
 		}
+		mrdmaSubnet.SetRegion(testRegion)
 		// go/go-style/decisions#nil-slices
 		// "Do not create APIs that force their clients to make distinctions
 		// between nil and the empty slice."

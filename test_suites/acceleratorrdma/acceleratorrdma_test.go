@@ -112,9 +112,9 @@ func TestA3UltraGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(a3uNode1Name)
+	target, err := utils.GetRealVMName(a3uRDMAHostName)
 	if err != nil {
-		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", a3uNode1Name, err)
+		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", a3uRDMAHostName, err)
 	}
 	ibWriteBWArgs = append(ibWriteBWArgs, target)
 	for {

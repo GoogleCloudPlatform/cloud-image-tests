@@ -26,16 +26,17 @@ import (
 
 var (
 	// Name is the name of the test package. It must match the directory name.
-	Name              = "acceleratorrdma"
-	a3uNode1Name      = "a3ultraNode1"
-	a3uNode2Name      = "a3ultraNode2"
-	testRegion        = "europe-west1"
-	testZone          = "europe-west1-b"
-	gvnicNet0Name     = "gvnic-net0"
-	gvnicNet0Sub0Name = "gvnic-net0-sub0"
-	gvnicNet1Name     = "gvnic-net1"
-	gvnicNet1Sub0Name = "gvnic-net1-sub0"
-	mrdmaNetName      = "mrdma-net"
+	Name                   = "acceleratorrdma"
+	a3uRDMAHostName        = "a3ultrahost"
+	a3uRDMAClientName      = "a3ultraclient"
+	testRegion             = "europe-west1"
+	testZone               = "europe-west1-b"
+	gvnicNet0Name          = "gvnic-net0"
+	gvnicNet0Sub0Name      = "gvnic-net0-sub0"
+	gvnicNet1Name          = "gvnic-net1"
+	gvnicNet1Sub0Name      = "gvnic-net1-sub0"
+	mrdmaNetName           = "mrdma-net"
+	firewallAllowProtocols = []string{"tcp", "udp", "icmp"}
 )
 
 // TestSetup sets up test workflow.
@@ -52,23 +53,35 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	_, err = gvnicNet0.CreateSubnetwork(gvnicNet0Sub0Name, "192.168.0.0/24")
+	gvnicNet0Sub0, err := gvnicNet0.CreateSubnetwork(gvnicNet0Sub0Name, "192.168.0.0/24")
 	if err != nil {
 		return err
 	}
+	for _, protocol := range firewallAllowProtocols {
+		if err := gvnicNet0.CreateFirewallRule(gvnicNet0Name+"-allow-"+protocol, protocol, nil, []string{"192.168.0.0/24"}); err != nil {
+			return err
+		}
+	}
+	gvnicNet0Sub0.SetRegion(testRegion)
 
 	gvnicNet1, err := t.CreateNetwork(gvnicNet1Name, false)
 	if err != nil {
 		return err
 	}
-	_, err = gvnicNet1.CreateSubnetwork(gvnicNet1Sub0Name, "192.168.1.0/24")
+	gvnicNet1Sub0, err := gvnicNet1.CreateSubnetwork(gvnicNet1Sub0Name, "192.168.1.0/24")
 	if err != nil {
 		return err
 	}
+	for _, protocol := range firewallAllowProtocols {
+		if err := gvnicNet1.CreateFirewallRule(gvnicNet1Name+"-allow-"+protocol, protocol, nil, []string{"192.168.1.0/24"}); err != nil {
+			return err
+		}
+	}
+	gvnicNet1Sub0.SetRegion(testRegion)
 
 	mrdma := &daisy.Network{}
 	mrdma.Name = mrdmaNetName
-	mrdma.Mtu = 8896                        // Max allowed value
+	mrdma.Mtu = imagetest.JumboFramesMTU
 	mrdma.AutoCreateSubnetworks = new(bool) // false
 	mrdma.NetworkProfile = fmt.Sprintf("global/networkProfiles/%s-vpc-roce", testZone)
 	mrdmaNet, err := t.CreateNetworkFromDaisyNetwork(mrdma)
@@ -90,10 +103,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	for i := 0; i < 8; i++ {
 		name := fmt.Sprintf("mrdma-net-sub-%d", i)
-		_, err := mrdmaNet.CreateSubnetwork(name, fmt.Sprintf("192.168.%d.0/24", i+2))
+		mrdmaSubnet, err := mrdmaNet.CreateSubnetwork(name, fmt.Sprintf("192.168.%d.0/24", i+2))
 		if err != nil {
 			return err
 		}
+		mrdmaSubnet.SetRegion(testRegion)
 		// go/go-style/decisions#nil-slices
 		// "Do not create APIs that force their clients to make distinctions
 		// between nil and the empty slice."
@@ -109,31 +123,31 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	a3ultraSchedulingConfig := &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 
-	a3UltraNode1 := &daisy.InstanceBeta{}
-	a3UltraNode1.Name = a3uNode1Name
-	a3UltraNode1.MachineType = "a3-ultragpu-8g"
-	a3UltraNode1.Zone = testZone
-	a3UltraNode1.Scheduling = a3ultraSchedulingConfig
-	a3UltraNode1.NetworkInterfaces = a3UltraNicConfig
-	a3UltraNode1.GuestAccelerators = a3UltraAccelConfig
-	node1Disks := []*compute.Disk{{Name: a3uNode1Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	a3UltraRDMAHost := &daisy.InstanceBeta{}
+	a3UltraRDMAHost.Name = a3uRDMAHostName
+	a3UltraRDMAHost.MachineType = "a3-ultragpu-8g"
+	a3UltraRDMAHost.Zone = testZone
+	a3UltraRDMAHost.Scheduling = a3ultraSchedulingConfig
+	a3UltraRDMAHost.NetworkInterfaces = a3UltraNicConfig
+	a3UltraRDMAHost.GuestAccelerators = a3UltraAccelConfig
+	node1Disks := []*compute.Disk{{Name: a3uRDMAHostName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode1VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode1, node1Disks)
+	a3UltraNode1VM, err := t.CreateTestVMFromInstanceBeta(a3UltraRDMAHost, node1Disks)
 	if err != nil {
 		return err
 	}
 	a3UltraNode1VM.RunTests("TestA3UltraGPUDirectRDMAHost")
 
-	a3UltraNode2 := &daisy.InstanceBeta{}
-	a3UltraNode2.Name = a3uNode2Name
-	a3UltraNode2.MachineType = "a3-ultragpu-8g"
-	a3UltraNode2.Zone = testZone
-	a3UltraNode2.Scheduling = a3ultraSchedulingConfig
-	a3UltraNode2.NetworkInterfaces = a3UltraNicConfig
-	a3UltraNode2.GuestAccelerators = a3UltraAccelConfig
-	node2Disks := []*compute.Disk{{Name: a3uNode2Name, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	a3UltraRDMAClient := &daisy.InstanceBeta{}
+	a3UltraRDMAClient.Name = a3uRDMAClientName
+	a3UltraRDMAClient.MachineType = "a3-ultragpu-8g"
+	a3UltraRDMAClient.Zone = testZone
+	a3UltraRDMAClient.Scheduling = a3ultraSchedulingConfig
+	a3UltraRDMAClient.NetworkInterfaces = a3UltraNicConfig
+	a3UltraRDMAClient.GuestAccelerators = a3UltraAccelConfig
+	node2Disks := []*compute.Disk{{Name: a3uRDMAClientName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode2VM, err := t.CreateTestVMFromInstanceBeta(a3UltraNode2, node2Disks)
+	a3UltraNode2VM, err := t.CreateTestVMFromInstanceBeta(a3UltraRDMAClient, node2Disks)
 	if err != nil {
 		return err
 	}
