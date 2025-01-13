@@ -215,6 +215,12 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
 	instance.ReservationAffinity = t.ReservationAffinity
+	if t.ReservationAffinity != nil && t.ReservationAffinity.ConsumeReservationType == "SPECIFIC_RESERVATION" {
+		if instance.Scheduling == nil {
+			instance.Scheduling = &compute.Scheduling{}
+		}
+		instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
+	}
 
 	for _, disk := range disks {
 		currentDisk := &compute.AttachedDisk{Source: disk.Name, AutoDelete: true}
@@ -268,6 +274,12 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
 	instance.ReservationAffinity = t.ReservationAffinityBeta
+	if t.ReservationAffinityBeta != nil && t.ReservationAffinityBeta.ConsumeReservationType == "SPECIFIC_RESERVATION" {
+		if instance.Scheduling == nil {
+			instance.Scheduling = &computeBeta.Scheduling{}
+		}
+		instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
+	}
 
 	for _, disk := range disks {
 		instance.Disks = append(instance.Disks, &computeBeta.AttachedDisk{Source: disk.Name, AutoDelete: true})
