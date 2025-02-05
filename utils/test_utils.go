@@ -689,3 +689,30 @@ func ValidWindowsPassword(userPwLgth int) string {
 		}
 	}
 }
+
+// FileType represents the type of file to check.
+type FileType int
+
+const (
+	// TypeFile represents a file.
+	TypeFile FileType = iota
+	// TypeDir represents a directory.
+	TypeDir
+)
+
+// Exists checks if a file or directory exists.
+func Exists(path string, fileType FileType) bool {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	switch fileType {
+	case TypeFile:
+		return !fileInfo.IsDir()
+	case TypeDir:
+		return fileInfo.IsDir()
+	default:
+		return false
+	}
+}

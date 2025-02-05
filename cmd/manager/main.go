@@ -54,6 +54,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagemanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packageupgrade"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagevalidation"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/pluginmanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/security"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/shapevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/sql"
@@ -306,6 +307,10 @@ func main() {
 		{
 			vmspec.Name,
 			vmspec.TestSetup,
+		},
+		{
+			pluginmanager.Name,
+			pluginmanager.TestSetup,
 		},
 	}
 
