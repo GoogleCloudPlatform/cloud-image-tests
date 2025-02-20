@@ -716,3 +716,48 @@ func Exists(path string, fileType FileType) bool {
 		return false
 	}
 }
+
+// UpsertMetadata inserts or updates a metadata entry on a currently running
+// instance.
+func UpsertMetadata(ctx context.Context, key, value string) error {
+	client, err := GetDaisyClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get daisy client: %w", err)
+	}
+
+	prj, zone, err := GetProjectZone(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get project zone: %w", err)
+	}
+
+	name, err := GetMetadata(ctx, "instance", "name")
+	if err != nil {
+		return fmt.Errorf("failed to get instance name: %w", err)
+	}
+
+	inst, err := client.GetInstance(prj, zone, name)
+	if err != nil {
+		return fmt.Errorf("failed to get instance: %w", err)
+	}
+
+	updated := false
+	for _, item := range inst.Metadata.Items {
+		if item.Key == key {
+			item.Value = &value
+			updated = true
+			break
+		}
+	}
+
+	// If the key is not found, append it to the metadata items.
+	if !updated {
+		inst.Metadata.Items = append(inst.Metadata.Items, &compute.MetadataItems{Key: key, Value: &value})
+	}
+
+	err = client.SetInstanceMetadata(prj, zone, name, inst.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to set instance metadata: %w", err)
+	}
+
+	return nil
+}

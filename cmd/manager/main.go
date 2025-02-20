@@ -34,6 +34,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/compatmanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/guestagent"
@@ -311,6 +312,10 @@ func main() {
 		{
 			pluginmanager.Name,
 			pluginmanager.TestSetup,
+		},
+		{
+			compatmanager.Name,
+			compatmanager.TestSetup,
 		},
 	}
 
