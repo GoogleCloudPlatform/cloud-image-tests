@@ -17,6 +17,7 @@ package acceleratorconfig
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -27,8 +28,6 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var (
 	Name              = "acceleratorconfig"
-	testRegion        = "europe-west1"
-	testZone          = "europe-west1-b"
 	gvnicNet0Name     = "gvnic-net0"
 	gvnicNet0Sub0Name = "gvnic-net0-sub0"
 	gvnicNet1Name     = "gvnic-net1"
@@ -39,6 +38,14 @@ var (
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
+
+	testZone := t.Zone.Name
+	// For example, region should be us-central1 for zone us-central1-a.
+	lastDashIndex := strings.LastIndex(testZone, "-")
+	if lastDashIndex == -1 {
+		return fmt.Errorf("invalid zone: %s", testZone)
+	}
+	testRegion := testZone[:lastDashIndex]
 	gvnicNet0, err := t.CreateNetwork(gvnicNet0Name, false)
 	if err != nil {
 		return err

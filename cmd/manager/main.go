@@ -94,6 +94,7 @@ var (
 	setExitStatus           = flag.Bool("set_exit_status", true, "Exit with non-zero exit code if test suites are failing")
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
+	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 )
 
 var (

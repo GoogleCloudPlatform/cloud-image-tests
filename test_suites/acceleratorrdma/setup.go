@@ -17,6 +17,7 @@ package acceleratorrdma
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -29,8 +30,6 @@ var (
 	Name                   = "acceleratorrdma"
 	a3uRDMAHostName        = "a3ultrahost"
 	a3uRDMAClientName      = "a3ultraclient"
-	testRegion             = "europe-west1"
-	testZone               = "europe-west1-b"
 	gvnicNet0Name          = "gvnic-net0"
 	gvnicNet0Sub0Name      = "gvnic-net0-sub0"
 	gvnicNet1Name          = "gvnic-net1"
@@ -42,6 +41,14 @@ var (
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
+
+	testZone := t.Zone.Name
+	// For example, region should be us-central1 for zone us-central1-a.
+	lastDashIndex := strings.LastIndex(testZone, "-")
+	if lastDashIndex == -1 {
+		return fmt.Errorf("invalid zone: %s", testZone)
+	}
+	testRegion := testZone[:lastDashIndex]
 	a3UltraAccelConfig := []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
@@ -125,7 +132,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	a3UltraRDMAHost := &daisy.InstanceBeta{}
 	a3UltraRDMAHost.Name = a3uRDMAHostName
-	a3UltraRDMAHost.MachineType = "a3-ultragpu-8g"
+	a3UltraRDMAHost.MachineType = t.MachineType.Name
 	a3UltraRDMAHost.Zone = testZone
 	a3UltraRDMAHost.Scheduling = a3ultraSchedulingConfig
 	a3UltraRDMAHost.NetworkInterfaces = a3UltraNicConfig
@@ -140,7 +147,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	a3UltraRDMAClient := &daisy.InstanceBeta{}
 	a3UltraRDMAClient.Name = a3uRDMAClientName
-	a3UltraRDMAClient.MachineType = "a3-ultragpu-8g"
+	a3UltraRDMAClient.MachineType = t.MachineType.Name
 	a3UltraRDMAClient.Zone = testZone
 	a3UltraRDMAClient.Scheduling = a3ultraSchedulingConfig
 	a3UltraRDMAClient.NetworkInterfaces = a3UltraNicConfig
