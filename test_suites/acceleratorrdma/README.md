@@ -8,6 +8,10 @@ Code: QUOTA_EXCEEDED
 Message: Quota 'GPUS_PER_GPU_FAMILY' exceeded.  Limit: 16.0 in region europe-west1
 ```
 
+In any GCP project where there is available GPU quota, a reservation
+should have automatically been created when the quota was granted. The
+reservation should not need to be manually created.
+
 If there is a reservation for GPU capacity, the following flags should be set:
 
 *   "use_reservations" should be set to true
