@@ -1,4 +1,8 @@
+# Accelerator Image Test Suite: AcceleratorRDMA
+
 This is a test suite for Accelerator Images.
+
+## Reservations
 
 GPU availability may be limited for Accelerator Images, specifically for A3
 Ultra, A4, etc. This is an example quota error:
@@ -34,3 +38,14 @@ Key: "compute.googleapis.com/reservation-name"},
 ```
 
 The same applies to ReservationAffinityBeta.
+
+## Periodics
+
+Any changes to the test suite may also require changes in params here:
+https://github.com/GoogleCloudPlatform/oss-test-infra/blob/master/prow/prowjobs/GoogleCloudPlatform/gcp-guest/gcp-guest-config.yaml
+
+https://github.com/GoogleCloudPlatform/guest-test-infra/blob/master/concourse/pipelines/linux-image-build.jsonnet
+
+Note that when a new reservation is created, it can sometimes change the name of
+the old reservation. This means that the reservation parameters in the periodic
+tests may need to change as well.

@@ -91,6 +91,8 @@ type TestWorkflowOpts struct {
 	UseReservations bool
 	// ReservationURLs is a list of specific reservation URLs to consume.
 	ReservationURLs []string
+	// AcceleratorType is the accelerator type to be used for accelerator tests, which use GPUs.
+	AcceleratorType string
 }
 
 // TestWorkflow defines a test workflow which creates at least one test VM.
@@ -122,6 +124,8 @@ type TestWorkflow struct {
 	ReservationAffinity *compute.ReservationAffinity
 	// ReservationAffinityBeta is the reservation affinity used for VM creation with the beta API.
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
+	// AcceleratorType is the accelerator type to be used for accelerator tests which use GPUs.
+	AcceleratorType string
 }
 
 func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
@@ -765,6 +769,7 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 		}
 		t.ReservationAffinity = &compute.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
 		t.ReservationAffinityBeta = &computeBeta.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
+		t.AcceleratorType = opts.AcceleratorType
 	}
 
 	var err error

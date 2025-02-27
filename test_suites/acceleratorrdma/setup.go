@@ -28,8 +28,8 @@ import (
 var (
 	// Name is the name of the test package. It must match the directory name.
 	Name                   = "acceleratorrdma"
-	a3uRDMAHostName        = "a3ultrahost"
-	a3uRDMAClientName      = "a3ultraclient"
+	a3uRDMAHostName        = "a3uhost"
+	a3uRDMAClientName      = "a3uclient"
 	gvnicNet0Name          = "gvnic-net0"
 	gvnicNet0Sub0Name      = "gvnic-net0-sub0"
 	gvnicNet1Name          = "gvnic-net1"
@@ -52,7 +52,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	a3UltraAccelConfig := []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
-			AcceleratorType:  "zones/" + testZone + "/acceleratorTypes/nvidia-h200-141gb",
+			AcceleratorType:  fmt.Sprintf("zones/%s/acceleratorTypes/%s", testZone, t.AcceleratorType),
 		},
 	}
 

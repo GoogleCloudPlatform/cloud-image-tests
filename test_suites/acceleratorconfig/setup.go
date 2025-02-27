@@ -77,8 +77,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	vm := &daisy.InstanceBeta{}
-	vm.Name = "a3ultraconfig"
-	vm.MachineType = "a3-ultragpu-8g"
+	vm.Name = "a3ucfg"
+	vm.MachineType = t.MachineType.Name
 	vm.NetworkInterfaces = []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
@@ -115,7 +115,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		{
 			AcceleratorCount: 8,
 			// This may need to be updated to the appropriate zone upon A3U release.
-			AcceleratorType: "zones/" + testZone + "/acceleratorTypes/nvidia-h200-141gb",
+			AcceleratorType: fmt.Sprintf("zones/%s/acceleratorTypes/%s", testZone, t.AcceleratorType),
 		},
 	}
 	vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}

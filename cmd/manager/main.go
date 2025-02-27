@@ -389,6 +389,7 @@ func main() {
 				ARM64Shape:              *arm64Shape,
 				UseReservations:         *useReservations,
 				ReservationURLs:         reservationURLSlice,
+				AcceleratorType:         *acceleratorType,
 			})
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)
