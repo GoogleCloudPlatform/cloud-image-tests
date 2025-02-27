@@ -77,7 +77,7 @@ func processExistsWindows(t *testing.T, shouldExist bool, processName string) {
 func processExistsLinux(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
 
-	cmd := exec.Command("ps", "-a", "-u", "-x")
+	cmd := exec.Command("ps", "-e", "-o", "command")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -85,10 +85,18 @@ func processExistsLinux(t *testing.T, shouldExist bool, processName string) {
 	}
 
 	output := string(out)
-	pattern := regexp.MustCompile(fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(processName)))
-	got := pattern.MatchString(output)
-	if got != shouldExist {
-		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, got, output)
+	processes := strings.Split(output, "\n")
+	found := false
+	for _, process := range processes {
+		cmd := strings.Split(strings.TrimSpace(process), " ")
+		if cmd[0] == processName {
+			found = true
+			break
+		}
+	}
+
+	if found != shouldExist {
+		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, found, output)
 	}
 }
 
@@ -98,7 +106,7 @@ func checkAgentManagerIsRunning(t *testing.T) {
 	if utils.IsWindows() {
 		processExistsWindows(t, true, "GCEWindowsAgentManager")
 	} else {
-		processExistsLinux(t, true, "google_guest_agent_manager")
+		processExistsLinux(t, true, "/usr/bin/google_guest_agent_manager")
 	}
 }
 
@@ -108,7 +116,7 @@ func checkGuestAgentIsRunning(t *testing.T, wantRunning bool) {
 	if utils.IsWindows() {
 		processExistsWindows(t, wantRunning, "GCEWindowsAgent")
 	} else {
-		processExistsLinux(t, wantRunning, "google_guest_agent")
+		processExistsLinux(t, wantRunning, "/usr/bin/google_guest_agent")
 	}
 }
 
@@ -154,7 +162,7 @@ func checkCorePluginProcessExists(t *testing.T, exists bool) {
 	if utils.IsWindows() {
 		processExistsWindows(t, exists, "CorePlugin")
 	} else {
-		processExistsLinux(t, exists, "core_plugin")
+		processExistsLinux(t, exists, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
 

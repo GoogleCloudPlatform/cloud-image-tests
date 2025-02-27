@@ -17,10 +17,33 @@ package compatmanager
 
 import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "compatmanager"
+
+const (
+	linuxStartupScript = `
+#!/bin/bash
+
+ps -eo command >> /home/startup.txt
+`
+	linuxShutdownScript = `
+#!/bin/bash
+
+ps -eo command >> /home/shutdown.txt
+`
+
+	windowsStartupScript = `
+Get-Process | Out-File -FilePath 'C:\startup.txt' -Encoding ASCII
+`
+	windowsShutdownScript = `
+Get-Process | Out-File -FilePath 'C:\shutdown.txt' -Encoding ASCII
+`
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -30,5 +53,39 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	defaultVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
 	defaultVM.RunTests("TestCompatManager")
+
+	// Test metadata script compat manager with startup script.
+	metadatStartupTestVM, err := t.CreateTestVM("compatmanagermetadatastartup")
+	if err != nil {
+		return err
+	}
+	metadatStartupTestVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
+	metadatStartupTestVM.AddMetadata("enable-guest-agent-core-plugin", "true")
+
+	// Test metadata script compat manager with shutdown script.
+	metadatShutdownTestVM := &daisy.Instance{}
+	metadatShutdownTestVM.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
+	rebootVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "shutdownscripts"}}, metadatShutdownTestVM)
+	if err != nil {
+		return err
+	}
+	rebootVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
+	rebootVM.AddMetadata("enable-guest-agent-core-plugin", "true")
+
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		metadatStartupTestVM.SetWindowsStartupScript(windowsStartupScript)
+		rebootVM.SetWindowsShutdownScript(windowsShutdownScript)
+	} else {
+		rebootVM.SetShutdownScript(linuxShutdownScript)
+		metadatStartupTestVM.SetStartupScript(linuxStartupScript)
+	}
+
+	if err := rebootVM.Reboot(); err != nil {
+		return err
+	}
+
+	metadatStartupTestVM.RunTests("TestMetadataScriptCompatStartup")
+	rebootVM.RunTests("TestMetadataScriptCompatShutdown")
+
 	return nil
 }
