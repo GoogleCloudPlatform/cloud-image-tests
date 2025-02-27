@@ -551,6 +551,7 @@ func TestNewTestWorkflow(t *testing.T) {
 		reservationURLs             []string
 		wantReservationAffinity     *compute.ReservationAffinity
 		wantReservationAffinityBeta *computeBeta.ReservationAffinity
+		wantAcceleratorType         string
 	}{
 		{
 			name:                "arm",
@@ -610,6 +611,7 @@ func TestNewTestWorkflow(t *testing.T) {
 			useReservations:             true,
 			wantReservationAffinity:     &compute.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
 			wantReservationAffinityBeta: &computeBeta.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
+			wantAcceleratorType:         "n2-h200-141gb",
 		},
 		{
 			name:                        "specific_reservation",
@@ -664,6 +666,7 @@ func TestNewTestWorkflow(t *testing.T) {
 				ARM64Shape:      tc.arm64Shape,
 				UseReservations: tc.useReservations,
 				ReservationURLs: tc.reservationURLs,
+				AcceleratorType: tc.wantAcceleratorType,
 			})
 			if err != nil {
 				t.Fatalf("NewTestWorkflow() failed: %v want nil", err)
@@ -706,6 +709,9 @@ func TestNewTestWorkflow(t *testing.T) {
 			}
 			if diff := cmp.Diff(twf.ReservationAffinityBeta, tc.wantReservationAffinityBeta); diff != "" {
 				t.Errorf("cmp.Diff(twf.ReservationAffinityBeta, tc.wantReservationAffinityBeta) != nil (-want +got):\n%s", diff)
+			}
+			if twf.AcceleratorType != tc.wantAcceleratorType {
+				t.Errorf("NewTestWorkflow() accelerator type = %s, want %s", twf.AcceleratorType, tc.wantAcceleratorType)
 			}
 		})
 	}
