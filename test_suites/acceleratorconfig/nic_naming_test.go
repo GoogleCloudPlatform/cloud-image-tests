@@ -40,7 +40,7 @@ var (
 // |-> CX-7 NIC
 //
 // Test that for each CX-7 NIC, it's named after the GPU on the same PCI switch.
-func TestA3UNICNaming(t *testing.T) {
+func TestNICNaming(t *testing.T) {
 	ctx := utils.Context(t)
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {

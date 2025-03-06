@@ -22,7 +22,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func TestA3UNicCount(t *testing.T) {
+func TestNicCount(t *testing.T) {
 	ctx := utils.Context(t)
 	var wantedCount = 8
 	cmd := exec.CommandContext(ctx, "rdma", "-j", "dev")
@@ -44,6 +44,6 @@ func TestA3UNicCount(t *testing.T) {
 	}
 
 	if NicCount != wantedCount {
-		t.Fatalf("TestA3UNicCount: Got %v, want %v", NicCount, wantedCount)
+		t.Fatalf("TestNicCount: Got %v, want %v", NicCount, wantedCount)
 	}
 }

@@ -26,7 +26,7 @@ type Data struct {
 	Gpucount string `xml:"attached_gpus"`
 }
 
-func TestA3UGpuCount(t *testing.T) {
+func TestGpuCount(t *testing.T) {
 	ctx := utils.Context(t)
 	var data Data
 	var wantedCount = "8"
@@ -41,6 +41,6 @@ func TestA3UGpuCount(t *testing.T) {
 	}
 
 	if data.Gpucount != wantedCount {
-		t.Fatalf("TestA3UGpuCount: Got %s, want %s", data.Gpucount, wantedCount)
+		t.Fatalf("TestGpuCount: Got %s, want %s", data.Gpucount, wantedCount)
 	}
 }

@@ -77,7 +77,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	vm := &daisy.InstanceBeta{}
-	vm.Name = "a3ucfg"
+	vm.Name = "accelerator-cfg"
 	vm.MachineType = t.MachineType.Name
 	vm.NetworkInterfaces = []*computeBeta.NetworkInterface{
 		{
@@ -114,8 +114,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm.GuestAccelerators = []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
-			// This may need to be updated to the appropriate zone upon A3U release.
-			AcceleratorType: fmt.Sprintf("zones/%s/acceleratorTypes/%s", testZone, t.AcceleratorType),
+			AcceleratorType:  fmt.Sprintf("zones/%s/acceleratorTypes/%s", testZone, t.AcceleratorType),
 		},
 	}
 	vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
@@ -128,6 +127,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	tvm.RunTests("TestA3UGpuCount|TestA3UNicCount|TestA3UGPUNumaMapping|TestA3UNICNumaMapping|TestA3UNICNaming")
+	tvm.RunTests("TestGpuCount|TestNicCount|TestGPUNumaMapping|TestNICNumaMapping|TestNICNaming")
 	return nil
 }
