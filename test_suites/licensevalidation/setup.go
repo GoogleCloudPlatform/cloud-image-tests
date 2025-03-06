@@ -190,7 +190,7 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				fmt.Sprintf(licenseURLTmpl, "ubuntu-os-accelerator-images", fmt.Sprintf("nvidia-%s", gpuDriverVersion)),
 			)
 		}
-	case strings.Contains(image.Name, "ubuntu-pro"):
+	case strings.Contains(image.Name, "ubuntu-pro") || strings.Contains(image.Name, "ubuntu-minimal-pro"):
 		project = "ubuntu-os-pro-cloud"
 	case strings.Contains(image.Name, "ubuntu"):
 		project = "ubuntu-os-cloud"
