@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -31,10 +30,6 @@ const (
 	markerFile = "/var/boot-marker"
 )
 
-var (
-	ubuntu2404Re = regexp.MustCompile(`ubuntu-(pro-|accelerator-)?2404`)
-)
-
 func TestAliases(t *testing.T) {
 	ctx := utils.Context(t)
 	image, err := utils.GetMetadata(ctx, "instance", "image")
@@ -43,9 +38,6 @@ func TestAliases(t *testing.T) {
 	}
 	if strings.Contains(image, "cos") {
 		t.Skipf("COS does not support IP aliases")
-	}
-	if ubuntu2404Re.MatchString(image) {
-		t.Skipf("Ubuntu 24.04 skipped due to dhclient removal")
 	}
 	if err := verifyIPAliases(t); err != nil {
 		t.Fatal(err)
@@ -60,9 +52,6 @@ func TestAliasAfterReboot(t *testing.T) {
 	}
 	if strings.Contains(image, "cos") {
 		t.Skipf("COS does not support IP aliases")
-	}
-	if ubuntu2404Re.MatchString(image) {
-		t.Skipf("Ubuntu 24.04 skipped due to dhclient removal")
 	}
 	_, err = os.Stat(markerFile)
 	if os.IsNotExist(err) {
@@ -129,9 +118,6 @@ func TestAliasAgentRestart(t *testing.T) {
 	}
 	if strings.Contains(image, "cos") {
 		t.Skipf("COS does not support IP aliases")
-	}
-	if ubuntu2404Re.MatchString(image) {
-		t.Skipf("Ubuntu 24.04 skipped due to dhclient removal")
 	}
 	iface, err := utils.GetInterface(ctx, 0)
 	if err != nil {
