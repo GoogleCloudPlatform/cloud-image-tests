@@ -243,12 +243,14 @@ func TestGuestPackages(t *testing.T) {
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
 		{
-			name:   "mlnx-ofed-guest",
-			images: []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
+			name:         "mlnx-ofed-guest",
+			alternatives: []string{"doca-ofed"},
+			images:       []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
 		},
 		{
-			name:   "nvidia-open-gpu-kernel-modules",
-			images: []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
+			name:         "nvidia-open-gpu-kernel-modules",
+			alternatives: []string{"kmod-nvidia-open-latest"},
+			images:       []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
 		},
 	}
 
