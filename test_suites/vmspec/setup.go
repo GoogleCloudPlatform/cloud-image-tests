@@ -19,7 +19,6 @@ package vmspec
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -56,12 +55,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// Skip ARM64 images, since no ARM64-supporting machine types support LSSDs.
 	if t.Image.Architecture == "ARM64" {
 		t.Skip("vmspec not supported on ARM images")
-		return nil
-	}
-
-	// Skip Ubuntu-2204 until new agent is available.
-	if strings.Contains(t.Image.Name, "ubuntu") && strings.Contains(t.Image.Name, "2204") {
-		t.Skip("vmspec not supported on ubuntu-2204 until new agent is available")
 		return nil
 	}
 
