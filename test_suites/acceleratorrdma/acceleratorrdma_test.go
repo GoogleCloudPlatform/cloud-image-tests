@@ -96,7 +96,7 @@ func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
 // Exercise the GPUDirectRDMA stack without involving NCCL by using
 // https://github.com/linux-rdma/perftest.
 // This is *not* a performance test, performance numbers aren't checked.
-func TestA3UltraGPUDirectRDMAHost(t *testing.T) {
+func TestGPUDirectRDMAHost(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
@@ -108,13 +108,13 @@ func TestA3UltraGPUDirectRDMAHost(t *testing.T) {
 	}
 }
 
-func TestA3UltraGPUDirectRDMAClient(t *testing.T) {
+func TestGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(a3uRDMAHostName)
+	target, err := utils.GetRealVMName(rdmaHostName)
 	if err != nil {
-		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", a3uRDMAHostName, err)
+		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", rdmaHostName, err)
 	}
 	ibWriteBWArgs = append(ibWriteBWArgs, target)
 	for {

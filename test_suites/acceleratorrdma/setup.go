@@ -28,8 +28,8 @@ import (
 var (
 	// Name is the name of the test package. It must match the directory name.
 	Name                   = "acceleratorrdma"
-	a3uRDMAHostName        = "a3uhost"
-	a3uRDMAClientName      = "a3uclient"
+	rdmaHostName           = "rdmahost"
+	rdmaClientName         = "rdmaclient"
 	gvnicNet0Name          = "gvnic-net0"
 	gvnicNet0Sub0Name      = "gvnic-net0-sub0"
 	gvnicNet1Name          = "gvnic-net1"
@@ -49,7 +49,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return fmt.Errorf("invalid zone: %s", testZone)
 	}
 	testRegion := testZone[:lastDashIndex]
-	a3UltraAccelConfig := []*computeBeta.AcceleratorConfig{
+	accelConfig := []*computeBeta.AcceleratorConfig{
 		{
 			AcceleratorCount: 8,
 			AcceleratorType:  fmt.Sprintf("zones/%s/acceleratorTypes/%s", testZone, t.AcceleratorType),
@@ -96,7 +96,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 
-	a3UltraNicConfig := []*computeBeta.NetworkInterface{
+	nicConfig := []*computeBeta.NetworkInterface{
 		{
 			NicType:    "GVNIC",
 			Network:    gvnicNet0Name,
@@ -121,43 +121,43 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		//
 		// This is bad readability-wise, but we are using an API that makes
 		// distinctions between nil and empty slices so not much choice.
-		a3UltraNicConfig = append(a3UltraNicConfig, &computeBeta.NetworkInterface{
+		nicConfig = append(nicConfig, &computeBeta.NetworkInterface{
 			NicType:       "MRDMA",
 			Network:       mrdmaNetName,
 			Subnetwork:    name,
 			AccessConfigs: []*computeBeta.AccessConfig{},
 		})
 	}
-	a3ultraSchedulingConfig := &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
+	schedulingConfig := &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 
-	a3UltraRDMAHost := &daisy.InstanceBeta{}
-	a3UltraRDMAHost.Name = a3uRDMAHostName
-	a3UltraRDMAHost.MachineType = t.MachineType.Name
-	a3UltraRDMAHost.Zone = testZone
-	a3UltraRDMAHost.Scheduling = a3ultraSchedulingConfig
-	a3UltraRDMAHost.NetworkInterfaces = a3UltraNicConfig
-	a3UltraRDMAHost.GuestAccelerators = a3UltraAccelConfig
-	node1Disks := []*compute.Disk{{Name: a3uRDMAHostName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	rdmaHost := &daisy.InstanceBeta{}
+	rdmaHost.Name = rdmaHostName
+	rdmaHost.MachineType = t.MachineType.Name
+	rdmaHost.Zone = testZone
+	rdmaHost.Scheduling = schedulingConfig
+	rdmaHost.NetworkInterfaces = nicConfig
+	rdmaHost.GuestAccelerators = accelConfig
+	node1Disks := []*compute.Disk{{Name: rdmaHostName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode1VM, err := t.CreateTestVMFromInstanceBeta(a3UltraRDMAHost, node1Disks)
+	node1VM, err := t.CreateTestVMFromInstanceBeta(rdmaHost, node1Disks)
 	if err != nil {
 		return err
 	}
-	a3UltraNode1VM.RunTests("TestA3UltraGPUDirectRDMAHost")
+	node1VM.RunTests("TestGPUDirectRDMAHost")
 
-	a3UltraRDMAClient := &daisy.InstanceBeta{}
-	a3UltraRDMAClient.Name = a3uRDMAClientName
-	a3UltraRDMAClient.MachineType = t.MachineType.Name
-	a3UltraRDMAClient.Zone = testZone
-	a3UltraRDMAClient.Scheduling = a3ultraSchedulingConfig
-	a3UltraRDMAClient.NetworkInterfaces = a3UltraNicConfig
-	a3UltraRDMAClient.GuestAccelerators = a3UltraAccelConfig
-	node2Disks := []*compute.Disk{{Name: a3uRDMAClientName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	rdmaClient := &daisy.InstanceBeta{}
+	rdmaClient.Name = rdmaClientName
+	rdmaClient.MachineType = t.MachineType.Name
+	rdmaClient.Zone = testZone
+	rdmaClient.Scheduling = schedulingConfig
+	rdmaClient.NetworkInterfaces = nicConfig
+	rdmaClient.GuestAccelerators = accelConfig
+	node2Disks := []*compute.Disk{{Name: rdmaClientName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	a3UltraNode2VM, err := t.CreateTestVMFromInstanceBeta(a3UltraRDMAClient, node2Disks)
+	node2VM, err := t.CreateTestVMFromInstanceBeta(rdmaClient, node2Disks)
 	if err != nil {
 		return err
 	}
-	a3UltraNode2VM.RunTests("TestA3UltraGPUDirectRDMAClient")
+	node2VM.RunTests("TestGPUDirectRDMAClient")
 	return nil
 }
