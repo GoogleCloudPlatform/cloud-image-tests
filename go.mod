@@ -10,7 +10,7 @@ require (
 	cloud.google.com/go/storage v1.39.1
 	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20240725100702-9a712e79fd0e
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-sev-guest v0.12.1
+	github.com/google/go-sev-guest v0.13.0
 	github.com/google/go-tdx-guest v0.3.1
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.14.0
