@@ -38,10 +38,13 @@ ps -eo command >> /home/shutdown.txt
 `
 
 	windowsStartupScript = `
-Get-Process | Out-File -FilePath 'C:\startup.txt' -Encoding ASCII
+Get-Process | Format-List * | Out-File -FilePath 'C:\startup.txt' -Encoding ASCII
 `
 	windowsShutdownScript = `
-Get-Process | Out-File -FilePath 'C:\shutdown.txt' -Encoding ASCII
+Get-Process | Format-List * | Out-File -FilePath 'C:\shutdown.txt' -Encoding ASCII
+`
+	windowsSysprepScript = `
+Get-Process | Format-List * | Out-File -FilePath 'C:\sysprep.txt' -Encoding ASCII
 `
 )
 
@@ -88,12 +91,28 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	defaultRebootVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
 
+	// Test metadata script compat manager with sysprep script.
+	metadataSysprepTestVM, err := t.CreateTestVM("sysprepspecialize")
+	if err != nil {
+		return err
+	}
+	metadataSysprepTestVM.AddMetadata("enable-guest-agent-core-plugin", "true")
+	metadataSysprepTestVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
+
+	defaultSysprepTestVM, err := t.CreateTestVM("defaultsysprep")
+	if err != nil {
+		return err
+	}
+	defaultSysprepTestVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
+
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		metadatStartupTestVM.SetWindowsStartupScript(windowsStartupScript)
 		rebootVM.SetWindowsShutdownScript(windowsShutdownScript)
+		metadataSysprepTestVM.AddMetadata("sysprep-specialize-script-ps1", windowsSysprepScript)
 
 		defaultStartupTestVM.SetWindowsStartupScript(windowsStartupScript)
 		defaultRebootVM.SetWindowsShutdownScript(windowsShutdownScript)
+		defaultSysprepTestVM.AddMetadata("sysprep-specialize-script-ps1", windowsSysprepScript)
 	} else {
 		rebootVM.SetShutdownScript(linuxShutdownScript)
 		metadatStartupTestVM.SetStartupScript(linuxStartupScript)
@@ -111,9 +130,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	metadatStartupTestVM.RunTests("TestMetadataScriptCompatStartup")
 	rebootVM.RunTests("TestMetadataScriptCompatShutdown")
+	metadataSysprepTestVM.RunTests("TestMetadataScriptCompatSysprep")
 
 	defaultStartupTestVM.RunTests("TestDefaultMetadataScriptStartup")
 	defaultRebootVM.RunTests("TestDefaultMetadataScriptShutdown")
+	defaultSysprepTestVM.RunTests("TestDefaultMetadataScriptSysprep")
 
 	return nil
 }
