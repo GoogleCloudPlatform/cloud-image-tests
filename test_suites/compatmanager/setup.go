@@ -30,11 +30,13 @@ const (
 #!/bin/bash
 
 ps -eo command >> /home/startup.txt
+sync
 `
 	linuxShutdownScript = `
 #!/bin/bash
 
 ps -eo command >> /home/shutdown.txt
+sync
 `
 
 	windowsStartupScript = `

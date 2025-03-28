@@ -105,8 +105,9 @@ func TestDefaultMetadataScriptShutdown(t *testing.T) {
 	enableAgentDebugLogging(t)
 
 	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [false]") {
-		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
+	msg := "Enable core plugin set to: [false]"
+	if !strings.Contains(output, msg) {
+		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
 	}
 
 	verifyMetadataScriptsProcesses(t, false)
@@ -119,8 +120,9 @@ func TestDefaultMetadataScriptStartup(t *testing.T) {
 	enableAgentDebugLogging(t)
 
 	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [false]") {
-		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
+	msg := "Enable core plugin set to: [false]"
+	if !strings.Contains(output, msg) {
+		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
 	}
 
 	verifyMetadataScriptsProcesses(t, false)
@@ -133,8 +135,9 @@ func TestMetadataScriptCompatStartup(t *testing.T) {
 	enableAgentDebugLogging(t)
 
 	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [true]") {
-		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
+	msg := "Enable core plugin set to: [true]"
+	if !strings.Contains(output, msg) {
+		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
 	}
 
 	verifyMetadataScriptsProcesses(t, true)
@@ -147,8 +150,9 @@ func TestMetadataScriptCompatShutdown(t *testing.T) {
 	enableAgentDebugLogging(t)
 
 	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [true]") {
-		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
+	msg := "Enable core plugin set to: [true]"
+	if !strings.Contains(output, msg) {
+		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
 	}
 
 	verifyMetadataScriptsProcesses(t, true)
