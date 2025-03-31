@@ -234,12 +234,17 @@ func TestGuestPackages(t *testing.T) {
 			images: []*regexp.Regexp{regexp.MustCompile("accelerator"), regexp.MustCompile("nvidia")},
 		},
 		{
-			name:   "linux-modules-nvidia-550-server-open-gcp",
-			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
+			name:         "linux-modules-nvidia-550-server-open-gcp",
+			alternatives: []string{"nvidia-dc-driver550-cuda"},
+			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
+		},
+		{
+			name:   "nvidia-dc-driver570-cuda",
+			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-570")},
 		},
 		{
 			name:         "nvidia-kernel-common",
-			alternatives: []string{"linux-modules-nvidia-550-server-open-gcp"},
+			alternatives: []string{"linux-modules-nvidia-570-server-open-gcp"},
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-latest")},
 		},
 		{
@@ -249,7 +254,7 @@ func TestGuestPackages(t *testing.T) {
 		},
 		{
 			name:         "nvidia-open-gpu-kernel-modules",
-			alternatives: []string{"kmod-nvidia-open-latest"},
+			alternatives: []string{"kmod-nvidia-open-latest", "kmod-nvidia-dc-open-latest", "kmod-nvidia-dc-open550", "kmod-nvidia-dc-open570"},
 			images:       []*regexp.Regexp{regexp.MustCompile("rocky.*nvidia")},
 		},
 	}
