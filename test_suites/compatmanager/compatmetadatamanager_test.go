@@ -159,6 +159,36 @@ func TestMetadataScriptCompatShutdown(t *testing.T) {
 	verifyFileOutput(t, "shutdown", true)
 }
 
+func TestDefaultMetadataScriptSysprep(t *testing.T) {
+	utils.WindowsOnly(t)
+	ctx := context.Background()
+	skipIfNoMetadataScriptCompat(t)
+	enableAgentDebugLogging(t)
+
+	output := getSerialPortOutput(ctx, t)
+	if !strings.Contains(output, "Enable core plugin set to: [false]") {
+		t.Errorf("Metadata script compat manager is enabled. Agent logs: %s", output)
+	}
+
+	verifyMetadataScriptsProcesses(t, false)
+	verifyFileOutput(t, "sysprep", false)
+}
+
+func TestMetadataScriptCompatSysprep(t *testing.T) {
+	ctx := context.Background()
+	utils.WindowsOnly(t)
+	skipIfNoMetadataScriptCompat(t)
+	enableAgentDebugLogging(t)
+
+	output := getSerialPortOutput(ctx, t)
+	if !strings.Contains(output, "Enable core plugin set to: [true]") {
+		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
+	}
+
+	verifyMetadataScriptsProcesses(t, true)
+	verifyFileOutput(t, "sysprep", true)
+}
+
 func readCommands(t *testing.T, path string) string {
 	t.Helper()
 	file, err := os.Open(path)
