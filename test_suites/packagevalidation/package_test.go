@@ -239,8 +239,9 @@ func TestGuestPackages(t *testing.T) {
 			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
 		},
 		{
-			name:   "nvidia-dc-driver570-cuda",
-			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-570")},
+			name:         "linux-modules-nvidia-570-server-open-gcp",
+			alternatives: []string{"nvidia-dc-driver570-cuda"},
+			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-570")},
 		},
 		{
 			name:         "nvidia-kernel-common",
