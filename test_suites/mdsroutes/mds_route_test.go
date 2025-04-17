@@ -16,10 +16,8 @@ package mdsroutes
 
 import (
 	"net"
-	"net/http"
 	"os/exec"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -45,34 +43,9 @@ func TestMDSRoutes(t *testing.T) {
 			break
 		}
 
-		httpClient := &http.Client{
-			Timeout: 2 * time.Second,
-		}
+		// Make a request to the MDS from the given NIC.
+		err := metadataRequest(ctx, t, iface)
 
-		// Make a new HTTP request to the metadata server.
-		req, err := http.NewRequestWithContext(ctx, "GET", metadataServerURL, nil)
-		if err != nil {
-			t.Fatalf("http.NewRequestWithContext(ctx, GET, %v, nil) failed: %v", metadataServerURL, err)
-		}
-
-		// Obtain its IPv4 address.
-		ipAddr, err := utils.ParseInterfaceIPv4(iface)
-		if err != nil {
-			t.Fatalf("utils.ParseInterfaceIPv4(%v) failed: %v", iface.Name, err)
-		}
-
-		// Set up the request to use the NIC.
-		req.Header.Add("Metadata-Flavor", "Google")
-		dialer := &net.Dialer{
-			Timeout:   5 * time.Second,
-			LocalAddr: &net.TCPAddr{IP: ipAddr},
-		}
-		httpClient.Transport = &http.Transport{
-			DialContext: dialer.DialContext,
-		}
-
-		// Make the request.
-		_, err = httpClient.Do(req)
 		if err != nil && i == 0 {
 			t.Errorf("error connecting to metadata server on primary nic %s: %v", iface.Name, err)
 		} else if err == nil && i != 0 {
