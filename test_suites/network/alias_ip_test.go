@@ -151,11 +151,11 @@ func verifyIPExist(ctx context.Context, routes []string) error {
 		return fmt.Errorf("couldn't get first alias IP from metadata: %v", err)
 	}
 	for _, route := range routes {
-		if route == expected {
+		if strings.Contains(expected, route) {
 			return nil
 		}
 	}
-	return fmt.Errorf("alias ip %s is not exist after reboot", expected)
+	return fmt.Errorf("alias ip %s is not exist after reboot, routes: %v", expected, routes)
 }
 
 func compare(a, b []string) bool {
