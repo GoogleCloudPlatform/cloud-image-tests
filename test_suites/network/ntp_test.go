@@ -55,7 +55,7 @@ func testNTPServiceLinux(t *testing.T) {
 	}
 	var servicename string
 	switch {
-	case strings.Contains(image, "debian-12"):
+	case strings.Contains(image, "debian-12"), strings.Contains(image, "debian-13"):
 		servicename = systemdTimesyncd
 	case strings.Contains(image, "debian-9"), strings.Contains(image, "ubuntu-pro-1604"), strings.Contains(image, "ubuntu-1604"):
 		servicename = ntpService
