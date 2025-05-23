@@ -236,12 +236,20 @@ func TestGuestPackages(t *testing.T) {
 		{
 			name:         "linux-modules-nvidia-550-server-open-gcp",
 			alternatives: []string{"nvidia-dc-driver550-cuda"},
-			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-550")},
+			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*amd64-with-nvidia-550")},
+		},
+		{
+			name:   "linux-modules-nvidia-550-server-open-gcp-64k",
+			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*arm64-with-nvidia-550")},
 		},
 		{
 			name:         "linux-modules-nvidia-570-server-open-gcp",
 			alternatives: []string{"nvidia-dc-driver570-cuda"},
-			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*nvidia-570")},
+			images:       []*regexp.Regexp{regexp.MustCompile("ubuntu.*amd64-with-nvidia-570")},
+		},
+		{
+			name:   "linux-modules-nvidia-570-server-open-gcp-64k",
+			images: []*regexp.Regexp{regexp.MustCompile("ubuntu.*arm64-with-nvidia-570")},
 		},
 		{
 			name:         "nvidia-kernel-common",
