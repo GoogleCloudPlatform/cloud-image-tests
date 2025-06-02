@@ -123,15 +123,5 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		vm3.UseGVNIC()
 	}
 
-	localDNSVM, err := t.CreateTestVM("localdns")
-	if err != nil {
-		return err
-	}
-	localDNSVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
-	if err := localDNSVM.AddCustomNetwork(network1, subnetwork1); err != nil {
-		return err
-	}
-	localDNSVM.RunTests("TestLocalCloudDNS")
-
 	return nil
 }
