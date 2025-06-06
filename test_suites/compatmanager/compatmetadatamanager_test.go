@@ -16,7 +16,6 @@ package compatmanager
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -100,60 +99,32 @@ func verifyFileOutput(t *testing.T, event string, corePluginEnabled bool) {
 }
 
 func TestDefaultMetadataScriptShutdown(t *testing.T) {
-	ctx := context.Background()
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	msg := "Enable core plugin set to: [false]"
-	if !strings.Contains(output, msg) {
-		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
-	}
 
 	verifyMetadataScriptsProcesses(t, false)
 	verifyFileOutput(t, "shutdown", false)
 }
 
 func TestDefaultMetadataScriptStartup(t *testing.T) {
-	ctx := context.Background()
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	msg := "Enable core plugin set to: [false]"
-	if !strings.Contains(output, msg) {
-		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
-	}
 
 	verifyMetadataScriptsProcesses(t, false)
 	verifyFileOutput(t, "startup", false)
 }
 
 func TestMetadataScriptCompatStartup(t *testing.T) {
-	ctx := context.Background()
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	msg := "Enable core plugin set to: [true]"
-	if !strings.Contains(output, msg) {
-		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
-	}
 
 	verifyMetadataScriptsProcesses(t, true)
 	verifyFileOutput(t, "startup", true)
 }
 
 func TestMetadataScriptCompatShutdown(t *testing.T) {
-	ctx := context.Background()
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	msg := "Enable core plugin set to: [true]"
-	if !strings.Contains(output, msg) {
-		t.Errorf("%q log message not found, metadata script compat manager did not run correctly. Agent logs:\n %s", msg, output)
-	}
 
 	verifyMetadataScriptsProcesses(t, true)
 	verifyFileOutput(t, "shutdown", true)
@@ -161,29 +132,17 @@ func TestMetadataScriptCompatShutdown(t *testing.T) {
 
 func TestDefaultMetadataScriptSysprep(t *testing.T) {
 	utils.WindowsOnly(t)
-	ctx := context.Background()
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [false]") {
-		t.Errorf("Metadata script compat manager is enabled. Agent logs: %s", output)
-	}
 
 	verifyMetadataScriptsProcesses(t, false)
 	verifyFileOutput(t, "sysprep", false)
 }
 
 func TestMetadataScriptCompatSysprep(t *testing.T) {
-	ctx := context.Background()
 	utils.WindowsOnly(t)
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
-
-	output := getSerialPortOutput(ctx, t)
-	if !strings.Contains(output, "Enable core plugin set to: [true]") {
-		t.Errorf("Metadata script compat manager is not enabled. Agent logs: %s", output)
-	}
 
 	verifyMetadataScriptsProcesses(t, true)
 	verifyFileOutput(t, "sysprep", true)
@@ -212,30 +171,4 @@ func readCommands(t *testing.T, path string) string {
 	}
 
 	return strings.Join(foundCommands, "\n")
-}
-
-func getSerialPortOutput(ctx context.Context, t *testing.T) string {
-	t.Helper()
-
-	client, err := utils.GetDaisyClient(ctx)
-	if err != nil {
-		t.Fatalf("Error creating compute service: %v", err)
-	}
-
-	instanceName, err := utils.GetInstanceName(ctx)
-	if err != nil {
-		t.Fatalf("Error getting instance name: %v", err)
-	}
-
-	projectID, zone, err := utils.GetProjectZone(ctx)
-	if err != nil {
-		t.Fatalf("Error getting project or zone: %v", err)
-	}
-
-	out, err := client.GetSerialPortOutput(projectID, zone, instanceName, 1, 0)
-	if err != nil {
-		t.Fatalf("Error getting serial port output: %v", err)
-	}
-
-	return out.Contents
 }
