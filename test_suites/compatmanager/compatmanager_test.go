@@ -214,12 +214,6 @@ func TestCompatManager(t *testing.T) {
 	}{
 		{
 			name:                  "default",
-			wantCorePluginEnabled: false,
-			wantAgentRunning:      true,
-		},
-		{
-			name:                  "enable_core_plugin",
-			setMetadata:           "true",
 			wantCorePluginEnabled: true,
 			wantAgentRunning:      false,
 		},
@@ -228,6 +222,12 @@ func TestCompatManager(t *testing.T) {
 			setMetadata:           "false",
 			wantCorePluginEnabled: false,
 			wantAgentRunning:      true,
+		},
+		{
+			name:                  "enable_core_plugin",
+			setMetadata:           "true",
+			wantCorePluginEnabled: true,
+			wantAgentRunning:      false,
 		},
 	}
 
