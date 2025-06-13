@@ -102,16 +102,16 @@ func TestDefaultMetadataScriptShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, false)
-	verifyFileOutput(t, "shutdown", false)
+	verifyMetadataScriptsProcesses(t, true)
+	verifyFileOutput(t, "shutdown", true)
 }
 
 func TestDefaultMetadataScriptStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, false)
-	verifyFileOutput(t, "startup", false)
+	verifyMetadataScriptsProcesses(t, true)
+	verifyFileOutput(t, "startup", true)
 }
 
 func TestMetadataScriptCompatStartup(t *testing.T) {
@@ -135,8 +135,8 @@ func TestDefaultMetadataScriptSysprep(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, false)
-	verifyFileOutput(t, "sysprep", false)
+	verifyMetadataScriptsProcesses(t, true)
+	verifyFileOutput(t, "sysprep", true)
 }
 
 func TestMetadataScriptCompatSysprep(t *testing.T) {
