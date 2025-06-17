@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -53,8 +52,7 @@ func snapshotTestPrep(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = exec.Command("systemctl", "restart", "google-guest-agent").Run()
-		if err != nil {
+		if err := utils.RestartAgent(utils.Context(t)); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(time.Duration(5) * time.Second)

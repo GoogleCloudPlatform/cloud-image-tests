@@ -128,9 +128,7 @@ func TestAliasAgentRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("systemctl", "restart", "google-guest-agent")
-	err = cmd.Run()
-	if err != nil {
+	if err := utils.RestartAgent(ctx); err != nil {
 		t.Fatal(err)
 	}
 	afterRestart, err := getGoogleRoutes(iface.Name)

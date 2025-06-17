@@ -761,3 +761,33 @@ func UpsertMetadata(ctx context.Context, key, value string) error {
 
 	return nil
 }
+
+// RestartAgent restarts the guest agent on the instance.
+func RestartAgent(ctx context.Context) error {
+	var cmd *exec.Cmd
+	var ggactl string
+	var wait bool
+	if IsWindows() {
+		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
+		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
+	} else {
+		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
+		ggactl = "/usr/bin/ggactl_plugin"
+	}
+
+	if Exists(ggactl, TypeFile) {
+		cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
+		wait = true
+	}
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("could not restart agent: %w", err)
+	}
+
+	if wait {
+		// Wait for the core plugin to be restarted by plugin manager.
+		time.Sleep(time.Second * 10)
+	}
+	return nil
+}

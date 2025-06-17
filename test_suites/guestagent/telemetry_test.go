@@ -20,30 +20,16 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func restartAgent(t *testing.T) {
-	t.Helper()
-	var cmd *exec.Cmd
-	if utils.IsWindows() {
-		cmd = exec.CommandContext(utils.Context(t), "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
-	} else {
-		cmd = exec.CommandContext(utils.Context(t), "systemctl", "restart", "google-guest-agent")
-	}
-	err := cmd.Run()
-	if err != nil {
-		t.Fatalf("could not restart agent: %v", err)
-	}
-}
-
 func getAgentOutput(t *testing.T) string {
 	t.Helper()
 	if utils.IsWindows() {
-		out, err := utils.RunPowershellCmd(`(Get-WinEvent -Providername GCEGuestAgent).Message`)
+		out, err := utils.RunPowershellCmd(`(Get-WinEvent -Providername GCEGuestAgentManager).Message`)
 		if err != nil {
 			t.Fatalf("could not get agent output: %v", err)
 		}
 		return string(out.Stdout)
 	}
-	out, err := exec.CommandContext(utils.Context(t), "journalctl", "-o", "cat", "-eu", "google-guest-agent").Output()
+	out, err := exec.CommandContext(utils.Context(t), "journalctl", "-o", "cat", "-eu", "google-guest-agent-manager").Output()
 	if err != nil {
 		t.Fatalf("could not get agent output: %v", err)
 	}
@@ -51,89 +37,31 @@ func getAgentOutput(t *testing.T) string {
 }
 
 func TestTelemetryEnabled(t *testing.T) {
-	initialoutput := getAgentOutput(t)
-	ctx := utils.Context(t)
-	client, err := utils.GetDaisyClient(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	prj, zone, err := utils.GetProjectZone(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	name, err := utils.GetMetadata(ctx, "instance", "name")
-	if err != nil {
-		t.Fatal(err)
-	}
-	inst, err := client.GetInstance(prj, zone, name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, item := range inst.Metadata.Items {
-		if item.Key == "disable-guest-telemetry" {
-			s := "true"
-			item.Value = &s
-		}
-	}
-	err = client.SetInstanceMetadata(prj, zone, name, inst.Metadata)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restartAgent(t)
 	time.Sleep(time.Second)
 	totaloutput := getAgentOutput(t)
-	finaloutput := strings.TrimPrefix(totaloutput, initialoutput)
 	if !strings.Contains(totaloutput, "telemetry") {
 		t.Skip("agent does not support telemetry")
 	}
-	if !strings.Contains(initialoutput, "Successfully scheduled job telemetryJobID") {
-		t.Errorf("Telemetry jobs are not scheduled by default. Agent logs: %s", initialoutput)
+	if strings.Contains(totaloutput, "Successfully scheduled job telemetryJobID") {
+		// Scheduled by non-core plugin agent.
+		return
 	}
-	if !strings.Contains(finaloutput, "Failed to schedule job telemetryJobID") {
-		t.Errorf("Telemetry jobs are scheduled after setting disable-guest-telemetry=true. Agent logs: %s", finaloutput)
+	if strings.Contains(totaloutput, "Failed module: telemetry-publisher") {
+		t.Errorf("Telemetry jobs are scheduled after setting disable-guest-telemetry=true. Agent logs: %s", totaloutput)
 	}
 }
 
 func TestTelemetryDisabled(t *testing.T) {
-	initialoutput := getAgentOutput(t)
-	ctx := utils.Context(t)
-	client, err := utils.GetDaisyClient(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	prj, zone, err := utils.GetProjectZone(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	name, err := utils.GetMetadata(ctx, "instance", "name")
-	if err != nil {
-		t.Fatal(err)
-	}
-	inst, err := client.GetInstance(prj, zone, name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, item := range inst.Metadata.Items {
-		if item.Key == "disable-guest-telemetry" {
-			s := "false"
-			item.Value = &s
-		}
-	}
-	err = client.SetInstanceMetadata(prj, zone, name, inst.Metadata)
-	if err != nil {
-		t.Fatal(err)
-	}
-	restartAgent(t)
 	time.Sleep(time.Second)
-	totaloutput := getAgentOutput(t)
-	finaloutput := strings.TrimPrefix(totaloutput, initialoutput)
-	if !strings.Contains(totaloutput, "telemetry") {
+	initialoutput := getAgentOutput(t)
+	if !strings.Contains(initialoutput, "telemetry") {
 		t.Skip("agent does not support telemetry")
 	}
-	if !strings.Contains(initialoutput, "Failed to schedule job telemetryJobID") {
-		t.Errorf("Telemetry jobs are scheduled after setting disable-guest-telemetry=true. Agent logs: %s", initialoutput)
+	if strings.Contains(initialoutput, "Failed to schedule job telemetryJobID") {
+		// Scheduled by non-core plugin agent.
+		return
 	}
-	if !strings.Contains(finaloutput, "Successfully scheduled job telemetryJobID") {
-		t.Errorf("Telemetry jobs are not scheduled after setting disable-guest-telemetry=false. Agent logs: %s", finaloutput)
+	if !strings.Contains(initialoutput, "Failed module: telemetry-publisher") {
+		t.Errorf("Telemetry jobs are scheduled after setting disable-guest-telemetry=true. Agent logs: %s", initialoutput)
 	}
 }

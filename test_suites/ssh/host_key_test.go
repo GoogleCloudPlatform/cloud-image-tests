@@ -16,7 +16,6 @@ package ssh
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -158,14 +157,8 @@ func TestHostKeysNotOverrideAfterAgentRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get host keys from disk %v", err)
 	}
-	var cmd *exec.Cmd
-	if utils.IsWindows() {
-		cmd = exec.CommandContext(utils.Context(t), "powershell.exe", "-NonInteractive", "-NoLogo", "-NoProfile", `Restart-Service GCEAgent`)
-	} else {
-		cmd = exec.CommandContext(utils.Context(t), "systemctl", "restart", "google-guest-agent")
-	}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to restart google-guest-agent service %v", err)
+	if err := utils.RestartAgent(utils.Context(t)); err != nil {
+		t.Fatal(err)
 	}
 	hostKeyAfterRestart, err := utils.GetHostKeysFileFromDisk()
 	if err != nil {

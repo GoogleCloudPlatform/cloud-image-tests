@@ -176,23 +176,8 @@ func TestHostKeysGeneratedOnce(t *testing.T) {
 		hashes = append(hashes, sshKeyHash{info, hash})
 	}
 
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		t.Fatalf("Couldn't get image from metadata")
-	}
-
-	var restart string
-	switch {
-	case strings.Contains(image, "rhel-6"), strings.Contains(image, "centos-6"):
-		restart = "initctl"
-	default:
-		restart = "systemctl"
-	}
-
-	cmd := exec.Command(restart, "restart", "google-guest-agent")
-	err = cmd.Run()
-	if err != nil {
-		t.Errorf("Failed to restart guest agent: %v", err)
+	if err := utils.RestartAgent(utils.Context(t)); err != nil {
+		t.Fatal(err)
 	}
 
 	sshfiles, err = os.ReadDir(sshDir)
