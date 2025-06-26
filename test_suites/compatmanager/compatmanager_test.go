@@ -211,23 +211,27 @@ func TestCompatManager(t *testing.T) {
 		setMetadata           string
 		wantCorePluginEnabled bool
 		wantAgentRunning      bool
+		shouldFileExist       bool
 	}{
 		{
 			name:                  "default",
 			wantCorePluginEnabled: true,
 			wantAgentRunning:      false,
+			shouldFileExist:       false,
 		},
 		{
 			name:                  "disable_core_plugin",
 			setMetadata:           "false",
 			wantCorePluginEnabled: false,
 			wantAgentRunning:      true,
+			shouldFileExist:       true,
 		},
 		{
 			name:                  "enable_core_plugin",
 			setMetadata:           "true",
 			wantCorePluginEnabled: true,
 			wantAgentRunning:      false,
+			shouldFileExist:       true,
 		},
 	}
 
@@ -244,19 +248,21 @@ func TestCompatManager(t *testing.T) {
 
 		// Watcher is monitoring MDS changes, wait for some time for the watcher to
 		// pick up the change.
-		conditionMet := false
-		var lastCfgEnabled bool
-		for i := 0; i < 10; i++ {
-			lastCfgEnabled = isCorePluginCfgEnabled(t)
-			if lastCfgEnabled == tc.wantCorePluginEnabled {
-				conditionMet = true
-				break
+		if tc.shouldFileExist {
+			conditionMet := false
+			var lastCfgEnabled bool
+			for i := 0; i < 10; i++ {
+				lastCfgEnabled = isCorePluginCfgEnabled(t)
+				if lastCfgEnabled == tc.wantCorePluginEnabled {
+					conditionMet = true
+					break
+				}
+				time.Sleep(time.Duration(i*2) * time.Second)
 			}
-			time.Sleep(time.Duration(i*2) * time.Second)
-		}
 
-		if !conditionMet {
-			t.Fatalf("Core plugin enabled in config file is [%t], want [%t] after setting metadata.", lastCfgEnabled, tc.wantCorePluginEnabled)
+			if !conditionMet {
+				t.Fatalf("Core plugin enabled in config file is [%t], want [%t] after setting metadata.", lastCfgEnabled, tc.wantCorePluginEnabled)
+			}
 		}
 
 		// Wait for manager to install/uninstall the core plugin.
