@@ -158,17 +158,17 @@ func ggactlCleanupPath(t *testing.T) string {
 	t.Helper()
 
 	if utils.IsWindows() {
-		execPath := `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin_cleanup.exe`
+		execPath := `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
 		if !utils.Exists(execPath, utils.TypeFile) {
-			t.Skipf("ggactl_plugin_cleanup executable not found at %q", execPath)
+			t.Skipf("ggactl_plugin executable not found at %q", execPath)
 		}
 		return execPath
 	}
 
 	// On Linux the binary must be found in the PATH.
-	execPath, err := exec.LookPath("ggactl_plugin_cleanup")
+	execPath, err := exec.LookPath("ggactl_plugin")
 	if err != nil {
-		t.Skipf("Failed to find ggactl_plugin_cleanup executable: %v", err)
+		t.Skipf("Failed to find ggactl_plugin executable: %v", err)
 	}
 
 	return execPath
@@ -237,7 +237,7 @@ func TestPluginCleanup(t *testing.T) {
 	cmd := exec.CommandContext(utils.Context(t), execPath, "all")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Failed to run ggactl_plugin_cleanup: %v, \noutput: \n%s", err, string(out))
+		t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
 	}
 
 	for _, test := range tests {
