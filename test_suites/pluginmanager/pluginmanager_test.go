@@ -234,7 +234,7 @@ func TestPluginCleanup(t *testing.T) {
 		})
 	}
 
-	cmd := exec.CommandContext(utils.Context(t), execPath, "all")
+	cmd := exec.CommandContext(utils.Context(t), execPath, "dynamic-cleanup")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
