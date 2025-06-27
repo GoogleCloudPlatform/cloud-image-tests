@@ -57,6 +57,9 @@ const (
 )
 
 var (
+	// ErrPackageManagersNotFound is the error message returned when an object is not found.
+	ErrPackageManagersNotFound = fmt.Errorf("no supported package managers found")
+
 	windowsClientImagePatterns = []string{
 		"windows-7-",
 		"windows-8-",
@@ -790,4 +793,41 @@ func RestartAgent(ctx context.Context) error {
 		time.Sleep(time.Second * 10)
 	}
 	return nil
+}
+
+// InstallPackage installs the given packages on the instance.
+//
+// It supports apt, yum, dnf, and zypper package managers. Returns ErrNotFound
+// if none of the package managers are found.
+func InstallPackage(packages ...string) error {
+	if len(packages) == 0 {
+		return fmt.Errorf("no packages to install")
+	}
+
+	if CheckLinuxCmdExists("apt") {
+		args := []string{"install", "-y"}
+		args = append(args, packages...)
+		return exec.Command("apt", args...).Run()
+	}
+	if CheckLinuxCmdExists("yum") {
+		args := []string{"install", "-y"}
+		args = append(args, packages...)
+		return exec.Command("yum", args...).Run()
+	}
+	if CheckLinuxCmdExists("dnf") {
+		args := []string{"install", "-y"}
+		args = append(args, packages...)
+		return exec.Command("dnf", args...).Run()
+	}
+
+	// Zypper may fail because it fails instead of waiting for the package
+	// lock to be released.
+	// TODO(andrewhl): Determine if we need this, or if we can either remove it
+	// or find a way to make it more reliable.
+	if CheckLinuxCmdExists("zypper") {
+		args := []string{"--non-interactive", "install"}
+		args = append(args, packages...)
+		return exec.Command("zypper", args...).Run()
+	}
+	return ErrPackageManagersNotFound
 }

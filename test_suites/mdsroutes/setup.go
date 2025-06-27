@@ -17,7 +17,6 @@
 package mdsroutes
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -31,6 +30,12 @@ var Name = "mdsroutes"
 func TestSetup(t *imagetest.TestWorkflow) error {
 	if strings.Contains(t.Image.Family, "cos") {
 		t.Skip("MDS routes not supported on COS")
+		return nil
+	}
+
+	// TODO(b/428199320): Remove this once the bug is fixed.
+	if strings.Contains(t.Image.Family, "sles") {
+		t.Skip("MDS routes not supported on SLES")
 		return nil
 	}
 
@@ -71,11 +76,19 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 
+	var tests []string
 	dnsTest := "TestDNS"
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		dnsTest = "TestWindowsDNS"
 	}
-	multinicVM.RunTests(fmt.Sprintf("TestMDSRoutes|%s", dnsTest))
+	tests = append(tests, dnsTest)
+
+	// TODO(b/428199320): Remove this once the bug is fixed.
+	if !strings.Contains(t.Image.Family, "ubuntu-2204") {
+		tests = append(tests, "TestMDSRoutes")
+		return nil
+	}
+	multinicVM.RunTests(strings.Join(tests, "|"))
 
 	return nil
 }

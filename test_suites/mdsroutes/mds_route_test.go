@@ -56,7 +56,9 @@ func TestMDSRoutes(t *testing.T) {
 
 func TestDNS(t *testing.T) {
 	if _, err := exec.LookPath("dig"); err != nil {
-		t.Skipf("error finding dig: %v", err)
+		if err := utils.InstallPackage("dnsutils"); err != nil {
+			t.Skipf("error installing dnsutils: %v", err)
+		}
 	}
 	ctx := utils.Context(t)
 
