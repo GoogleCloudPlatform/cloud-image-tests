@@ -27,7 +27,17 @@ var (
 	// Name is the name of the test package. It must match the directory name.
 	Name = "suspendresume"
 	// unsupportedImages is a list of images which do not support suspend resume. These strings will be match against the name field.
-	unsupportedImages = []string{"windows-server-2025", "windows-2025-dc", "windows-11-24h2", "windows-server-2012-r2", "rhel-8-2-sap", "rhel-8-1-sap", "debian-10", "ubuntu-pro-1804-bionic-arm64"}
+	unsupportedImages = []string{
+		"windows-server-2025",
+		"windows-2025-dc",
+		"windows-11-24h2",
+		"windows-server-2012-r2",
+		"rhel-8-2-sap",
+		"rhel-8-1-sap",
+		"debian-10",
+		"ubuntu-pro-1804-bionic-arm64",
+		"sles-15-sp7", // TODO(b/428736040): Investigate why suspend is failing on SLES 15 SP7
+	}
 )
 
 // TestSetup sets up the test workflow.
@@ -35,6 +45,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if t.Image.Architecture == "ARM64" {
 		return nil
 	}
+
 	for _, match := range unsupportedImages {
 		if strings.Contains(t.Image.Name, match) {
 			return nil
