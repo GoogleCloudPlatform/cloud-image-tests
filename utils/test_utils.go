@@ -765,7 +765,14 @@ func UpsertMetadata(ctx context.Context, key, value string) error {
 	return nil
 }
 
-func isCoreDisabled(file string) bool {
+// IsCoreDisabled returns true if the core plugin is disabled by the config file.
+func IsCoreDisabled() bool {
+	var file string
+	if IsWindows() {
+		file = `C:\ProgramData\Google\Compute Engine\google-guest-agent\core-plugin-enabled`
+	} else {
+		file = "/etc/google-guest-agent/core-plugin-enabled"
+	}
 	content, err := os.ReadFile(file)
 	if err != nil {
 		// Default to false as per phase3 release.
@@ -777,19 +784,17 @@ func isCoreDisabled(file string) bool {
 // RestartAgent restarts the guest agent on the instance.
 func RestartAgent(ctx context.Context) error {
 	var cmd *exec.Cmd
-	var ggactl, coreEnabled string
+	var ggactl string
 	var wait bool
 	if IsWindows() {
 		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
 		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
-		coreEnabled = `C:\ProgramData\Google\Compute Engine\google-guest-agent\core-plugin-enabled`
 	} else {
 		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
 		ggactl = "/usr/bin/ggactl_plugin"
-		coreEnabled = "/etc/google-guest-agent/core-plugin-enabled"
 	}
 
-	if Exists(ggactl, TypeFile) && !isCoreDisabled(coreEnabled) {
+	if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
 		cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
 		wait = true
 	}

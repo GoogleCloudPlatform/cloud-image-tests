@@ -39,13 +39,13 @@ func getProcessLists(corePluginEnabled bool) (wantProcesses, dontWantProcess []s
 		if corePluginEnabled {
 			return []string{"GCECompatMetadataScripts", "GCEMetadataScriptRunner"}, []string{"GCEMetadataScripts"}
 		}
-		return []string{"GCECompatMetadataScripts", "GCEMetadataScripts"}, []string{"GCEMetadataScriptRunner"}
+		return []string{"GCEMetadataScripts"}, []string{"GCECompatMetadataScripts", "GCEMetadataScriptRunner"}
 	}
 
 	if corePluginEnabled {
 		return []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/gce_metadata_script_runner"}, []string{"/usr/bin/google_metadata_script_runner"}
 	}
-	return []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/google_metadata_script_runner"}, []string{"/usr/bin/gce_metadata_script_runner"}
+	return []string{"/usr/bin/google_metadata_script_runner"}, []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/gce_metadata_script_runner"}
 }
 
 func processExists(t *testing.T, shouldExist bool, processName string) {
@@ -102,32 +102,32 @@ func TestDefaultMetadataScriptShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "shutdown", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
 }
 
 func TestDefaultMetadataScriptStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "startup", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
 }
 
 func TestMetadataScriptCompatStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "startup", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
 }
 
 func TestMetadataScriptCompatShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "shutdown", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
 }
 
 func TestDefaultMetadataScriptSysprep(t *testing.T) {
@@ -135,8 +135,8 @@ func TestDefaultMetadataScriptSysprep(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "sysprep", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())
 }
 
 func TestMetadataScriptCompatSysprep(t *testing.T) {
@@ -144,8 +144,8 @@ func TestMetadataScriptCompatSysprep(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
 	enableAgentDebugLogging(t)
 
-	verifyMetadataScriptsProcesses(t, true)
-	verifyFileOutput(t, "sysprep", true)
+	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
+	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())
 }
 
 func readCommands(t *testing.T, path string) string {

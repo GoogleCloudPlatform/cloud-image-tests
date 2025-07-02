@@ -201,10 +201,26 @@ func skipIfNoCompatManager(t *testing.T) {
 	}
 }
 
+func checkCompatManagerIsDisabled(t *testing.T) {
+	t.Helper()
+
+	if utils.IsWindows() {
+		serviceEnabledWindows(t, false, "GCEWindowsCompatManager")
+	} else {
+		serviceEnabledLinux(t, false, "google-guest-compat-manager")
+	}
+}
+
 func TestCompatManager(t *testing.T) {
 	ctx := context.Background()
 	skipIfNoCompatManager(t)
 	enableAgentDebugLogging(t)
+
+	if utils.IsCoreDisabled() {
+		checkCompatManagerIsDisabled(t)
+		t.Logf("Core plugin is disabled, skipping remaining compat manager tests.")
+		return
+	}
 
 	tests := []struct {
 		name                  string
