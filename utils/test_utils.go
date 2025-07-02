@@ -765,27 +765,38 @@ func UpsertMetadata(ctx context.Context, key, value string) error {
 	return nil
 }
 
+func isCoreDisabled(file string) bool {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		// Default to false as per phase3 release.
+		return false
+	}
+	return strings.Contains(string(content), "enabled=false")
+}
+
 // RestartAgent restarts the guest agent on the instance.
 func RestartAgent(ctx context.Context) error {
 	var cmd *exec.Cmd
-	var ggactl string
+	var ggactl, coreEnabled string
 	var wait bool
 	if IsWindows() {
 		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
 		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
+		coreEnabled = `C:\ProgramData\Google\Compute Engine\google-guest-agent\core-plugin-enabled`
 	} else {
 		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
 		ggactl = "/usr/bin/ggactl_plugin"
+		coreEnabled = "/etc/google-guest-agent/core-plugin-enabled"
 	}
 
-	if Exists(ggactl, TypeFile) {
+	if Exists(ggactl, TypeFile) && !isCoreDisabled(coreEnabled) {
 		cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
 		wait = true
 	}
 
-	err := cmd.Run()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("could not restart agent: %w", err)
+		return fmt.Errorf("could not restart agent: %w, output: %s", err, string(output))
 	}
 
 	if wait {
