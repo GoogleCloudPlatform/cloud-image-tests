@@ -84,6 +84,13 @@ func TestPing(t *testing.T) {
 		interfaces = parseInterfaces(t)
 	}
 
+	// Install ping if it doesn't exist.
+	if _, err := exec.LookPath("ping"); err != nil {
+		if err := utils.InstallPackage("iputils"); err != nil {
+			t.Skipf("Failed to install ping: %v", err)
+		}
+	}
+
 	baseArgs := []string{
 		// Ping 5 times with a 5 second timeout.
 		"-c",
@@ -115,6 +122,10 @@ func TestWindowsPing(t *testing.T) {
 	ctx := utils.Context(t)
 	if len(interfaces) == 0 {
 		interfaces = parseInterfaces(t)
+	}
+
+	if _, err := exec.LookPath("ping"); err != nil {
+		t.Skipf("Ping not installed. Skipping test.")
 	}
 
 	baseArgs := []string{
