@@ -59,9 +59,9 @@ func TestStandardPrograms(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
-	if strings.Contains(image, "sles") || strings.Contains(image, "suse") {
-		// SLES/SUSE does not have the Google Cloud SDK installed.
-		t.Skip("Cloud SDK Not supported on SLES/SUSE")
+	if strings.Contains(image, "sles") || strings.Contains(image, "suse") || strings.Contains(image, "oracle") {
+		// SLES/SUSE/Oracle does not have the Google Cloud SDK installed.
+		t.Skip("Cloud SDK Not installed on SLES/SUSE/Oracle")
 	}
 	if strings.Contains(image, "cos") {
 		// COS does not have the Google Cloud SDK installed.
@@ -153,7 +153,7 @@ func TestGuestPackages(t *testing.T) {
 	if strings.Contains(image, "cos") {
 		listPkgs = func() ([]string, error) {
 			o, err := os.ReadFile("/etc/cos-package-info.json")
-			pkgs := []string{}
+			var pkgs []string
 			for _, line := range strings.Split(string(o), "\n") {
 				if strings.Contains(line, "name\": ") {
 					pkgField := strings.Split(line, ":")[1]
@@ -198,7 +198,7 @@ func TestGuestPackages(t *testing.T) {
 		},
 		{
 			name:       "google-cloud-cli",
-			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu-1604"), regexp.MustCompile("ubuntu-pro-1604"), regexp.MustCompile("cos")},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu-1604"), regexp.MustCompile("ubuntu-pro-1604"), regexp.MustCompile("cos"), regexp.MustCompile("oracle")},
 		},
 		{
 			name:       "google-compute-engine-oslogin",
