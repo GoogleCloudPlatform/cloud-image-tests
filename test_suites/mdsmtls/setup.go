@@ -29,6 +29,12 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
+	vm.AddMetadata("disable-https-mds-setup", "FALSE")
+	vm2, err := t.CreateTestVM("mtlscredsdefault")
+	if err != nil {
+		return err
+	}
 	vm.RunTests("TestMTLSCredsExists|TestMTLSJobScheduled")
+	vm2.RunTests("TestDefaultBehavior")
 	return nil
 }

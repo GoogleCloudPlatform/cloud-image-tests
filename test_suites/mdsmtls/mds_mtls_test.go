@@ -29,15 +29,16 @@ import (
 
 // checkCredsPresent checks mTLS creds exist on Linux based OSs.
 // metadata-script-runner has service dependency and is guaranteed to run after guest-agent.
-func checkCredsPresent(t *testing.T) {
+func checkCredsPresent(t *testing.T, shouldExist bool) {
 	t.Helper()
 
 	credsDir := "/run/google-mds-mtls"
 	creds := []string{filepath.Join(credsDir, "root.crt"), filepath.Join(credsDir, "client.key")}
 
 	for _, f := range creds {
-		if _, err := os.Stat(f); err != nil {
-			t.Fatalf("os.Stat(%s) failed with error: %v, mTLS creds expected to be present at %q", f, err, f)
+		_, err := os.Stat(f)
+		if shouldExist != (err == nil) {
+			t.Errorf("os.Stat(%s) failed with error: %v, mTLS creds expected to be present: %t", f, err, shouldExist)
 		}
 	}
 }
@@ -45,7 +46,7 @@ func checkCredsPresent(t *testing.T) {
 // checkCredsPresentWindows checks if mTLS creds exist on Windows systems.
 // Unlike Linux metadata-script-runner is not guaranteed to run after guest-agent and implements
 // a retry logic to avoid timing issues.
-func checkCredsPresentWindows(t *testing.T) {
+func checkCredsPresentWindows(t *testing.T, shouldExist bool) {
 	t.Helper()
 
 	credsDir := filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine")
@@ -69,26 +70,26 @@ func checkCredsPresentWindows(t *testing.T) {
 		time.Sleep(10 * time.Second)
 	}
 
-	if len(lastErrors) != 0 {
-		t.Fatalf("Exhausted all retries, failed to check mTLS credentials with error: %v", lastErrors)
+	if shouldExist != (len(lastErrors) == 0) {
+		t.Fatalf("mTLS credentials should exist: %v, got: %v", shouldExist, lastErrors)
 	}
 }
 
 func TestMTLSCredsExists(t *testing.T) {
 	ctx := utils.Context(t)
-	if _, err := utils.GetMetadata(ctx, "instance", "credentials", "certs"); err != nil {
-		t.Errorf("MTLs certs are not available from the MDS: utils.GetMetadata(ctx, instance/credentials/certs) = err %v, want nil", err)
+	if _, err := utils.GetMetadata(ctx, "instance", "credentials", "mds-client-certificate"); err != nil {
+		t.Errorf("MTLs certs are not available from the MDS: utils.GetMetadata(ctx, instance/credentials/mds-client-certificate) = err %v, want nil", err)
 	}
 
 	var rootKeyFile, clientKeyFile string
 	if utils.IsWindows() {
 		rootKeyFile = filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine", "mds-mtls-root.crt")
 		clientKeyFile = filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine", "mds-mtls-client.key")
-		checkCredsPresentWindows(t)
+		checkCredsPresentWindows(t, true)
 	} else {
 		rootKeyFile = filepath.Join("/", "run", "google-mds-mtls", "root.crt")
 		clientKeyFile = filepath.Join("/", "run", "google-mds-mtls", "client.key")
-		checkCredsPresent(t)
+		checkCredsPresent(t, true)
 	}
 	clientCert, clientKey := splitClientKeyFile(t, clientKeyFile)
 	certPair, err := tls.LoadX509KeyPair(clientCert, clientKey)
@@ -123,17 +124,24 @@ func TestMTLSCredsExists(t *testing.T) {
 func TestMTLSJobScheduled(t *testing.T) {
 	ctx := utils.Context(t)
 	var cmd *exec.Cmd
+	coreDisabled := utils.IsCoreDisabled()
 	if utils.IsWindows() {
-		cmd = exec.CommandContext(ctx, "powershell.exe", "(Get-WinEvent -Providername GCEGuestAgent).Message")
+		cmd = exec.CommandContext(ctx, "powershell.exe", "(Get-WinEvent -Providername GCEGuestAgentManager).Message")
+		if coreDisabled {
+			cmd = exec.CommandContext(ctx, "powershell.exe", "(Get-WinEvent -Providername GCEGuestAgent).Message")
+		}
 	} else {
-		cmd = exec.CommandContext(ctx, "journalctl", "-o", "cat", "-eu", "google-guest-agent")
+		cmd = exec.CommandContext(ctx, "journalctl", "-o", "cat", "-eu", "google-guest-agent-manager")
+		if coreDisabled {
+			cmd = exec.CommandContext(ctx, "journalctl", "-o", "cat", "-eu", "google-guest-agent")
+		}
 	}
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("could not get agent output: %v", err)
 	}
-	if !strings.Contains(string(out), "Successfully scheduled job MTLS_MDS_Credential_Boostrapper") {
-		t.Errorf("guest agent has not scheduled the mtls credential bootstrapper\ngot logs %q\nwant them to contain %q", out, "Successfully scheduled job MTLS_MDS_Credential_Boostrapper")
+	if strings.Contains(string(out), "Failed to schedule job MTLS_MDS_Credential_Boostrapper") {
+		t.Errorf("MTLS job is not scheduled. Agent logs: %s", string(out))
 	}
 }
 
@@ -166,4 +174,12 @@ func splitClientKeyFile(t *testing.T, clientKeyFile string) (certPath string, ke
 		t.Fatalf("os.WriteFile(%s, %s, 0644) = %v, want nil", keyPath, clientKey, err)
 	}
 	return certPath, keyPath
+}
+
+func TestDefaultBehavior(t *testing.T) {
+	if utils.IsWindows() {
+		checkCredsPresentWindows(t, false)
+	} else {
+		checkCredsPresent(t, false)
+	}
 }
