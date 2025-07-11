@@ -17,7 +17,9 @@ package metadata
 import (
 	"context"
 	"io"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,9 +33,42 @@ func guestAgentPackageName() string {
 	return "google-guest-agent"
 }
 
+func isUbuntu(ctx context.Context, t *testing.T) bool {
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		t.Logf("Could not read os-release: %v, defaulting skip agent reinstall to false", err)
+		return false
+	}
+	return strings.Contains(string(content), "ubuntu")
+}
+
+func isVersionMismatch(ctx context.Context, t *testing.T, pkg string) bool {
+	if !isUbuntu(ctx, t) {
+		return false
+	}
+
+	if !utils.CheckLinuxCmdExists("dpkg") {
+		return false
+	}
+
+	out, err := exec.CommandContext(ctx, "dpkg", "-s", pkg).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Could not read dpkg version: %v", err)
+	}
+
+	// Ubuntu built/installed packages includes "ubuntu" in the version string.
+	return !strings.Contains(string(out), "ubuntu")
+}
+
 func reinstallGuestAgent(ctx context.Context, t *testing.T) {
 	t.Helper()
 	pkg := guestAgentPackageName()
+
+	// TODO(b/431239519): Remove this check once the bug is fixed.
+	if isVersionMismatch(ctx, t, pkg) {
+		t.Logf("Skipping agent reinstall as version mismatch is detected")
+		return
+	}
 	if utils.IsWindows() {
 		cmd := exec.CommandContext(ctx, "googet", "install", "-reinstall", pkg)
 		stdin, err := cmd.StdinPipe()
