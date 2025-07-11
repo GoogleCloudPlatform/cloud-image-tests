@@ -1215,3 +1215,9 @@ func (t *TestWorkflow) skipWindowsStagingKMS(isWindows bool, instance *daisy.Ins
 		instance.Metadata["sysprep-specialize-script-ps1"] = `New-Item -Path "C:\Program Files\Google\Compute Engine\sysprep\byol_image" -ItemType directory`
 	}
 }
+
+// RandomlySelectZoneFromCommaSeparatedList returns a random zone from a comma separated list of zones.
+func RandomlySelectZoneFromCommaSeparatedList(commaSeparatedZoneList string) string {
+	zoneList := strings.Split(commaSeparatedZoneList, ",")
+	return zoneList[rand.Intn(len(zoneList))]
+}

@@ -71,9 +71,12 @@ import (
 )
 
 var (
-	project                 = flag.String("project", "", "project to use for test runner")
-	testProjects            = flag.String("test_projects", "", "comma separated list of projects to be used for tests. defaults to the test runner project")
-	zone                    = flag.String("zone", "us-central1-a", "zone to be used for tests")
+	project      = flag.String("project", "", "project to use for test runner")
+	testProjects = flag.String("test_projects", "", "comma separated list of projects to be used for tests. defaults to the test runner project")
+	zone         = flag.String("zone", "us-central1-a", "zone to be used for tests")
+	// We want to migrate from using one hard coded zone to randomizing among multiple zones.
+	// As a result tests will be less likely to fail due to ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS.
+	zones                   = flag.String("zones", "us-central1-a,us-central1-b,us-central1-c,us-central1-f", "comma separated list of zones to be used for tests. defaults to multiple zones in us-central1")
 	printwf                 = flag.Bool("print", false, "print out the parsed test workflows and exit")
 	validate                = flag.Bool("validate", false, "validate all the test workflows and exit")
 	outPath                 = flag.String("out_path", "junit.xml", "junit xml path")
@@ -129,7 +132,7 @@ func (l *logWriter) Write(b []byte) (int, error) {
 
 func main() {
 	flag.Parse()
-	if *project == "" || *zone == "" || *images == "" {
+	if *project == "" || (*zone == "" && *zones == "") || *images == "" {
 		log.Fatal("Must provide project, zone and images arguments")
 		return
 	}
@@ -140,6 +143,8 @@ func main() {
 		testProjectsReal = strings.Split(*testProjects, ",")
 	}
 
+	zoneToRun := imagetest.RandomlySelectZoneFromCommaSeparatedList(*zones)
+	log.Printf("If we were using randomly select zones, we would run in project %s, zone %s. Tests will run in projects: %s", *project, zoneToRun, testProjectsReal)
 	log.Printf("Running in project %s zone %s. Tests will run in projects: %s", *project, *zone, testProjectsReal)
 	if *gcsPath != "" {
 		log.Printf("gcs_path set to %s", *gcsPath)
