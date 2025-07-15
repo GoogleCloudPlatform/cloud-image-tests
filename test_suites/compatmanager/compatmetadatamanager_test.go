@@ -100,7 +100,7 @@ func verifyFileOutput(t *testing.T, event string, corePluginEnabled bool) {
 
 func TestDefaultMetadataScriptShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
@@ -108,7 +108,7 @@ func TestDefaultMetadataScriptShutdown(t *testing.T) {
 
 func TestDefaultMetadataScriptStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
@@ -116,7 +116,7 @@ func TestDefaultMetadataScriptStartup(t *testing.T) {
 
 func TestMetadataScriptCompatStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
@@ -124,7 +124,7 @@ func TestMetadataScriptCompatStartup(t *testing.T) {
 
 func TestMetadataScriptCompatShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
@@ -133,7 +133,7 @@ func TestMetadataScriptCompatShutdown(t *testing.T) {
 func TestDefaultMetadataScriptSysprep(t *testing.T) {
 	utils.WindowsOnly(t)
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())
@@ -142,7 +142,7 @@ func TestDefaultMetadataScriptSysprep(t *testing.T) {
 func TestMetadataScriptCompatSysprep(t *testing.T) {
 	utils.WindowsOnly(t)
 	skipIfNoMetadataScriptCompat(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
 	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())

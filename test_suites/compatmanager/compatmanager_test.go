@@ -166,31 +166,6 @@ func checkCorePluginProcessExists(t *testing.T, exists bool) {
 	}
 }
 
-func enableAgentDebugLogging(t *testing.T) {
-	cfgFile := "/etc/default/instance_configs.cfg"
-	if utils.IsWindows() {
-		cfgFile = `C:\Program Files\Google\Compute Engine\instance_configs.cfg`
-	}
-
-	content := `
-[Core]
-log_level = 4
-log_verbosity = 4
-	`
-
-	content = fmt.Sprintf("\n%s\n", content)
-
-	f, err := os.OpenFile(cfgFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatalf("Failed to open config file(%q): %v", cfgFile, err)
-	}
-	defer f.Close()
-
-	if _, err := f.Write([]byte(content)); err != nil {
-		t.Fatalf("Failed to write to config file(%q): %v", cfgFile, err)
-	}
-}
-
 func skipIfNoCompatManager(t *testing.T) {
 	filePath := "/usr/bin/google_guest_compat_manager"
 	if utils.IsWindows() {
@@ -214,7 +189,7 @@ func checkCompatManagerIsDisabled(t *testing.T) {
 func TestCompatManager(t *testing.T) {
 	ctx := context.Background()
 	skipIfNoCompatManager(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	if utils.IsCoreDisabled() {
 		checkCompatManagerIsDisabled(t)

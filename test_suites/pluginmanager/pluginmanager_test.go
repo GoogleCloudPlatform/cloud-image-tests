@@ -17,7 +17,6 @@ package pluginmanager
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -174,35 +173,10 @@ func ggactlCleanupPath(t *testing.T) string {
 	return execPath
 }
 
-func enableAgentDebugLogging(t *testing.T) {
-	cfgFile := linuxConfigFile
-	if utils.IsWindows() {
-		cfgFile = windowsConfigFile
-	}
-
-	content := `
-[Core]
-log_level = 4
-log_verbosity = 4
-	`
-
-	content = fmt.Sprintf("\n%s\n", content)
-
-	f, err := os.OpenFile(cfgFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatalf("Failed to open config file(%q): %v", cfgFile, err)
-	}
-	defer f.Close()
-
-	if _, err := f.Write([]byte(content)); err != nil {
-		t.Fatalf("Failed to write to config file(%q): %v", cfgFile, err)
-	}
-}
-
 func TestPluginCleanup(t *testing.T) {
 	execPath := ggactlCleanupPath(t)
 	plugin := createTestPlugin(t)
-	enableAgentDebugLogging(t)
+	utils.EnableAgentDebugLogging(t)
 
 	tests := []struct {
 		name     string

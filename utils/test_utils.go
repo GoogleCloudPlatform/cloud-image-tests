@@ -811,6 +811,33 @@ func RestartAgent(ctx context.Context) error {
 	return nil
 }
 
+// EnableAgentDebugLogging enables debug logging for the guest agent on the
+// instance.
+func EnableAgentDebugLogging(t *testing.T) {
+	cfgFile := "/etc/default/instance_configs.cfg"
+	if IsWindows() {
+		cfgFile = `C:\Program Files\Google\Compute Engine\instance_configs.cfg`
+	}
+
+	content := `
+[Core]
+log_level = 4
+log_verbosity = 4
+	`
+
+	content = fmt.Sprintf("\n%s\n", content)
+
+	f, err := os.OpenFile(cfgFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatalf("Failed to open config file(%q): %v", cfgFile, err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write([]byte(content)); err != nil {
+		t.Fatalf("Failed to write to config file(%q): %v", cfgFile, err)
+	}
+}
+
 // InstallPackage installs the given packages on the instance.
 //
 // It supports apt, yum, dnf, and zypper package managers. Returns ErrNotFound

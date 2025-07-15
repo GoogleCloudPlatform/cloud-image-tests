@@ -15,8 +15,10 @@
 package mdsroutes
 
 import (
+	"context"
 	"net"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -25,6 +27,23 @@ import (
 const (
 	metadataServerURL = "http://metadata.google.internal/"
 )
+
+func isSLESImage(ctx context.Context, t *testing.T) bool {
+	t.Helper()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("Failed to get image from metadata: %v", err)
+	}
+
+	return strings.Contains(image, "sles")
+}
+
+// Skip secondary NICs on Windows. Guest agent doesn't manage NICs on Windows,
+// so the routes/behavior are more unpredictable.
+// TODO(b/383775692): Remove SLES check once fix is implemented.
+func shouldSkipSecondaryNICMDSCheck(ctx context.Context, t *testing.T) bool {
+	return utils.IsWindows() || isSLESImage(ctx, t)
+}
 
 // Test that only the primary NIC has a route to the MDS.
 func TestMDSRoutes(t *testing.T) {
@@ -37,9 +56,7 @@ func TestMDSRoutes(t *testing.T) {
 	ifaces := utils.FilterLoopbackTunnelingInterfaces(allIfaces)
 
 	for i, iface := range ifaces {
-		// Skip secondary NICs on Windows. Guest agent doesn't manage NICs on
-		// windows, so the routes/behavior are more unpredictable.
-		if i != 0 && utils.IsWindows() {
+		if i != 0 && shouldSkipSecondaryNICMDSCheck(ctx, t) {
 			break
 		}
 

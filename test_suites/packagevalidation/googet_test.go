@@ -56,6 +56,15 @@ func getExecutableList(image string) []string {
 	cePath := "C:\\Program Files\\Google\\Compute Engine"
 	execList := []string{
 		filepath.Join(cePath, "agent\\GCEWindowsAgent.exe"),
+		filepath.Join(cePath, "agent\\GCEWindowsAgentManager.exe"),
+		filepath.Join(cePath, "agent\\CorePlugin.exe"),
+		filepath.Join(cePath, "agent\\GCEMetadataScriptRunner.exe"),
+		filepath.Join(cePath, "agent\\GCEWindowsCompatManager.exe"),
+		filepath.Join(cePath, "agent\\GCECompatMetadataScripts.exe"),
+		filepath.Join(cePath, "agent\\GCEAuthorizedKeysCommand.exe"),
+		filepath.Join(cePath, "agent\\GCEAuthorizedKeys.exe"),
+		filepath.Join(cePath, "agent\\GCEAuthorizedKeysNew.exe"),
+		filepath.Join(cePath, "agent\\ggactl_plugin.exe"),
 		filepath.Join(cePath, "metadata_scripts\\GCEMetadataScripts.exe"),
 		filepath.Join(cePath, "sysprep\\activate_instance.ps1"),
 		filepath.Join(cePath, "sysprep\\sysprep.ps1"),
@@ -181,6 +190,10 @@ func TestPackagesSigned(t *testing.T) {
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
+	}
+	// Derived images built by Concourse do not have signed packages.
+	if strings.Contains(image, "-guest-agent-") {
+		t.Skip("Skip for derived images as packages are not signed.")
 	}
 	execList := getExecutableList(image)
 	for _, exec := range execList {

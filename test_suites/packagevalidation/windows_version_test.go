@@ -237,9 +237,13 @@ func TestServicesState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
-	services := []string{
-		"GCEAgent",
+	var services []string
+	if utils.IsCoreDisabled() {
+		services = append(services, "GCEAgent")
+	} else {
+		services = append(services, "GCEAgentManager")
 	}
+
 	if !utils.IsWindowsClient(image) {
 		services = append(services, "GoogleVssAgent")
 		services = append(services, "GoogleVssProvider")
