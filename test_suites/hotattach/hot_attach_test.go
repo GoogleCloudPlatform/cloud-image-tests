@@ -49,7 +49,24 @@ func getLinuxMountPath(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.EvalSymlinks("/dev/disk/by-id/google-" + diskName)
+	// searching for the symlink in the by-id directory to find the mount point (needed for metals)
+	symlinkDir := "/dev/disk/by-id/"
+	expectedPrefix := "google-" + diskName
+	foundSymlink := ""
+	entries, err := os.ReadDir(symlinkDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", symlinkDir, err)
+	}
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 && strings.HasPrefix(entry.Name(), expectedPrefix) {
+			foundSymlink = filepath.Join(symlinkDir, entry.Name())
+			break
+		}
+	}
+	if foundSymlink == "" {
+		return "", fmt.Errorf("symlink with prefix %s not found", expectedPrefix)
+	}
+	return filepath.EvalSymlinks(foundSymlink)
 }
 
 func mountLinuxDiskToPath(ctx context.Context, mountDiskDir string, isReattach bool) error {

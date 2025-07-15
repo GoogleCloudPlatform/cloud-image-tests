@@ -214,7 +214,13 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	if instance == nil {
 		instance = &daisy.Instance{}
 	}
-
+	if strings.Contains(t.MachineType.Name, "-metal") {
+		if instance.Scheduling == nil {
+			instance.Scheduling = &compute.Scheduling{}
+		}
+		instance.Scheduling.OnHostMaintenance = "TERMINATE"
+		log.Printf("Setting onHostMaintenance to TERMINATE for VM %s (machine type %s)", name, t.MachineType.Name)
+	}
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
@@ -273,7 +279,13 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	if instance == nil {
 		instance = &daisy.InstanceBeta{}
 	}
-
+	if strings.Contains(t.MachineType.Name, "-metal") {
+		if instance.Scheduling == nil {
+			instance.Scheduling = &computeBeta.Scheduling{}
+		}
+		instance.Scheduling.OnHostMaintenance = "TERMINATE"
+		log.Printf("Setting onHostMaintenance to TERMINATE for VM %s (machine type %s)", name, t.MachineType.Name)
+	}
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
