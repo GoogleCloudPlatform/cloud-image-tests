@@ -112,9 +112,10 @@ var (
 		"sles":          "suse-cloud",
 		"sles-sap":      "suse-sap-cloud",
 		"sql-":          "windows-sql-cloud",
-		"ubuntu":        "ubuntu-os-cloud",
-		"ubuntu-pro":    "ubuntu-os-pro-cloud",
-		"windows":       "windows-cloud",
+		// ubuntu is a substring of ubuntu-pro, so we need to list ubuntu-pro first.
+		"ubuntu-pro": "ubuntu-os-pro-cloud",
+		"ubuntu":     "ubuntu-os-cloud",
+		"windows":    "windows-cloud",
 	}
 )
 
@@ -341,6 +342,7 @@ func main() {
 		if excludeRegex != nil && excludeRegex.MatchString(testPackage.name) {
 			continue
 		}
+		// If the image is a family, we need to find the project of the image.
 		for _, image := range strings.Split(*images, ",") {
 			if !strings.Contains(image, "/") {
 				// Find the project of the image.
