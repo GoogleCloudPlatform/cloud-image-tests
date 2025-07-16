@@ -13,8 +13,6 @@
 package guestagent
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -27,7 +25,7 @@ const Name = "guestagent"
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	diskType := imagetest.PdBalanced
-	if strings.HasPrefix(t.MachineType.Name, "n4-") {
+	if utils.HyperdiskNeeded(t.MachineType.Name) {
 		diskType = imagetest.HyperdiskBalanced
 	}
 

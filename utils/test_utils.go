@@ -874,3 +874,17 @@ func InstallPackage(packages ...string) error {
 	}
 	return ErrPackageManagersNotFound
 }
+
+// HyperdiskNeeded returns true if the machine family only supports hyperdisks.
+func HyperdiskNeeded(machineType string) bool {
+	hyperdiskMachineFamilyPrefix := []string{"n4", "c4", "m4", "a4", "z3", "a3-ultra"}
+	if strings.HasSuffix(machineType, "-metal") {
+		return true
+	}
+	for _, prefix := range hyperdiskMachineFamilyPrefix {
+		if strings.HasPrefix(machineType, prefix) {
+			return true
+		}
+	}
+	return false
+}
