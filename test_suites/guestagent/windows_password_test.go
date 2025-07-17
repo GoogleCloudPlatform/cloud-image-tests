@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	// allowlist:crypto/sha1
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"google.golang.org/api/compute/v1"

@@ -98,6 +98,9 @@ var (
 )
 
 var (
+	// Maps an image family prefix to the project that hosts the image family.
+	// When modifying this map, please make sure that the image family prefix is
+	// also added to the imageKeys list.
 	projectMap = map[string]string{
 		"almalinux":     "almalinux-cloud",
 		"centos":        "centos-cloud",
@@ -106,16 +109,40 @@ var (
 		"fedora-cloud":  "fedora-cloud",
 		"fedora-coreos": "fedora-coreos-cloud",
 		"opensuse":      "opensuse-cloud",
+		"oracle-linux":  "oracle-linux-cloud",
 		"rhel":          "rhel-cloud",
 		"rhel-sap":      "rhel-sap-cloud",
 		"rocky-linux":   "rocky-linux-cloud",
 		"sles":          "suse-cloud",
 		"sles-sap":      "suse-sap-cloud",
 		"sql-":          "windows-sql-cloud",
-		// ubuntu is a substring of ubuntu-pro, so we need to list ubuntu-pro first.
-		"ubuntu-pro": "ubuntu-os-pro-cloud",
-		"ubuntu":     "ubuntu-os-cloud",
-		"windows":    "windows-cloud",
+		"ubuntu":        "ubuntu-os-cloud",
+		"ubuntu-pro":    "ubuntu-os-pro-cloud",
+		"windows":       "windows-cloud",
+	}
+
+	// An ordered list is required because some image names are substrings of
+	// other image names. Map keys are returned in random order, so this ensures
+	// that we can set an order that always works.
+	imageKeys = []string{
+		"almalinux",
+		"centos",
+		"cos",
+		"debian",
+		"fedora-cloud",
+		"fedora-coreos",
+		"opensuse",
+		"oracle-linux",
+		"rhel",
+		"rhel-sap",
+		"rocky-linux",
+		"sles",
+		"sles-sap",
+		"sql-",
+		// We need to list ubuntu-pro before ubuntu because ubuntu is a substring of ubuntu-pro.
+		"ubuntu-pro",
+		"ubuntu",
+		"windows",
 	}
 )
 
@@ -347,7 +374,7 @@ func main() {
 			if !strings.Contains(image, "/") {
 				// Find the project of the image.
 				project := ""
-				for k := range projectMap {
+				for _, k := range imageKeys {
 					if strings.Contains(k, "sap") {
 						// sap follows a slightly different naming convention.
 						imageName := strings.Split(k, "-")[0]

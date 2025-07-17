@@ -16,6 +16,7 @@ package hostnamevalidation
 
 import (
 	"bufio"
+	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
@@ -27,9 +28,21 @@ import (
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	// allowlist:crypto/md5
 )
 
 const gcomment = "# Added by Google"
+
+// isUbuntu2410 returns true if the image is Ubuntu 24.10.
+func isUbuntu2410(ctx context.Context, t *testing.T) bool {
+	t.Helper()
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata: %v", err)
+	}
+	return strings.Contains(image, "ubuntu") && strings.Contains(image, "2410")
+}
 
 func testHostnameWindows(shortname string) error {
 	command := "[System.Net.Dns]::GetHostName()"
@@ -46,10 +59,11 @@ func testHostnameWindows(shortname string) error {
 }
 
 func testHostnameLinux(shortname string) error {
-	hostname, err := os.Hostname()
+	hostnameBytes, err := exec.Command("/bin/hostname").Output()
 	if err != nil {
 		return fmt.Errorf("couldn't determine local hostname")
 	}
+	hostname := strings.TrimSpace(string(hostnameBytes))
 
 	if hostname != shortname {
 		return fmt.Errorf("hostname does not match metadata. Expected: %q got: %q", shortname, hostname)
@@ -126,8 +140,30 @@ func TestFQDN(t *testing.T) {
 	}
 	hostname := strings.TrimRight(string(out), " \n")
 
+	compareName := metadataHostname
+	if isUbuntu2410(ctx, t) {
+		// Ubuntu 24.10 doesn't return FQDN with -f option.
+		compareName = strings.Split(compareName, ".")[0]
+	}
+	if hostname != compareName {
+		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", compareName, hostname)
+	}
+
+	// Check using -A option for Ubuntu 24.10 only.
+	// For some reason, the -f option doesn't return FQDN on Ubuntu 24.10.
+	if !isUbuntu2410(ctx, t) {
+		return
+	}
+
+	cmd = exec.Command("/bin/hostname", "-A")
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("hostname command failed: %v", err)
+	}
+	hostname = strings.TrimRight(string(out), " \n")
+
 	if hostname != metadataHostname {
-		t.Errorf("hostname does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
+		t.Fatalf("hostname -A does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
 	}
 }
 
