@@ -148,6 +148,10 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				// centos-stream-8 doesn't include -8
 				requiredLicenses[len(requiredLicenses)-1] = requiredLicenses[len(requiredLicenses)-1][:len(requiredLicenses[len(requiredLicenses)-1])-2]
 			}
+			if strings.HasSuffix(image.Family, "-x86") {
+				// centos-stream-10-x86 doesn't include -x86
+				requiredLicenses[len(requiredLicenses)-1] = requiredLicenses[len(requiredLicenses)-1][:len(requiredLicenses[len(requiredLicenses)-1])-4]
+			}
 		}
 	case strings.Contains(image.Name, "rocky") && strings.Contains(image.Name, "nvidia"):
 		project = "rocky-linux-cloud"
