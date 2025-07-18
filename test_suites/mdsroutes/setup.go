@@ -81,7 +81,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if utils.HasFeature(t.Image, "WINDOWS") {
 		dnsTest = "TestWindowsDNS"
 	}
-	tests = append(tests, dnsTest)
+	tests = append(tests, dnsTest, "TestMetadataPath")
 
 	// TODO(b/428199320): Remove this once the bug is fixed.
 	if !strings.Contains(t.Image.Family, "ubuntu-2204") {

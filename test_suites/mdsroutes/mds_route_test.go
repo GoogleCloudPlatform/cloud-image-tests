@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -43,6 +44,18 @@ func isSLESImage(ctx context.Context, t *testing.T) bool {
 // TODO(b/383775692): Remove SLES check once fix is implemented.
 func shouldSkipSecondaryNICMDSCheck(ctx context.Context, t *testing.T) bool {
 	return utils.IsWindows() || isSLESImage(ctx, t)
+}
+
+func TestMetadataPath(t *testing.T) {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("metadata", "80"), time.Second*5)
+	t.Cleanup(func() {
+		if conn != nil {
+			conn.Close()
+		}
+	})
+	if err != nil {
+		t.Fatalf("Failed to connect to metadata server: %v", err)
+	}
 }
 
 // Test that only the primary NIC has a route to the MDS.

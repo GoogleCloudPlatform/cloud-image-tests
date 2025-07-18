@@ -32,8 +32,9 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	vm_pb "github.com/GoogleCloudPlatform/cloud-image-tests/vm_test_info"
 	"google.golang.org/protobuf/proto"
+
+	vm_pb "github.com/GoogleCloudPlatform/cloud-image-tests/vm_test_info"
 )
 
 // In special cases such as the shutdown script, the guest attribute match
@@ -107,7 +108,7 @@ func main() {
 		log.Fatalf("failed to get metadata _test_properties_url: %v", err)
 	}
 
-	var testArguments = []string{"-test.v", "-test.timeout", testTimeout}
+	testArguments := []string{"-test.v", "-test.timeout", testTimeout}
 
 	testRun, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_run")
 	if err == nil && testRun != "" {
