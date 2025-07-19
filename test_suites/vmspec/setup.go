@@ -19,6 +19,7 @@ package vmspec
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -52,6 +53,11 @@ func init() {
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	// TODO(b/432602211): Re-enable this test once the bug is fixed.
+	if strings.Contains(t.Image.Name, "windows") {
+		t.Skip("Skipping test for windows due to b/432602211")
+	}
+
 	// Skip ARM64 images, since no ARM64-supporting machine types support LSSDs.
 	if t.Image.Architecture == "ARM64" {
 		t.Skip("vmspec not supported on ARM images")
