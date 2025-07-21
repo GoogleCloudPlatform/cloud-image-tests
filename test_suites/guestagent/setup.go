@@ -13,8 +13,6 @@
 package guestagent
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -26,10 +24,7 @@ const Name = "guestagent"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	diskType := imagetest.PdBalanced
-	if strings.HasPrefix(t.MachineType.Name, "n4-") {
-		diskType = imagetest.HyperdiskBalanced
-	}
+	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
 
 	telemetrydisabledinst := &daisy.Instance{}
 	telemetrydisabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}

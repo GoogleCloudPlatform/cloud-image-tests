@@ -125,6 +125,22 @@ func (t *TestWorkflow) waitForQuotaStep(qa *daisy.QuotaAvailable, stepname strin
 	return nil
 }
 
+// DiskTypeNeeded returns disk type needed for the machine type. Default is hyperdisk Balanced.
+// If a machine supports both PD Balanced and Hyperdisk, PD Balanced is returned.
+func DiskTypeNeeded(machineType string) string {
+	pdBalancedMachineFamilyPrefix := []string{"a2", "a3", "c2", "c3", "e2", "h3", "m1", "m2", "m3", "n1", "n2",
+		"t2", "z3"}
+	if strings.HasSuffix(machineType, "-metal") || strings.HasPrefix(machineType, "a3-ultra") {
+		return HyperdiskBalanced
+	}
+	for _, prefix := range pdBalancedMachineFamilyPrefix {
+		if strings.HasPrefix(machineType, prefix) {
+			return PdBalanced
+		}
+	}
+	return HyperdiskBalanced
+}
+
 // CreateTestVM adds the necessary steps to create a VM with the specified
 // name to the workflow.
 func (t *TestWorkflow) CreateTestVM(name string) (*TestVM, error) {

@@ -672,11 +672,11 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPref
 				if vm.Zone != "" && vm.Zone != twf.wf.Zone {
 					log.Printf("VM %s zone is set to %s, differing from workflow zone %s for test %s, not overriding\n", vm.Name, vm.Zone, twf.wf.Zone, twf.Name)
 				}
-				if createDisksOk && (strings.HasPrefix(vm.MachineType, "c4-") || strings.HasPrefix(vm.MachineType, "n4-") || strings.HasPrefix(vm.MachineType, "c3-")) {
+				if createDisksOk {
 					for _, attachedDisk := range vm.Disks {
 						for _, disk := range *createDisksStep.CreateDisks {
 							if attachedDisk.Source == disk.Name && disk.Type == "" {
-								disk.Type = HyperdiskBalanced
+								disk.Type = DiskTypeNeeded(twf.MachineType.Name)
 							}
 						}
 					}

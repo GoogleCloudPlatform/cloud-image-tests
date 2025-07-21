@@ -123,8 +123,14 @@ func TestGuestRebootOnHost(t *testing.T) {
 			cmd = exec.Command("sudo", "nohup", "reboot")
 		}
 		if err := cmd.Run(); err != nil {
-			t.Fatalf("failed to run reboot command: %v", err)
+			// check if error value is "signal: terminated" and if so, it means the reboot command was sent successfully
+			if !(strings.Contains(err.Error(), "signal: terminated")) {
+				t.Fatalf("failed to run reboot command: %v", err)
+			}
 		}
+		// sleep for a minute to ensure the guest has time to reboot
+		t.Log("Waiting for the guest to reboot...")
+		time.Sleep(60 * time.Second)
 		t.Fatal("marker file does not exist")
 	}
 	// second boot

@@ -33,29 +33,12 @@ const (
 	windowsMountDriveLetter = "F"
 )
 
-// HyperdiskNeeded returns true if the machine family that only supports hyperdisks.
-func HyperdiskNeeded(machineType string) bool {
-	hyperdiskMachineFamilyPrefix := []string{"n4", "c4", "m4", "a4", "z3", "a3-ultra"}
-	if strings.HasSuffix(machineType, "-metal") {
-		return true
-	}
-	for _, prefix := range hyperdiskMachineFamilyPrefix {
-		if strings.HasPrefix(machineType, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	hotattachInst := &daisy.Instance{}
 	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 
-	diskType := imagetest.PdBalanced
-	if HyperdiskNeeded(t.MachineType.Name) {
-		diskType = imagetest.HyperdiskBalanced
-	}
+	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
 
 	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: strings.Replace("reattach"+diskType, "-", "", -1), Type: diskType}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
 	if err != nil {
