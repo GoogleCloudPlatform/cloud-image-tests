@@ -47,7 +47,7 @@ Testing components are built into a container image. The entrypoint is
     -set_exit_status
     	Exit with non-zero exit code if test suites are failing (default true)
     -timeout string
-    	timeout for each step in the test workflow (default "45m")
+    	timeout for each step in the test workflow (default "15m")
     -print
     	instead of running, print out the parsed test workflows and exit
     -validate

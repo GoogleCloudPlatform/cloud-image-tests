@@ -81,7 +81,7 @@ var (
 	writeLocalArtifacts     = flag.String("write_local_artifacts", "", "Local path to download test artifacts from gcs.")
 	localPath               = flag.String("local_path", "", "path where test output files are stored, can be modified for local testing")
 	images                  = flag.String("images", "", "comma separated list of images to test")
-	timeout                 = flag.String("timeout", "45m", "timeout for the test suite")
+	timeout                 = flag.String("timeout", "15m", "timeout for the test suite")
 	computeEndpointOverride = flag.String("compute_endpoint_override", "", "compute client endpoint override")
 	parallelCount           = flag.Int("parallel_count", 5, "TestParallelCount")
 	parallelStagger         = flag.String("parallel_stagger", "60s", "parseable time.Duration to stagger each parallel test")
