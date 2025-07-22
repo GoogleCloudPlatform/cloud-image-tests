@@ -23,7 +23,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,15 +35,81 @@ import (
 
 const gcomment = "# Added by Google"
 
-// isUbuntu2410 returns true if the image is Ubuntu 24.10.
-func isUbuntu2410(ctx context.Context, t *testing.T) bool {
-	t.Helper()
+type exceptionMethod int
 
+// ubuntuException represents an exception for the hostname validation test.
+//
+// The version field is the version of Ubuntu that the exception applies to.
+// The method field is the comparison method to use for the exception.
+type ubuntuException struct {
+	version int
+	method  exceptionMethod
+}
+
+// These are the currently used exception methods.
+const (
+	equals exceptionMethod = iota
+	notEquals
+	greaterThanEqual
+)
+
+// ubuntuExceptionMatch returns true if the image is Ubuntu of a certain version.
+//
+// If the version is not specified, it returns true if the image is Ubuntu.
+func ubuntuExceptionMatch(ctx context.Context, t *testing.T, exceptions ...ubuntuException) bool {
+	t.Helper()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata: %v", err)
 	}
-	return strings.Contains(image, "ubuntu") && strings.Contains(image, "2410")
+
+	// Only Ubuntu images need to be checked.
+	if !strings.Contains(image, "ubuntu") {
+		return false
+	}
+
+	// Get the version of the image.
+	imageName := filepath.Base(image)
+	nameSplit := strings.Split(imageName, "-")
+
+	// The version is the first parseable number in the image name.
+	var version int
+	for _, part := range nameSplit {
+		if v, err := strconv.Atoi(part); err == nil {
+			t.Logf("Found version %d in image name: %s", v, imageName)
+			version = v
+			break
+		}
+	}
+	if version == 0 {
+		// Assume false condition if version is not found.
+		t.Logf("No version found in image name: %s", imageName)
+		return false
+	}
+
+	// Go through the exceptions and return true if all exceptions match.
+	res := true
+	for _, ex := range exceptions {
+		if ex.version == 0 {
+			continue
+		}
+
+		// Handle the exception method.
+		var match bool
+		switch ex.method {
+		case equals:
+			match = version == ex.version
+		case notEquals:
+			match = version != ex.version
+		case greaterThanEqual:
+			match = version >= ex.version
+		}
+		if !match {
+			return false
+		}
+		res = res && match
+	}
+	return res
 }
 
 func testHostnameWindows(shortname string) error {
@@ -77,13 +145,24 @@ func testHostnameLinux(shortname string) error {
 }
 
 func TestHostname(t *testing.T) {
-	metadataHostname, err := utils.GetMetadata(utils.Context(t), "instance", "hostname")
+	ctx := utils.Context(t)
+	metadataHostname, err := utils.GetMetadata(ctx, "instance", "hostname")
 	if err != nil {
-		t.Fatalf(" still couldn't determine metadata hostname")
+		t.Fatalf("still couldn't determine metadata hostname")
 	}
 
 	// 'hostname' in metadata is fully qualified domain name.
 	shortname := strings.Split(metadataHostname, ".")[0]
+	if ubuntuExceptionMatch(ctx, t, ubuntuException{2404, greaterThanEqual}, ubuntuException{2410, notEquals}) {
+		// On Ubuntu versions >= 24.04, but not 24.10, the hostname is the FQDN.
+		// However, if the hostname is longer than 63 characters, it will be truncated.
+		// See https://man7.org/linux/man-pages/man7/hostname.7.html for more details.
+		if len(metadataHostname) < 64 {
+			shortname = metadataHostname
+		} else {
+			t.Logf("Hostname is longer than 63 characters, testing for shortname")
+		}
+	}
 
 	if runtime.GOOS == "windows" {
 		if err = testHostnameWindows(shortname); err != nil {
@@ -141,7 +220,8 @@ func TestFQDN(t *testing.T) {
 	hostname := strings.TrimRight(string(out), " \n")
 
 	compareName := metadataHostname
-	if isUbuntu2410(ctx, t) {
+	isUbuntu2410 := ubuntuExceptionMatch(ctx, t, ubuntuException{2410, equals})
+	if isUbuntu2410 {
 		// Ubuntu 24.10 doesn't return FQDN with -f option.
 		compareName = strings.Split(compareName, ".")[0]
 	}
@@ -151,7 +231,7 @@ func TestFQDN(t *testing.T) {
 
 	// Check using -A option for Ubuntu 24.10 only.
 	// For some reason, the -f option doesn't return FQDN on Ubuntu 24.10.
-	if !isUbuntu2410(ctx, t) {
+	if isUbuntu2410 {
 		return
 	}
 
