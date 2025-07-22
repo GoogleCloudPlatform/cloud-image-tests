@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -534,6 +535,18 @@ func (t *TestVM) SetWindowsShutdownScriptURL(script string) error {
 	t.testWorkflow.wf.Sources["shutdown-script.ps1"] = fileName
 
 	t.AddMetadata("windows-shutdown-script-url", "${SOURCESPATH}/shutdown-script.ps1")
+	return nil
+}
+
+// SetWindowsSysprepScriptURL sets the`windows-sysprep-script-url` metadata key for a Windows VM.
+func (t *TestVM) SetWindowsSysprepScriptURL(script string) error {
+	fileName := filepath.Join(os.TempDir(), fmt.Sprintf("sysprep_script-%s.ps1", uuid.New()))
+	if err := ioutil.WriteFile(fileName, []byte(script), 0755); err != nil {
+		return err
+	}
+	t.testWorkflow.wf.Sources["sysprep-script.ps1"] = fileName
+
+	t.AddMetadata("sysprep-specialize-script-url", "${SOURCESPATH}/sysprep-script.ps1")
 	return nil
 }
 

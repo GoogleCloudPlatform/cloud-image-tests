@@ -22,11 +22,41 @@ import (
 
 func TestSysprepSpecialize(t *testing.T) {
 	utils.WindowsOnly(t)
-	result, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read startup script result key: %v", err)
+	tests := []struct {
+		name           string
+		key            string
+		expectedResult string
+	}{
+		{
+			name:           "TestSysprepSpecializePs1",
+			key:            "sysprep-ps1-result",
+			expectedResult: "sysprep_ps1_success",
+		},
+		{
+			name:           "TestSysprepSpecializeCmd",
+			key:            "sysprep-cmd-result",
+			expectedResult: "sysprep_cmd_success",
+		},
+		{
+			name:           "TestSysprepSpecializeBat",
+			key:            "sysprep-bat-result",
+			expectedResult: "sysprep_bat_success",
+		},
+		{
+			name:           "TestSysprepSpecializePs1Url",
+			key:            "sysprep-ps1-url-result",
+			expectedResult: "sysprep_ps1-url_success",
+		},
 	}
-	if result != expectedStartupContent {
-		t.Fatalf(`sysprep-specialize script output expected "%s", got "%s".`, expectedStartupContent, result)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", test.key)
+			if err != nil {
+				t.Fatalf("failed to read sysprep script result key %s: %v", test.key, err)
+			}
+			if result != test.expectedResult {
+				t.Fatalf("sysprep-specialize script output expected %q, got %q", test.expectedResult, result)
+			}
+		})
 	}
 }

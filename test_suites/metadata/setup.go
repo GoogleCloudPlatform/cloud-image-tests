@@ -17,6 +17,7 @@ package metadata
 
 import (
 	"embed"
+	"fmt"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -138,7 +139,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 		sysprepspecialize.AddMetadata("enable-guest-attributes", "TRUE")
-		sysprepspecialize.AddMetadata("sysprep-specialize-script-cmd", `pwsh -Command "Invoke-RestMethod -Method Put -Body startup_success -Headers @{'Metadata-Flavor' = 'Google'} -Uri 'http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/testing/result' -ContentType 'application/json; charset=utf-8' -UseBasicParsing"`)
+		psSysprepScript := `Invoke-RestMethod -Method Put -Body sysprep_%s_success -Headers @{'Metadata-Flavor' = 'Google'} -Uri 'http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/testing/sysprep-%s-result' -ContentType 'application/json; charset=utf-8' -UseBasicParsing`
+		sysprepspecialize.AddMetadata("sysprep-specialize-script-ps1", fmt.Sprintf(psSysprepScript, "ps1", "ps1"))
+		sysprepspecialize.AddMetadata("sysprep-specialize-script-cmd", `pwsh -Command "Invoke-RestMethod -Method Put -Body sysprep_cmd_success -Headers @{'Metadata-Flavor' = 'Google'} -Uri 'http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/testing/sysprep-cmd-result' -ContentType 'application/json; charset=utf-8' -UseBasicParsing"`)
+		sysprepspecialize.AddMetadata("sysprep-specialize-script-bat", `curl -X PUT -H "Metadata-Flavor: Google" -H "Content-Type: application/json; charset=utf-8" --data "sysprep_bat_success" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/testing/sysprep-bat-result"`)
+		sysprepspecialize.SetWindowsSysprepScriptURL(fmt.Sprintf(psSysprepScript, "ps1-url", "ps1-url"))
 		sysprepspecialize.RunTests("TestSysprepSpecialize")
 
 	} else {
