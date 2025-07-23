@@ -313,6 +313,37 @@ Interface names. IDPF and MLX5 NICs should follow their own scheme.
 
 On Windows, interfaces should be named Ethernet*
 
+### Test suite: nicsetup
+Validates guest agent's configs with various NIC configurations.
+
+- <b>Background</b>: Users can have a variety of different NIC setups on their
+  VMs. It's important to have coverage for as many of these cases as possible to
+  ensure that the guest agent behaves correctly in all these configurations.
+
+- <b>Test logic</b>: The test creates a VM for every configuration of NIC. The
+  NIC configurations that the test creates are as follows:
+  - Single NIC:
+    - IPv4
+    - IPv4 + IPv6
+    - IPv6
+  - Multi NIC:
+    - IPv4 x IPv4
+    - IPv4 x Dual
+    - IPv4 x IPv6
+    - Dual x IPv4
+    - Dual x Dual
+    - Dual x IPv6
+    - IPv6 x IPv4
+    - IPv6 x Dual
+    - IPv6 x IPv6
+  
+  On each of these, the test will check whether or not the guest agent has
+  written a configuration for each nice. For the primary NIC, it will toggle the
+  guest agent configuration for `enable_primary_nic` to make sure that the guest
+  agent reacts correctly to the toggling of the flag.
+
+
+
 ### Test suite: oslogin
 Validate that the user can SSH using OSLogin, and that the guest agent can correctly provision a
 VM to utilize OSLogin.

@@ -61,6 +61,8 @@ The following flags are provided to the manager but interpreted by test suites w
     	regexp filter for storageperf test cases, only cases with a matching name will be run (default ".*")
     -networkperf_test_filter string
     	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
+    -nicsetup_vmtype string
+        string indicating type of VMs to create for nicsetup test cases. Valid values are "both", "single", and "multi". (default "both")
 
 
 It can be invoked via docker as:
