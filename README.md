@@ -43,11 +43,11 @@ Testing components are built into a container image. The entrypoint is
     -parallel_count int
     	tests to run at one time
     -parallel_stagger string
-    	parseable time.Duration to stagger each parallel test (default "60s")
+    	parsable time.Duration to stagger each parallel test (default "60s")
     -set_exit_status
     	Exit with non-zero exit code if test suites are failing (default true)
     -timeout string
-    	timeout for each step in the test workflow (default "15m")
+    	timeout for each step in the test workflow (default "20m")
     -print
     	instead of running, print out the parsed test workflows and exit
     -validate
