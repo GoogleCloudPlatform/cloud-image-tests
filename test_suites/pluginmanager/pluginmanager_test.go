@@ -222,3 +222,47 @@ func TestPluginCleanup(t *testing.T) {
 		})
 	}
 }
+
+func stopPluginManager(t *testing.T) {
+	t.Helper()
+	if utils.IsWindows() {
+		if err := utils.CheckPowershellSuccess("Stop-Service -Name GCEAgentManager -Verbose"); err != nil {
+			t.Fatalf("Failed to stop GCEWindowsAgentManager service: %v", err)
+		}
+	} else {
+		cmd := exec.Command("systemctl", "stop", "google-guest-agent-manager")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Failed to stop google-guest-agent service: %v, \noutput: \n%s", err, string(out))
+		}
+	}
+}
+
+func TestCorePluginStop(t *testing.T) {
+	if utils.IsCoreDisabled() {
+		t.Skip("Core plugin is disabled, skipping the test.")
+	}
+	stopPluginManager(t)
+	var command *exec.Cmd
+	// Core plugin should be running even after the manager is stopped.
+	if utils.IsWindows() {
+		utils.ProcessExistsWindows(t, true, "CorePlugin")
+		command = exec.Command(`C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`, "coreplugin", "stop")
+	} else {
+		utils.ProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
+		command = exec.Command("ggactl_plugin", "coreplugin", "stop")
+	}
+
+	// ggactl command to stop the core plugin.
+	out, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
+	}
+
+	// Core plugin should be stopped.
+	if utils.IsWindows() {
+		utils.ProcessExistsWindows(t, false, "CorePlugin")
+	} else {
+		utils.ProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
+	}
+}

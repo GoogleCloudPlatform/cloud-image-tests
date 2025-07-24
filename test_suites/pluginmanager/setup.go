@@ -30,5 +30,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	defaultVM.RunTests("TestPluginCleanup")
+	pluginStopVM, err := t.CreateTestVM("pluginstop")
+	if err != nil {
+		return err
+	}
+	pluginStopVM.RunTests("TestCorePluginStop")
 	return nil
 }

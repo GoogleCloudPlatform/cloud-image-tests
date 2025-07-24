@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -874,4 +875,48 @@ func InstallPackage(packages ...string) error {
 		return exec.Command("zypper", args...).Run()
 	}
 	return ErrPackageManagersNotFound
+}
+
+// ProcessExistsWindows checks if the process exists on Windows.
+func ProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
+	t.Helper()
+
+	status, err := RunPowershellCmd("Get-Process")
+	if err != nil {
+		t.Fatalf("Failed to run Get-Process powershell command: %v, process status: %+v", err, status)
+	}
+
+	pattern := regexp.MustCompile(fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(processName)))
+	got := pattern.MatchString(status.Stdout)
+
+	if got != shouldExist {
+		t.Fatalf("Process %q expected to exist: [%t], got: [%t]\nOutput:\n %s", processName, shouldExist, got, status.Stdout)
+	}
+}
+
+// ProcessExistsLinux checks if the process exists on Linux.
+func ProcessExistsLinux(t *testing.T, shouldExist bool, processName string) {
+	t.Helper()
+
+	cmd := exec.Command("ps", "-e", "-o", "command")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to run ps command: %v", err)
+	}
+
+	output := string(out)
+	processes := strings.Split(output, "\n")
+	found := false
+	for _, process := range processes {
+		cmd := strings.Split(strings.TrimSpace(process), " ")
+		if cmd[0] == processName {
+			found = true
+			break
+		}
+	}
+
+	if found != shouldExist {
+		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, found, output)
+	}
 }
