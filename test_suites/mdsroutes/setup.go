@@ -17,25 +17,35 @@
 package mdsroutes
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 )
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "mdsroutes"
 
+var (
+	unsupportedImages = []exceptions.Exception{
+		{
+			Match: exceptions.ImageCOS,
+		},
+		{
+			// TODO(b/428199320): Remove this once the bug is fixed.
+			Match:   exceptions.ImageSLES,
+			Version: 15,
+			Type:    exceptions.Equal,
+		},
+	}
+)
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	if strings.Contains(t.Image.Family, "cos") {
-		t.Skip("MDS routes not supported on COS")
-		return nil
-	}
-
-	// TODO(b/428199320): Remove this once the bug is fixed.
-	if strings.Contains(t.Image.Family, "sles") {
-		t.Skip("MDS routes not supported on SLES")
+	if exceptions.HasMatch(t.Image.Family, unsupportedImages) {
+		t.Skip(fmt.Sprintf("MDS routes not supported on %s", t.Image.Family))
 		return nil
 	}
 
@@ -84,7 +94,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	tests = append(tests, dnsTest, "TestMetadataPath")
 
 	// TODO(b/428199320): Remove this once the bug is fixed.
-	if !strings.Contains(t.Image.Family, "ubuntu-2204") {
+	if !exceptions.MatchAll(t.Image.Family, exceptions.ImageUbuntu, exceptions.Exception{Version: 2204}) {
 		tests = append(tests, "TestMDSRoutes")
 		return nil
 	}

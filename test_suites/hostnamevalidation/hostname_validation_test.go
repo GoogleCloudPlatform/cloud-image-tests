@@ -16,101 +16,22 @@ package hostnamevalidation
 
 import (
 	"bufio"
-	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 	// allowlist:crypto/md5
 )
 
 const gcomment = "# Added by Google"
-
-type exceptionMethod int
-
-// ubuntuException represents an exception for the hostname validation test.
-//
-// The version field is the version of Ubuntu that the exception applies to.
-// The method field is the comparison method to use for the exception.
-type ubuntuException struct {
-	version int
-	method  exceptionMethod
-}
-
-// These are the currently used exception methods.
-const (
-	equals exceptionMethod = iota
-	notEquals
-	greaterThanEqual
-)
-
-// ubuntuExceptionMatch returns true if the image is Ubuntu of a certain version.
-//
-// If the version is not specified, it returns true if the image is Ubuntu.
-func ubuntuExceptionMatch(ctx context.Context, t *testing.T, exceptions ...ubuntuException) bool {
-	t.Helper()
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Fatalf("couldn't get image from metadata: %v", err)
-	}
-
-	// Only Ubuntu images need to be checked.
-	if !strings.Contains(image, "ubuntu") {
-		return false
-	}
-
-	// Get the version of the image.
-	imageName := filepath.Base(image)
-	nameSplit := strings.Split(imageName, "-")
-
-	// The version is the first parseable number in the image name.
-	var version int
-	for _, part := range nameSplit {
-		if v, err := strconv.Atoi(part); err == nil {
-			t.Logf("Found version %d in image name: %s", v, imageName)
-			version = v
-			break
-		}
-	}
-	if version == 0 {
-		// Assume false condition if version is not found.
-		t.Logf("No version found in image name: %s", imageName)
-		return false
-	}
-
-	// Go through the exceptions and return true if all exceptions match.
-	res := true
-	for _, ex := range exceptions {
-		if ex.version == 0 {
-			continue
-		}
-
-		// Handle the exception method.
-		var match bool
-		switch ex.method {
-		case equals:
-			match = version == ex.version
-		case notEquals:
-			match = version != ex.version
-		case greaterThanEqual:
-			match = version >= ex.version
-		}
-		if !match {
-			return false
-		}
-		res = res && match
-	}
-	return res
-}
 
 func testHostnameWindows(shortname string) error {
 	command := "[System.Net.Dns]::GetHostName()"
@@ -150,13 +71,22 @@ func TestHostname(t *testing.T) {
 	if err != nil {
 		t.Fatalf("still couldn't determine metadata hostname")
 	}
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata: %v", err)
+	}
+
+	// On Ubuntu versions >= 24.04, but not 24.10, the hostname is the FQDN.
+	// However, if the hostname is longer than 63 characters, it will be truncated.
+	// See https://man7.org/linux/man-pages/man7/hostname.7.html for more details.
+	hostnameExceptions := []exceptions.Exception{
+		exceptions.Exception{Version: 2404, Type: exceptions.GreaterThanOrEqualTo},
+		exceptions.Exception{Version: 2410, Type: exceptions.NotEqual},
+	}
 
 	// 'hostname' in metadata is fully qualified domain name.
 	shortname := strings.Split(metadataHostname, ".")[0]
-	if ubuntuExceptionMatch(ctx, t, ubuntuException{2404, greaterThanEqual}, ubuntuException{2410, notEquals}) {
-		// On Ubuntu versions >= 24.04, but not 24.10, the hostname is the FQDN.
-		// However, if the hostname is longer than 63 characters, it will be truncated.
-		// See https://man7.org/linux/man-pages/man7/hostname.7.html for more details.
+	if exceptions.MatchAll(image, exceptions.ImageUbuntu, hostnameExceptions...) {
 		if len(metadataHostname) < 64 {
 			shortname = metadataHostname
 		} else {
@@ -210,6 +140,10 @@ func TestFQDN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't determine metadata hostname")
 	}
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata: %v", err)
+	}
 
 	// Get the hostname with FQDN.
 	cmd := exec.Command("/bin/hostname", "-f")
@@ -220,7 +154,7 @@ func TestFQDN(t *testing.T) {
 	hostname := strings.TrimRight(string(out), " \n")
 
 	compareName := metadataHostname
-	isUbuntu2410 := ubuntuExceptionMatch(ctx, t, ubuntuException{2410, equals})
+	isUbuntu2410 := exceptions.MatchAll(image, exceptions.ImageUbuntu, exceptions.Exception{Version: 2410, Type: exceptions.Equal})
 	if isUbuntu2410 {
 		// Ubuntu 24.10 doesn't return FQDN with -f option.
 		compareName = strings.Split(compareName, ".")[0]
