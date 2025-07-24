@@ -257,15 +257,20 @@ func findInstanceStartTime(ctx context.Context, t *testing.T) time.Time {
 // essential services is decided from the image name.
 func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image string) time.Time {
 	t.Helper()
-	essentialServices := []string{"google-guest-agent.service", "sshd.service"}
+	essentialServices := []string{"google-guest-agent.service", "google-guest-agent-manager.service", "sshd.service"}
 	if strings.Contains(image, "windows") {
 		essentialServices = []string{"GCEAgent"}
 	} else if strings.Contains(image, "ubuntu") {
-		essentialServices = []string{"google-guest-agent.service", "ssh.service"}
+		essentialServices = []string{"google-guest-agent.service", "google-guest-agent-manager.service", "ssh.service"}
 	}
 	latestStartTime := time.Time{}
 	for _, svc := range essentialServices {
 		svcStart := findServiceStartTime(ctx, t, svc)
+		// findServiceStartTime returns time.Unix(0, 0) if the service is disabled.
+		if svcStart.Equal(time.Unix(0, 0)) {
+			t.Logf("Service %s is disabled. Skipping.", svc)
+			continue
+		}
 		if svcStart.After(latestStartTime) {
 			latestStartTime = svcStart
 		}
@@ -304,13 +309,17 @@ func findServiceStartTime(ctx context.Context, t *testing.T, service string) tim
 		return serviceStartTime
 	}
 	for {
-		cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveState", service)
+		cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveState,UnitFileState", service)
 		output, err := cmd.Output()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
 		}
 		if strings.Contains(string(output), "ActiveState=active") {
 			break
+		}
+		// If the service is disabled or doesn't exist, return time.Unix(0, 0) as the start time.
+		if strings.Contains(string(output), "ActiveState=inactive") && !strings.Contains(string(output), "UnitFileState=enabled") {
+			return time.Unix(0, 0)
 		}
 		time.Sleep(time.Second)
 		if ctx.Err() != nil {
