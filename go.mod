@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/oslogin v1.13.1
 	cloud.google.com/go/secretmanager v1.11.5
 	cloud.google.com/go/storage v1.39.1
-	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20240725100702-9a712e79fd0e
+	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250723205259-e13e9bc51d0e
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-sev-guest v0.13.0
 	github.com/google/go-tdx-guest v0.3.1

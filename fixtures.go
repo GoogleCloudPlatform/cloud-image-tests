@@ -790,10 +790,18 @@ func (t *TestVM) UseGVNIC() {
 	}
 }
 
-// AddCustomNetwork add current test VMs in workflow using provided network and
-// subnetwork. If subnetwork is empty, not using subnetwork, in this case
-// network has to be in auto mode VPC.
-func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) error {
+// AddCustomNetworkWithStackType add current test VMs in workflow using provided
+// network, subnetwork and stack type. If subnetwork is empty, not using
+// subnetwork, in this case network has to be in auto mode VPC.
+//
+// The stack type must be supported by the subnetwork.
+func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Subnetwork, stackType string) error {
+	if stackType == "" {
+		return fmt.Errorf("stack type is required")
+	}
+	if stackType != "IPV4_ONLY" && stackType != "IPV4_IPV6" && stackType != "IPV6_ONLY" {
+		return fmt.Errorf("stack type %s is not supported", stackType)
+	}
 	var subnetworkName string
 	if subnetwork == nil {
 		subnetworkName = ""
@@ -809,11 +817,7 @@ func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) erro
 		networkInterface := compute.NetworkInterface{
 			Network:    network.name,
 			Subnetwork: subnetworkName,
-			AccessConfigs: []*compute.AccessConfig{
-				{
-					Type: "ONE_TO_ONE_NAT",
-				},
-			},
+			StackType:  stackType,
 		}
 		if t.instance.NetworkInterfaces == nil {
 			t.instance.NetworkInterfaces = []*compute.NetworkInterface{&networkInterface}
@@ -825,11 +829,7 @@ func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) erro
 		networkInterface := computeBeta.NetworkInterface{
 			Network:    network.name,
 			Subnetwork: subnetworkName,
-			AccessConfigs: []*computeBeta.AccessConfig{
-				{
-					Type: "ONE_TO_ONE_NAT",
-				},
-			},
+			StackType:  stackType,
 		}
 		if t.instancebeta.NetworkInterfaces == nil {
 			t.instancebeta.NetworkInterfaces = []*computeBeta.NetworkInterface{&networkInterface}
@@ -839,6 +839,13 @@ func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) erro
 	}
 
 	return nil
+}
+
+// AddCustomNetwork add current test VMs in workflow using provided network and
+// subnetwork. If subnetwork is empty, not using subnetwork, in this case
+// network has to be in auto mode VPC. This uses IPV4_ONLY as the stack type.
+func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) error {
+	return t.AddCustomNetworkWithStackType(network, subnetwork, "IPV4_ONLY")
 }
 
 // AddAliasIPRanges add alias ip range to current test VMs.
@@ -956,7 +963,7 @@ func (n *Network) SetMTU(mtu int) {
 	}
 }
 
-// CreateSubnetwork creates custom subnetwork. Using AddCustomNetwork method
+// CreateSubnetwork creates custom subnetwork. Use AddCustomNetwork method
 // provided by TestVM to config network on vm
 func (n *Network) CreateSubnetwork(name string, ipRange string) (*Subnetwork, error) {
 	subnetwork := &daisy.Subnetwork{
@@ -964,21 +971,10 @@ func (n *Network) CreateSubnetwork(name string, ipRange string) (*Subnetwork, er
 			Name:        name,
 			IpCidrRange: ipRange,
 			Network:     n.name,
+			StackType:   "IPV4_ONLY",
 		},
 	}
-	createSubnetworksStep, subnetwork, err := n.testWorkflow.appendCreateSubnetworksStep(subnetwork)
-	if err != nil {
-		return nil, err
-	}
-	createNetworkStep, ok := n.testWorkflow.wf.Steps[createNetworkStepName]
-	if !ok {
-		return nil, fmt.Errorf("create-network step missing")
-	}
-	if err := n.testWorkflow.wf.AddDependency(createSubnetworksStep, createNetworkStep); err != nil {
-		return nil, err
-	}
-
-	return &Subnetwork{name, n.testWorkflow, subnetwork, n}, nil
+	return n.CreateSubnetworkFromDaisySubnetwork(subnetwork)
 }
 
 // CreateSubnetworkFromDaisySubnetwork creates custom subnetwork from daisy
