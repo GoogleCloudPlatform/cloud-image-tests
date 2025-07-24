@@ -84,7 +84,8 @@ func TestMDSRoutes(t *testing.T) {
 	}
 }
 
-func TestDNS(t *testing.T) {
+func TestDNSLinux(t *testing.T) {
+	utils.LinuxOnly(t)
 	if _, err := exec.LookPath("dig"); err != nil {
 		if err := utils.InstallPackage("dnsutils"); err != nil {
 			t.Skipf("error installing dnsutils: %v", err)
@@ -109,7 +110,8 @@ func TestDNS(t *testing.T) {
 	}
 }
 
-func TestWindowsDNS(t *testing.T) {
+func TestDNSWindows(t *testing.T) {
+	utils.WindowsOnly(t)
 	ctx := utils.Context(t)
 
 	// Run nslookup

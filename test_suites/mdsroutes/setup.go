@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
-	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 )
 
@@ -86,12 +85,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 
-	var tests []string
-	dnsTest := "TestDNS"
-	if utils.HasFeature(t.Image, "WINDOWS") {
-		dnsTest = "TestWindowsDNS"
-	}
-	tests = append(tests, dnsTest, "TestMetadataPath")
+	tests := []string{"TestDNS", "TestMetadataPath"}
 
 	// TODO(b/428199320): Remove this once the bug is fixed.
 	if !exceptions.MatchAll(t.Image.Family, exceptions.ImageUbuntu, exceptions.Exception{Version: 2204}) {
