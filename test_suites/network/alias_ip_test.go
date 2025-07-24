@@ -16,7 +16,9 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -110,8 +112,82 @@ func getGoogleRoutes(networkInterface string) ([]string, error) {
 	return res, nil
 }
 
-func TestAliasAgentRestart(t *testing.T) {
+func TestNetworManagerRestart(t *testing.T) {
+	utils.LinuxOnly(t)
 	ctx := utils.Context(t)
+	iface := readNic(ctx, t, 0)
+	beforeRestart, err := getGoogleRoutes(iface.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restartNetworkManager(ctx, t)
+	afterRestart, err := getGoogleRoutes(iface.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !compare(beforeRestart, afterRestart) {
+		t.Fatalf("routes are inconsistent after restart, before %v after %v", beforeRestart, afterRestart)
+	}
+}
+
+func TestGgactlCommand(t *testing.T) {
+	utils.LinuxOnly(t)
+	ctx := utils.Context(t)
+	if !utils.CheckLinuxCmdExists("ggactl_plugin") {
+		t.Skipf("ggactl_plugin executable not found, skipping test")
+	}
+
+	iface := readNic(ctx, t, 0)
+	beforeTrigger, err := getGoogleRoutes(iface.Name)
+	if err != nil {
+		t.Fatalf("Failed to get Google routes before ggactl trigger: %v", err)
+	}
+	if len(beforeTrigger) == 0 {
+		t.Fatalf("No Google routes found before ggactl trigger")
+	}
+
+	for _, route := range beforeTrigger {
+		args := fmt.Sprintf("route delete to local %s scope host dev %s proto 66", route, iface.Name)
+		cmd := exec.Command("ip", strings.Split(args, " ")...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Failed to delete route: %v, output: %q", err, string(out))
+		}
+	}
+
+	out, err := exec.CommandContext(ctx, "ggactl_plugin", "routes", "setup").CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to run ggactl_plugin routes setup: %v, output:\n %s", err, string(out))
+	}
+
+	afterTrigger, err := getGoogleRoutes(iface.Name)
+	if err != nil {
+		t.Fatalf("Failed to get Google routes after ggactl trigger: %v", err)
+	}
+
+	if !compare(beforeTrigger, afterTrigger) {
+		t.Fatalf("routes are inconsistent after ggactl trigger, before %v after %v", beforeTrigger, afterTrigger)
+	}
+}
+
+func restartNetworkManager(ctx context.Context, t *testing.T) {
+	t.Helper()
+	// SLES skips ip alias tests.
+	managers := []string{"systemd-networkd", "NetworkManager"}
+	var allErrs error
+	for _, manager := range managers {
+		cmd := exec.CommandContext(ctx, "systemctl", "restart", manager)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		allErrs = errors.Join(allErrs, fmt.Errorf("failed to restart %q: %s, err: %v", manager, string(out), err))
+	}
+	t.Skipf("No known network manager found, skipping test: %v", allErrs)
+}
+
+func readNic(ctx context.Context, t *testing.T, id int) net.Interface {
+	t.Helper()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
@@ -119,11 +195,16 @@ func TestAliasAgentRestart(t *testing.T) {
 	if strings.Contains(image, "cos") {
 		t.Skipf("COS does not support IP aliases")
 	}
-	iface, err := utils.GetInterface(ctx, 0)
+	iface, err := utils.GetInterface(ctx, id)
 	if err != nil {
 		t.Fatalf("couldn't get interface: %v", err)
 	}
+	return iface
+}
 
+func TestAliasAgentRestart(t *testing.T) {
+	ctx := utils.Context(t)
+	iface := readNic(ctx, t, 0)
 	beforeRestart, err := getGoogleRoutes(iface.Name)
 	if err != nil {
 		t.Fatal(err)
