@@ -17,6 +17,7 @@ package imagetest
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -796,5 +797,17 @@ func TestMetrics(t *testing.T) {
 
 	if metrics.finished != metrics.total {
 		t.Errorf("finished %d, want %d", metrics.finished, metrics.total)
+	}
+}
+
+func TestRandomlySelectZoneFromCommaSeparatedList(t *testing.T) {
+	zoneList := "us-central1-a,us-central1-b,us-central1-c,us-central1-f"
+	validZones := []string{"us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"}
+	var zone string
+	for i := 0; i < 100; i++ {
+		zone = RandomlySelectZoneFromCommaSeparatedList(zoneList)
+		if !slices.Contains(validZones, zone) {
+			t.Errorf("RandomlySelectZoneFromCommaSeparatedList(%s) returned an invalid zone on run %d: %s", zoneList, i, zone)
+		}
 	}
 }
