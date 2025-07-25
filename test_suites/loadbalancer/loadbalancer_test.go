@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -58,30 +57,13 @@ func runBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not get hostname: %v", err)
 	}
-	var mu sync.RWMutex
 	srv := http.Server{
 		Addr: ":8080",
 	}
 	var count int
 	c := make(chan struct{})
 	stop := make(chan struct{})
-	go func() {
-	countloop:
-		for {
-			select {
-			case <-c:
-				count++
-			case <-stop:
-				break countloop
-			}
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		srv.Shutdown(ctx)
-	}()
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		mu.RLock()
-		defer mu.RUnlock()
 		if strings.Contains(req.Host, l3IlbIP4Addr) || strings.Contains(req.Host, l7IlbIP4Addr) {
 			c <- struct{}{}
 		}
@@ -91,9 +73,21 @@ func runBackend(t *testing.T) {
 			stop <- struct{}{}
 		}
 	})
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		t.Errorf("Failed to serve http: %v", err)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			t.Errorf("Failed to serve http: %v", err)
+		}
+	}()
+countloop:
+	for {
+		select {
+		case <-c:
+			count++
+		case <-stop:
+			break countloop
+		}
 	}
+	srv.Shutdown(ctx)
 	if count < 1 {
 		t.Errorf("Receieved zero requests through load balancer")
 	}
