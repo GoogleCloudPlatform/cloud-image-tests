@@ -59,8 +59,11 @@ func testHostnameLinux(shortname string) error {
 	}
 
 	// If hostname is FQDN then lots of tools (e.g. ssh-keygen) have issues
-	if strings.Contains(hostname, ".") {
-		return fmt.Errorf("hostname contains '.'")
+	// However, if the expected hostname is FQDN, and the hostname is FQDN, then don't error.
+	// TODO(b/434038215): Update this logic when/if hostname inconsistency is
+	// resolved with Ubuntu.
+	if strings.Contains(hostname, ".") != strings.Contains(shortname, ".") {
+		return fmt.Errorf("hostname contains FQDN")
 	}
 	return nil
 }
