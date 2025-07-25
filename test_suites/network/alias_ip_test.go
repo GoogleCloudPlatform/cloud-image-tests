@@ -112,8 +112,21 @@ func getGoogleRoutes(networkInterface string) ([]string, error) {
 	return res, nil
 }
 
+func skipIfUbuntu(t *testing.T) {
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if strings.Contains(image, "ubuntu") {
+		t.Skipf("Skipping test for Ubuntu images due to b/434210587")
+	}
+}
+
 func TestNetworManagerRestart(t *testing.T) {
 	utils.LinuxOnly(t)
+	// TODO(b/434210587): Remove this skip once the bug is fixed.
+	skipIfUbuntu(t)
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
 	beforeRestart, err := getGoogleRoutes(iface.Name)
