@@ -50,7 +50,7 @@ func testHostnameWindows(shortname string) error {
 func testHostnameLinux(shortname string) error {
 	hostnameBytes, err := exec.Command("/bin/hostname").Output()
 	if err != nil {
-		return fmt.Errorf("couldn't determine local hostname")
+		return fmt.Errorf("couldn't determine local hostname: %v", utils.ParseStderr(err))
 	}
 	hostname := strings.TrimSpace(string(hostnameBytes))
 
@@ -149,7 +149,7 @@ func TestFQDN(t *testing.T) {
 	cmd := exec.Command("/bin/hostname", "-f")
 	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("hostname command failed")
+		t.Fatalf("hostname command failed: %v", utils.ParseStderr(err))
 	}
 	hostname := strings.TrimRight(string(out), " \n")
 
@@ -165,14 +165,14 @@ func TestFQDN(t *testing.T) {
 
 	// Check using -A option for Ubuntu 24.10 only.
 	// For some reason, the -f option doesn't return FQDN on Ubuntu 24.10.
-	if isUbuntu2410 {
+	if !isUbuntu2410 {
 		return
 	}
 
 	cmd = exec.Command("/bin/hostname", "-A")
 	out, err = cmd.Output()
 	if err != nil {
-		t.Fatalf("hostname command failed: %v", err)
+		t.Fatalf("hostname command failed: %v", utils.ParseStderr(err))
 	}
 	hostname = strings.TrimRight(string(out), " \n")
 

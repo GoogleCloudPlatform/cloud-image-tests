@@ -920,3 +920,13 @@ func ProcessExistsLinux(t *testing.T, shouldExist bool, processName string) {
 		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, found, output)
 	}
 }
+
+// ParseStderr returns the stderr output from an exec.ExitError, or the error
+// string if the error is not an exec.ExitError.
+func ParseStderr(err error) string {
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		return err.Error()
+	}
+	return string(exitErr.Stderr)
+}
