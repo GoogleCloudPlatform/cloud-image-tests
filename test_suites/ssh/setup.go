@@ -16,13 +16,18 @@
 package ssh
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 )
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "ssh"
 
-const user = "test-user"
+const (
+	user  = "test-user"
+	user2 = "test-user2"
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -31,21 +36,41 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
+	publicKey2, err := t.AddSSHKey(user2)
+	if err != nil {
+		return err
+	}
 	vm, err := t.CreateTestVM("client")
 	if err != nil {
 		return err
 	}
+	vm.AddScope("https://www.googleapis.com/auth/cloud-platform")
 	vm.AddMetadata("block-project-ssh-keys", "true")
 	vm.AddMetadata("enable-guest-attributes", "true")
 	vm.AddMetadata("enable-windows-ssh", "true")
 	vm.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
-	vm.RunTests("TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes")
+	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes|TestDeleteUserDefault"
+
+	if !strings.Contains(t.Image.Name, "windows") {
+		vm4, err := t.CreateTestVM("server2")
+		if err != nil {
+			return err
+		}
+		vm4.AddUser(user, publicKey)
+		vm4.AddUser(user2, publicKey2)
+		vm4.AddMetadata("enable-guest-attributes", "true")
+		vm4.AddMetadata("enable-oslogin", "false")
+		vm4.RunTests("TestSwitchDefaultConfig")
+		runTests += "|TestDeleteLocalUser"
+	}
+	vm.RunTests(runTests)
 
 	vm2, err := t.CreateTestVM("server")
 	if err != nil {
 		return err
 	}
 	vm2.AddUser(user, publicKey)
+	vm2.AddUser(user2, publicKey2)
 	vm2.AddMetadata("enable-guest-attributes", "true")
 	vm2.AddMetadata("enable-oslogin", "false")
 	vm2.AddMetadata("enable-windows-ssh", "true")

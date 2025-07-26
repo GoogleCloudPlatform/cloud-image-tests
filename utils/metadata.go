@@ -22,7 +22,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"testing"
 	"time"
+
+	"google.golang.org/api/compute/v1"
 )
 
 const (
@@ -154,4 +157,45 @@ func doHTTPPut(ctx context.Context, path string, data string) error {
 	}
 
 	return err
+}
+
+// SetInstanceMetadata sets the instance metadata.
+func SetInstanceMetadata(t *testing.T, name string, metadata *compute.Metadata) {
+	t.Helper()
+	ctx := Context(t)
+	client, err := GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("failed to get daisy client: %v", err)
+	}
+
+	prj, zone, err := GetProjectZone(ctx)
+	if err != nil {
+		t.Fatalf("failed to get project zone: %v", err)
+	}
+
+	if err := client.SetInstanceMetadata(prj, zone, name, metadata); err != nil {
+		t.Fatalf("failed to set instance metadata: %v", err)
+	}
+}
+
+// GetInstanceMetadata gets the metadata for the instance.
+func GetInstanceMetadata(t *testing.T, name string) *compute.Metadata {
+	t.Helper()
+	ctx := Context(t)
+	client, err := GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("failed to get daisy client: %v", err)
+	}
+
+	prj, zone, err := GetProjectZone(ctx)
+	if err != nil {
+		t.Fatalf("failed to get project zone: %v", err)
+	}
+
+	inst, err := client.GetInstance(prj, zone, name)
+	if err != nil {
+		t.Fatalf("failed to get instance: %v", err)
+	}
+
+	return inst.Metadata
 }
