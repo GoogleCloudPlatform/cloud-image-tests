@@ -51,6 +51,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkinterfacenaming"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkperf"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/nicsetup"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/oslogin"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagemanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packageupgrade"
@@ -345,6 +346,10 @@ func main() {
 		{
 			compatmanager.Name,
 			compatmanager.TestSetup,
+		},
+		{
+			nicsetup.Name,
+			nicsetup.TestSetup,
 		},
 	}
 
