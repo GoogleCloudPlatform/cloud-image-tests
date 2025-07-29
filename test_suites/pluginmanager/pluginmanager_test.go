@@ -239,18 +239,18 @@ func stopPluginManager(t *testing.T) {
 }
 
 func TestCorePluginStop(t *testing.T) {
+	// Skip if ggactl_plugin is not available.
+	path := ggactlCleanupPath(t)
 	if utils.IsCoreDisabled() {
 		t.Skip("Core plugin is disabled, skipping the test.")
 	}
 	stopPluginManager(t)
-	var command *exec.Cmd
+	command := exec.Command(path, "coreplugin", "stop")
 	// Core plugin should be running even after the manager is stopped.
 	if utils.IsWindows() {
 		utils.ProcessExistsWindows(t, true, "CorePlugin")
-		command = exec.Command(`C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`, "coreplugin", "stop")
 	} else {
 		utils.ProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
-		command = exec.Command("ggactl_plugin", "coreplugin", "stop")
 	}
 
 	// ggactl command to stop the core plugin.
