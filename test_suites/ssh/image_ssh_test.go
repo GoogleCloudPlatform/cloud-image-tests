@@ -35,6 +35,114 @@ func TestEmptyTest(t *testing.T) {
 	time.Sleep(60 * time.Second)
 }
 
+// TestSSHChangeKey test that given a user and a new key, guest agent will
+// update the user's key in $HOME/.ssh/authorized_keys.
+//
+// The test will first attempt a loopback connection with the user's old key and
+// expect it to succeed, an attempt to connect with the new key should fail at
+// this point.
+//
+// It will later change the user's key to the previously one created in setup.go
+// and use the new key to attempt a connection, which should succeed. An attempt
+// to connect with the old key should fail at this point.
+func TestSSHChangeKey(t *testing.T) {
+	vmname, err := utils.GetRealVMName(utils.Context(t), "server2")
+	if err != nil {
+		t.Fatalf("failed to get real vm name: %v", err)
+	}
+
+	// Private key for user3, this is the original key that will be used for the
+	// initial test.
+	user3PemBytes, err := utils.DownloadPrivateKey(utils.Context(t), user3)
+	if err != nil {
+		t.Fatalf("failed to download private key: %v", err)
+	}
+
+	// Private key for user4, this is the new key that will be used to change
+	// user3 key to and test the connection.
+	user4PemBytes, err := utils.DownloadPrivateKey(utils.Context(t), user4)
+	if err != nil {
+		t.Fatalf("failed to download private key: %v", err)
+	}
+
+	closeClient := func(c *ssh.Client) {
+		if c != nil {
+			c.Close()
+		}
+	}
+
+	// Initial success case, with user3 and user3PemBytes.
+	t.Logf("connect to remote host at %d, with valid key, should succeed", time.Now().UnixNano())
+	c1, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user3PemBytes)
+	if err != nil {
+		t.Fatalf("user %s failed ssh to target host, %s, err %v", user3, vmname, err)
+	}
+	t.Cleanup(func() {
+		closeClient(c1)
+	})
+
+	// Initial failure case, with user3 and user4PemBytes (we haven't changed the
+	// user's key yet, it must fail).
+	t.Logf("connect to remote host at %d, with invalid key, should fail", time.Now().UnixNano())
+	c2, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user4PemBytes)
+	if err == nil {
+		t.Fatalf("user %s succeeded ssh to target host with invalid key, %s", user3, vmname)
+	}
+	t.Cleanup(func() {
+		closeClient(c2)
+	})
+
+	// Change the user's key to the new key.
+	newKey, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "target-public-key")
+	if err != nil {
+		t.Fatalf("couldn't get ssh target public key from metadata: %v", err)
+	}
+
+	metadata := utils.GetInstanceMetadata(t, vmname)
+
+	for _, item := range metadata.Items {
+		var updateKeys []string
+		if item.Key == "ssh-keys" {
+			splitKeys := strings.Split(*item.Value, "\n")
+			for _, key := range splitKeys {
+				if strings.Contains(key, user3) {
+					key = fmt.Sprintf("%s:%s", user3, newKey)
+				}
+				updateKeys = append(updateKeys, key)
+			}
+			res := strings.Join(updateKeys, "\n")
+			item.Value = &res
+		}
+	}
+
+	utils.SetInstanceMetadata(t, vmname, metadata)
+
+	// Wait for the metadata to be updated and guest-agent to actuate and update
+	// the user's key.
+	t.Logf("waiting for metadata to be updated and guest-agent to actuate and update the user's key")
+	time.Sleep(60 * time.Second)
+
+	// Success case, with user3 and user4PemBytes (it should succeed).
+	t.Logf("connect to remote host at %d, with valid key, should succeed", time.Now().UnixNano())
+	c3, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user4PemBytes)
+	if err != nil {
+		t.Fatalf("user %s failed ssh to target host with new key, %s, err %v", user3, vmname, err)
+	}
+	t.Cleanup(func() {
+		closeClient(c3)
+	})
+
+	// Failure case, with user3 and user3PemBytes (it should fail).
+	t.Logf("connect to remote host at %d, with invalid key, should fail", time.Now().UnixNano())
+	c4, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user3PemBytes)
+	if err == nil {
+		t.Fatalf("user %s succeeded ssh to target host with invalid key, %s", user3, vmname)
+	}
+	t.Cleanup(func() {
+		closeClient(c4)
+	})
+}
+
 // TestSSHInstanceKey test SSH completes successfully for an instance metadata key.
 func TestSSHInstanceKey(t *testing.T) {
 	// TODO(b/432559183): Re-enable this test once the bug is fixed.
