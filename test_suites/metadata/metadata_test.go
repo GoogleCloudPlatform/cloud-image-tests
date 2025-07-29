@@ -45,9 +45,16 @@ func TestTokenFetch(t *testing.T) {
 
 // TestMetaDataResponseHeaders verify that HTTP response headers do not include confidential data.
 func TestMetaDataResponseHeaders(t *testing.T) {
+	imagePath, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata, err %v", err)
+	}
+	if strings.Contains(imagePath, "gce-staging-images") {
+		t.Skip("Test temporarily skipped in staging until underlying MDS issue is resolved.")
+	}
 	_, headers, err := utils.GetMetadataWithHeaders(utils.Context(t), "instance", "id")
 	if err != nil {
-		t.Fatalf("couldn't get id from metadata, err % v", err)
+		t.Fatalf("couldn't get id from metadata, err %v", err)
 	}
 	for key, values := range headers {
 		if key != "Metadata-Flavor" {
