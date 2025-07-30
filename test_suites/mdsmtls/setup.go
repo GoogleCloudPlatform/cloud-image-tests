@@ -34,7 +34,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
+	vm3, err := t.CreateTestVM("mtlscredswithtruststore")
+	if err != nil {
+		return err
+	}
+	vm3.AddMetadata("disable-https-mds-setup", "FALSE")
+	vm3.AddMetadata("enable-https-mds-native-cert-store", "TRUE")
+
 	vm.RunTests("TestMTLSCredsExists|TestMTLSJobScheduled")
 	vm2.RunTests("TestDefaultBehavior")
+	vm3.RunTests("TestCredsExistsInOSTrustStore")
 	return nil
 }

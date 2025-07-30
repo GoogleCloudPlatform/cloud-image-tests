@@ -15,6 +15,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -40,6 +41,57 @@ func checkCredsPresent(t *testing.T, shouldExist bool) {
 		if shouldExist != (err == nil) {
 			t.Errorf("os.Stat(%s) failed with error: %v, mTLS creds expected to be present: %t", f, err, shouldExist)
 		}
+	}
+}
+
+func checkCredsPresentInOSTrustStoreWindows(t *testing.T, shouldExist bool) {
+	t.Helper()
+
+	status, err := utils.RunPowershellCmd(`Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Issuer -like "*google.internal*" }`)
+	if err != nil {
+		t.Errorf(`Failed to get ChildItem from Cert:\LocalMachine\My: %v`, err)
+	}
+	if got := len(status.Stdout) > 0; got != shouldExist {
+		t.Errorf("mTLS client creds found in the OS trust store: %t, expected: %t, output: %+v", got, shouldExist, status)
+	}
+
+	status, err = utils.RunPowershellCmd(`Get-ChildItem Cert:\LocalMachine\Root | Where-Object { $_.Issuer -like "*google.internal*" }`)
+	if err != nil {
+		t.Errorf(`Failed to get ChildItem from Cert:\LocalMachine\Root: %v`, err)
+	}
+	if got := len(status.Stdout) > 0; got != shouldExist {
+		t.Errorf("mTLS root creds found in the OS trust store: %t, expected: %t, output: %+v", got, shouldExist, status)
+	}
+}
+
+func checkCredsPresentInOSTrustStore(t *testing.T, shouldExist, enabled bool) {
+	t.Helper()
+
+	defaultLocation := "/run/google-mds-mtls/root.crt"
+	credsBytes, err := os.ReadFile(defaultLocation)
+	if enabled != (err == nil) {
+		t.Fatalf("os.ReadFile(%s) failed with error: %v, mTLS creds expected to be present at %q", defaultLocation, err, defaultLocation)
+	}
+	creds := string(credsBytes)
+
+	knownLocations := []string{"/usr/local/share/ca-certificates/root.crt", "/usr/share/pki/trust/anchors/root.crt", "/etc/pki/ca-trust/source/anchors/root.crt"}
+	var found bool
+	var foundLocation string
+	var allErrors error
+	for _, f := range knownLocations {
+		got, err := os.ReadFile(f)
+		if err != nil {
+			allErrors = errors.Join(allErrors, err)
+			continue
+		}
+		if string(got) == creds {
+			found = true
+			foundLocation = f
+			break
+		}
+	}
+	if shouldExist != found {
+		t.Errorf("mTLS root creds found: %t, location: %q, expected to be present: %t, all errors: %v", found, foundLocation, shouldExist, allErrors)
 	}
 }
 
@@ -86,10 +138,12 @@ func TestMTLSCredsExists(t *testing.T) {
 		rootKeyFile = filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine", "mds-mtls-root.crt")
 		clientKeyFile = filepath.Join(os.Getenv("ProgramData"), "Google", "Compute Engine", "mds-mtls-client.key")
 		checkCredsPresentWindows(t, true)
+		checkCredsPresentInOSTrustStoreWindows(t, false)
 	} else {
 		rootKeyFile = filepath.Join("/", "run", "google-mds-mtls", "root.crt")
 		clientKeyFile = filepath.Join("/", "run", "google-mds-mtls", "client.key")
 		checkCredsPresent(t, true)
+		checkCredsPresentInOSTrustStore(t, false, true)
 	}
 	clientCert, clientKey := splitClientKeyFile(t, clientKeyFile)
 	certPair, err := tls.LoadX509KeyPair(clientCert, clientKey)
@@ -118,6 +172,43 @@ func TestMTLSCredsExists(t *testing.T) {
 	resp, err := client.Do(req)
 	if resp.TLS == nil {
 		t.Errorf("Metadata response was sent unencrypted")
+	}
+	verifyCurlWithoutCacert(t, false)
+}
+
+func verifyCurlWithoutCacert(t *testing.T, shouldWork bool) {
+	t.Helper()
+	ctx := utils.Context(t)
+	cmd := exec.CommandContext(ctx, "curl", "-E", "/run/google-mds-mtls/client.key", "-H", "MetadataFlavor: Google", "https://169.254.169.254/computeMetadata/v1/instance/hostname")
+	out, err := cmd.Output()
+
+	if shouldWork != (err == nil) {
+		t.Errorf("curl completed with error: [%v], want error: %t", err, !shouldWork)
+	}
+	if shouldWork && len(out) <= 0 {
+		t.Errorf("curl on https mds hostname endpoint output: %q, want non-empty, output: %+v", string(out), out)
+	}
+}
+
+func verifyInvokeRestMethodWindows(t *testing.T, shouldWork bool) {
+	t.Helper()
+	script := `$cert = Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.Issuer -like "*google.internal*" }; Invoke-RestMethod -Uri https://169.254.169.254 -Method Get -Headers @{"Metadata-Flavor"="Google"} -Certificate $cert`
+	status, err := utils.RunPowershellCmd(script)
+	if shouldWork != (err == nil) {
+		t.Errorf("Invoke-RestMethod on https mds endpoint completed with error: [%v], want error: %t", err, !shouldWork)
+	}
+	if len(status.Stdout) <= 0 {
+		t.Errorf("Invoke-RestMethod on https mds hostname endpoint output: %q, want non-empty, output: %+v", string(status.Stdout), status)
+	}
+}
+
+func TestCredsExistsInOSTrustStore(t *testing.T) {
+	if utils.IsWindows() {
+		checkCredsPresentInOSTrustStoreWindows(t, true)
+		verifyInvokeRestMethodWindows(t, true)
+	} else {
+		checkCredsPresentInOSTrustStore(t, true, true)
+		verifyCurlWithoutCacert(t, true)
 	}
 }
 
@@ -179,7 +270,9 @@ func splitClientKeyFile(t *testing.T, clientKeyFile string) (certPath string, ke
 func TestDefaultBehavior(t *testing.T) {
 	if utils.IsWindows() {
 		checkCredsPresentWindows(t, false)
+		checkCredsPresentInOSTrustStoreWindows(t, false)
 	} else {
 		checkCredsPresent(t, false)
+		checkCredsPresentInOSTrustStore(t, false, false)
 	}
 }
