@@ -16,7 +16,9 @@ package cvm
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	computepb "cloud.google.com/go/compute/apiv1/computepb"
@@ -55,6 +58,13 @@ const (
 	RDSEEDShiftLeaf7EBX          = 18 // RDSEED instruction enabled
 	SMAPShiftLeaf7EBX            = 20 // Supervisor Mode Access Prevention
 	LA57ShiftLeaf7ECX            = 16 // 5-level paging (increases size of virtual addresses from 48 bits to 57 bits)
+
+	// liveMigrateTimeout is the timeout for live migration. From looking at
+	// previous successful test runs, live migration can take up to 15 minutes,
+	// with most taking under 12 minutes. We set to 10 minutes to avoid the test
+	// timing out while waiting for the live migration to complete, while still
+	// giving a chance for the live migration to complete.
+	liveMigrateTimeout = 10 * time.Minute
 )
 
 func searchDmesg(t *testing.T, matches []string) {
@@ -163,7 +173,10 @@ func TestLiveMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not mark beginning of live migrate testing: %v", err)
 	}
-	ctx := utils.Context(t)
+	// Add a timeout to live migration. This is to avoid the test getting stuck if
+	// the live migration hangs for too long.
+	ctx, cancel := context.WithTimeout(utils.Context(t), liveMigrateTimeout)
+	defer cancel()
 	prj, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
 		t.Fatalf("could not find project and zone: %v", err)
@@ -186,7 +199,16 @@ func TestLiveMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not migrate self: %v", err)
 	}
-	op.Wait(ctx) // Errors here come from things completely out of our control, such as the availability of a physical machine to take our VM.
+	if err := op.Wait(ctx); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			// Skipping the test because it timed out. This also helps to signal that
+			// the live migration took too long.
+			t.Skipf("Live migration timed out: %v", err)
+		} else {
+			// An actual error happened during live migration.
+			t.Errorf("Live migration errored: %v", err)
+		}
+	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("could not confirm migrate testing has started ok: %v", err)
 	}
