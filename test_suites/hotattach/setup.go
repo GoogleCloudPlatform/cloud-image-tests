@@ -35,6 +35,12 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if strings.Contains(t.Image.Name, "opensuse") {
+		// TODO(b/434563751): Re-enable hotattach test for opensuse images once the bug is fixed.
+		t.Skip("Skipping hotattach test for opensuse images because of b/434563751")
+		return nil
+	}
+
 	hotattachInst := &daisy.Instance{}
 	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 
