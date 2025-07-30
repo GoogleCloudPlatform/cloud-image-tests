@@ -44,7 +44,7 @@ func TestWaitForWinrmConnection(t *testing.T) {
 
 func TestWinrmConnection(t *testing.T) {
 	ctx := utils.Context(t)
-	target, err := utils.GetRealVMName("server")
+	target, err := utils.GetRealVMName(ctx, "server")
 	if err != nil {
 		t.Fatalf("could not get target name: %v", err)
 	}

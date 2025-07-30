@@ -71,7 +71,7 @@ func TestHostKeysAreUnique(t *testing.T) {
 		t.Skip("Skipping test for windows due to b/432559183")
 	}
 
-	vmname, err := utils.GetRealVMName("server")
+	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}

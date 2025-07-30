@@ -176,12 +176,12 @@ func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, back
 	if err != nil {
 		t.Fatalf("could not get project: %v", err)
 	}
-	backend1, err = utils.GetRealVMName(backend1)
+	backend1, err = utils.GetRealVMName(ctx, backend1)
 	if err != nil {
 		t.Fatalf("could not get backend1 name: %v", err)
 	}
 	backend1, _, _ = strings.Cut(backend1, ".")
-	backend2, err = utils.GetRealVMName(backend2)
+	backend2, err = utils.GetRealVMName(ctx, backend2)
 	if err != nil {
 		t.Fatalf("could not get backend2 name: %v", err)
 	}

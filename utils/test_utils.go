@@ -92,14 +92,14 @@ type BlockDevice struct {
 }
 
 // GetRealVMName returns the real name of a VM running in the same test.
-func GetRealVMName(name string) (string, error) {
-	hostname, err := os.Hostname()
+func GetRealVMName(ctx context.Context, name string) (string, error) {
+	instanceName, err := GetInstanceName(ctx)
 	if err != nil {
 		return "", err
 	}
-	parts := strings.SplitN(hostname, "-", 3)
+	parts := strings.SplitN(instanceName, "-", 3)
 	if len(parts) != 3 {
-		return "", errors.New("hostname doesn't match scheme")
+		return "", fmt.Errorf("instance name %q doesn't match scheme", instanceName)
 	}
 	return strings.Join([]string{name, parts[1], parts[2]}, "-"), nil
 }

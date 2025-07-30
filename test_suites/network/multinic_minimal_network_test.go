@@ -57,7 +57,7 @@ func TestSendPing(t *testing.T) {
 		t.Fatalf("couldn't get internal network IP from metadata, %v", err)
 	}
 
-	targetName, err := utils.GetRealVMName(vm2Config.name)
+	targetName, err := utils.GetRealVMName(ctx, vm2Config.name)
 	if err != nil {
 		t.Fatalf("failed to determine target vm name: %v", err)
 	}

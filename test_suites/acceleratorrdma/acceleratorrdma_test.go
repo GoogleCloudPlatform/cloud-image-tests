@@ -112,7 +112,7 @@ func TestGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(rdmaHostName)
+	target, err := utils.GetRealVMName(ctx, rdmaHostName)
 	if err != nil {
 		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", rdmaHostName, err)
 	}

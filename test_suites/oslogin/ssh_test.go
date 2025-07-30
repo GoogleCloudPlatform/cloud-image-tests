@@ -222,7 +222,7 @@ func TestSSH(t *testing.T) {
 	}
 
 	// Get important name resources.
-	hostname, err := utils.GetRealVMName("default")
+	hostname, err := utils.GetRealVMName(ctx, "default")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestAdminSSH(t *testing.T) {
 	}
 
 	// Get important name resources.
-	hostname, err := utils.GetRealVMName("default")
+	hostname, err := utils.GetRealVMName(ctx, "default")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
@@ -333,7 +333,7 @@ func Test2FASSH(t *testing.T) {
 	}
 
 	// Manually set up SSH.
-	vmname, err := utils.GetRealVMName("twofa")
+	vmname, err := utils.GetRealVMName(ctx, "twofa")
 	if err != nil {
 		t.Fatalf("failed to get hostname: %v", err)
 	}
@@ -434,7 +434,7 @@ func Test2FAAdminSSH(t *testing.T) {
 	}
 
 	// Manually set up SSH.
-	vmname, err := utils.GetRealVMName("twofa")
+	vmname, err := utils.GetRealVMName(ctx, "twofa")
 	if err != nil {
 		t.Fatalf("failed to get hostname: %v", err)
 	}

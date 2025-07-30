@@ -41,7 +41,7 @@ func TestSSHInstanceKey(t *testing.T) {
 	if utils.IsWindows() {
 		t.Skip("Skipping test for windows due to b/432559183")
 	}
-	vmname, err := utils.GetRealVMName("server")
+	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestSwitchDefaultConfig(t *testing.T) {
 }
 
 func TestDeleteLocalUser(t *testing.T) {
-	vmname, err := utils.GetRealVMName("server2")
+	vmname, err := utils.GetRealVMName(utils.Context(t), "server2")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
@@ -151,10 +151,11 @@ func TestDeleteUserDefault(t *testing.T) {
 	if utils.IsWindows() {
 		t.Skip("Skipping test for windows due to b/432559183")
 	}
-	vmname, err := utils.GetRealVMName("server")
+	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
+	t.Logf("vmname: %s", vmname)
 	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user2)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
