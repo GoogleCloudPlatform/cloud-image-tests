@@ -61,6 +61,8 @@ more information.
     	regexp filter for shapevalidation test cases, only cases with a matching family name will be run (default ".*")
     -storageperf_test_filter string
     	regexp filter for storageperf test cases, only cases with a matching name will be run (default ".*")
+    -networkinterfacenaming_metal_zone string
+        zone in which to create the C3 Metal instance for images supporting IDPF. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.
     -networkperf_test_filter string
     	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
     -nicsetup_vmtype string
