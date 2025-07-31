@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24 as builder
+FROM golang:1.21-alpine as builder
 
 WORKDIR /build
 COPY . .
@@ -23,7 +23,7 @@ ENV GO111MODULE on
 
 RUN ./local_build.sh -o /out
 
-FROM debian:latest
+FROM alpine:latest
 RUN apk add --no-cache openssh-keygen
 RUN apk update && apk upgrade
 COPY --from=builder /out/* /
