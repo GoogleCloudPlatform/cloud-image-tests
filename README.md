@@ -53,7 +53,9 @@ Testing components are built into a container image. The entrypoint is
     -validate
     	validate all the test workflows and exit
 
-The following flags are provided to the manager but interpreted by test suites when run, see the [the test\_suites documentation](test_suites/README.md) for more information.
+The following flags are provided to the manager but interpreted by test suites
+when run, see the [the test\_suites documentation](test_suites/README.md) for
+more information.
 
     -shapevalidation_test_filter string
     	regexp filter for shapevalidation test cases, only cases with a matching family name will be run (default ".*")
@@ -61,6 +63,8 @@ The following flags are provided to the manager but interpreted by test suites w
     	regexp filter for storageperf test cases, only cases with a matching name will be run (default ".*")
     -networkperf_test_filter string
     	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
+    -nicsetup_vmtype string
+        string indicating type of VMs to create for nicsetup test cases. Valid values are "both", "single", and "multi". (default "both")
 
 
 It can be invoked via docker as:
@@ -91,12 +95,14 @@ JUnit format XML will also be output.
 
 ## Writing tests ##
 
-Tests are organized into go packages in the test\_suites directory and are
+Tests are organized into go packages in the `test_suites` directory and are
 written in go. Each package must at a minimum contain a setup file (by
 convention named setup.go) and at least one test file (by convention named
-$packagename\_test.go). Due to golang style conventions, the package name cannot contain an underscore. Thus, for the test suite name to match the package name, the name of the test suite should not contain an
-underscore. For example, if a new test suite was created to test image licenses,
-it should be called imagelicensing, not image_licensing.
+`$packagename_test.go`). Due to golang style conventions, the package name
+cannot contain an underscore. Thus, for the test suite name to match the package
+name, the name of the test suite should not contain an underscore. For example,
+if a new test suite was created to test image licenses, it should be called
+`imagelicensing`, not `image_licensing`.
 
 The setup.go file describes the workflow to run including the VMs and other GCE
 resources to create, any necessary configuration for those resources, which
@@ -105,7 +111,7 @@ package based on inputs e.g. image, zone or compute endpoint or other
 conditions.
 
 Tests themselves are written in the test file(s) as go unit tests. Tests may use
-any of the test fixtures provided by the standard `testing` package.  These will
+any of the test fixtures provided by the standard `testing` package. These will
 be packaged into a binary and run on the test VMs created during setup using the
 Google Compute Engine startup script runner.
 
@@ -114,8 +120,9 @@ use separate functions within the same test where appropriate based on
 differences between OSes (ex. powershell vs bash commands). This makes the
 test definitions easier to read and maintain.
 
-For example, if the test TestSomeCondition() needs to run different commands to
-achieve similar results (and the test is located in the directory "mydefaulttest"):
+For example, if the test `TestSomeCondition()` needs to run different commands
+to achieve similar results (and the test is located in the directory
+`mydefaulttest`):
 
 ```go
 
@@ -146,12 +153,18 @@ Note that there are also functions available in the [test_utils.go](utils/test_u
 for some OS level abstractions such as running a Windows powershell command or
 checking if a Linux binary exists.
 
-It is suggested to start by copying an existing test package. Do not forget to add
-your test to the relevant `setup.go` file in order to add the test to the test suite.
+It is suggested to start by copying an existing test package. Do not forget to
+add your test to the relevant `setup.go` file in order to add the test to the
+test suite.
 
 ### Modifying test behavior based on image properties ###
 
-For tests that need to behave different based on whether an image is arm or x86, or linux or windows, it is preferred to use compute API properties rather than relying on image naming conventions. These properties can be found on the testworkflow Image value. The list of values can be found in the compute API documentation [here](https://pkg.go.dev/google.golang.org/api/compute/v1#Image). Some examples are in the following code snippet.
+For tests that need to behave different based on whether an image is arm or x86,
+or linux or windows, it is preferred to use compute API properties rather than
+relying on image naming conventions. These properties can be found on the
+testworkflow Image value. The list of values can be found in the Compute API
+documentation [here](https://pkg.go.dev/google.golang.org/api/compute/v1#Image).
+Some examples are in the following code snippet.
 
 ```go
 func Setup(t *imagetest.Testworkflow) {
@@ -165,8 +178,11 @@ func Setup(t *imagetest.Testworkflow) {
 
 ### Testing features in compute beta API ###
 
-Tests that need to run against features in the beta API can do so by creating TestVMs using `CreateTestVMBeta` or `CreateTestVMFromInstanceBeta` to use the beta instance API. However, due to limitation with daisy's create instances step, if one instance in a TestWorkflow uses the beta API all instances in that workflow must use the beta API.
-
+Tests that need to run against features in the beta API can do so by creating
+TestVMs using `CreateTestVMBeta` or `CreateTestVMFromInstanceBeta` to use the
+beta instance API. However, due to limitation with daisy's create instances
+step, if one instance in a TestWorkflow uses the beta API all instances in that
+workflow must use the beta API.
 
 ## Building the container image ##
 

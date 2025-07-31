@@ -794,14 +794,31 @@ func (t *TestVM) UseGVNIC() {
 // network, subnetwork and stack type. If subnetwork is empty, not using
 // subnetwork, in this case network has to be in auto mode VPC.
 //
-// The stack type must be supported by the subnetwork.
-func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Subnetwork, stackType string) error {
+// The stack type must be supported by the subnetwork. ipv6AccessType is required
+// for IPv6-only subnetworks. If not specified, it defaults to "EXTERNAL" for
+// IPv6 stack types.
+func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Subnetwork, stackType string, ipv6AccessType string) error {
+	// Verify the stack type.
 	if stackType == "" {
 		return fmt.Errorf("stack type is required")
 	}
 	if stackType != "IPV4_ONLY" && stackType != "IPV4_IPV6" && stackType != "IPV6_ONLY" {
 		return fmt.Errorf("stack type %s is not supported", stackType)
 	}
+
+	// Default to EXTERNAL if not specified, and stack type is IPv6.
+	if strings.Contains(stackType, "IPV6") && ipv6AccessType == "" {
+		ipv6AccessType = "EXTERNAL"
+	} else if !strings.Contains(stackType, "IPV6") {
+		// Clear the stack type if it's not IPv6.
+		ipv6AccessType = ""
+	}
+	// Verify the IPv6 access type.
+	if ipv6AccessType != "" && ipv6AccessType != "INTERNAL" && ipv6AccessType != "EXTERNAL" {
+		return fmt.Errorf("ipv6 access type %q is not supported", ipv6AccessType)
+	}
+
+	// Parse the Subnetwork name.
 	var subnetworkName string
 	if subnetwork == nil {
 		subnetworkName = ""
@@ -815,9 +832,10 @@ func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Sub
 	if t.instance != nil {
 		// Add network config.
 		networkInterface := compute.NetworkInterface{
-			Network:    network.name,
-			Subnetwork: subnetworkName,
-			StackType:  stackType,
+			Network:        network.name,
+			Subnetwork:     subnetworkName,
+			StackType:      stackType,
+			Ipv6AccessType: ipv6AccessType,
 		}
 		if t.instance.NetworkInterfaces == nil {
 			t.instance.NetworkInterfaces = []*compute.NetworkInterface{&networkInterface}
@@ -827,9 +845,10 @@ func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Sub
 	} else if t.instancebeta != nil {
 		// Add network config.
 		networkInterface := computeBeta.NetworkInterface{
-			Network:    network.name,
-			Subnetwork: subnetworkName,
-			StackType:  stackType,
+			Network:        network.name,
+			Subnetwork:     subnetworkName,
+			StackType:      stackType,
+			Ipv6AccessType: ipv6AccessType,
 		}
 		if t.instancebeta.NetworkInterfaces == nil {
 			t.instancebeta.NetworkInterfaces = []*computeBeta.NetworkInterface{&networkInterface}
@@ -845,7 +864,7 @@ func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Sub
 // subnetwork. If subnetwork is empty, not using subnetwork, in this case
 // network has to be in auto mode VPC. This uses IPV4_ONLY as the stack type.
 func (t *TestVM) AddCustomNetwork(network *Network, subnetwork *Subnetwork) error {
-	return t.AddCustomNetworkWithStackType(network, subnetwork, "IPV4_ONLY")
+	return t.AddCustomNetworkWithStackType(network, subnetwork, "IPV4_ONLY", "")
 }
 
 // AddAliasIPRanges add alias ip range to current test VMs.

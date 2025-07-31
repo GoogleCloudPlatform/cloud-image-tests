@@ -8,7 +8,8 @@ require (
 	cloud.google.com/go/oslogin v1.13.1
 	cloud.google.com/go/secretmanager v1.11.5
 	cloud.google.com/go/storage v1.39.1
-	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250723205259-e13e9bc51d0e
+	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250730030519-56c4754109a5
+	github.com/go-ini/ini v1.67.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-sev-guest v0.13.0
 	github.com/google/go-tdx-guest v0.3.1
@@ -20,6 +21,7 @@ require (
 	google.golang.org/api v0.213.0
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9
 	google.golang.org/protobuf v1.35.2
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
