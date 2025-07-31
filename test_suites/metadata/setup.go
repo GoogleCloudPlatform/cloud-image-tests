@@ -171,8 +171,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		vm8.SetStartupScript(daemonScript)
 	}
 
+	tests := "TestTokenFetch|TestGetMetaDataUsingIP"
+	if !t.IsComputeStaging() {
+		// Skip TestMetaDataResponseHeaders in staging until MDS issue is resolved.
+		// These additional headers are not seen in prod.
+		// TODO(b/431975346): Re-enable test once MDS issue is resolved.
+		tests = tests + "|TestMetaDataResponseHeaders"
+	}
 	// Run the tests after setup is complete.
-	vm.RunTests("TestTokenFetch|TestMetaDataResponseHeaders|TestGetMetaDataUsingIP")
+	vm.RunTests(tests)
 	vm2.RunTests("TestShutdownScripts")
 	vm3.RunTests("TestShutdownScriptsFailed")
 	vm4.RunTests("TestShutdownURLScripts")

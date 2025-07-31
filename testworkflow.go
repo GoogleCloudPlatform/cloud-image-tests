@@ -1220,10 +1220,15 @@ func (t *TestWorkflow) getLastStepForVM(vmname string) (*daisy.Step, error) {
 }
 
 func (t *TestWorkflow) skipWindowsStagingKMS(isWindows bool, instance *daisy.Instance) {
-	if isWindows && t.wf.ComputeEndpoint == "https://www.googleapis.com/compute/staging_v1/" {
+	if isWindows && t.IsComputeStaging() {
 		if instance.Metadata == nil {
 			instance.Metadata = make(map[string]string)
 		}
 		instance.Metadata["sysprep-specialize-script-ps1"] = `New-Item -Path "C:\Program Files\Google\Compute Engine\sysprep\byol_image" -ItemType directory`
 	}
+}
+
+// IsComputeStaging returns true if the compute endpoint is staging.
+func (t *TestWorkflow) IsComputeStaging() bool {
+	return t.wf.ComputeEndpoint == "https://www.googleapis.com/compute/staging_v1/"
 }
