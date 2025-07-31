@@ -36,14 +36,14 @@ var (
 	// vmtype is the VM type to use for the test. Options are 'multi', 'single', and 'both'.
 	// Default is 'both'. 'single' will create only single NIC VMs. 'multi' will
 	// create only multi NIC VMs. 'both' will create both single and multi NIC VMs.
-	vmtype = flag.String("nicsetup_vmtype", "both", "The VM type to use for the test. Options are 'multi', 'single', or 'both'. Default is 'both'.")
+	vmtype = flag.String("nicsetup_vmtype", "both", "The VM type to use for the test. Options are 'multi', 'single', or 'both'. 'multi' will create only multi-NIC VMs. 'single' will only create single-NIC VMs. 'both' will create both.")
 
 	// possibleVMTypes is the list of possible VM types for the test.
 	possibleVMTypes = []string{"multi", "single", "both"}
 )
 
 const (
-	pingVMIPv4 = "10.0.1.128"
+	pingVMIPv4 = "10.0.0.128"
 )
 
 // TestSetup sets up the test workflow.
@@ -52,6 +52,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
+	// Verify the VM type for the test.
 	if !slices.Contains(possibleVMTypes, *vmtype) {
 		return fmt.Errorf("invalid vmtype: %s\nMust be one of: %v", *vmtype, possibleVMTypes)
 	}
@@ -61,25 +62,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	ipv4Subnetwork1, err := network1.CreateSubnetwork("ipv4", "10.128.0.0/24")
-	if err != nil {
-		return err
-	}
-	dualstackSubnetwork1, err := network1.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
+	subnetwork1, err := network1.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
 		Subnetwork: compute.Subnetwork{
 			Name:           "dual",
-			IpCidrRange:    "10.128.1.0/24",
+			IpCidrRange:    "10.128.0.0/24",
 			StackType:      "IPV4_IPV6",
-			Ipv6AccessType: "EXTERNAL",
-		},
-	})
-	if err != nil {
-		return err
-	}
-	ipv6Subnetwork1, err := network1.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
-		Subnetwork: compute.Subnetwork{
-			Name:           "ipv6",
-			StackType:      "IPV6_ONLY",
 			Ipv6AccessType: "EXTERNAL",
 		},
 	})
@@ -109,9 +96,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 
 		// Add networks to VMs.
-		ipv4VM1.AddCustomNetworkWithStackType(network1, ipv4Subnetwork1, "IPV4_ONLY", "")
-		dualstackVM1.AddCustomNetworkWithStackType(network1, dualstackSubnetwork1, "IPV4_IPV6", "")
-		ipv6VM1.AddCustomNetworkWithStackType(network1, ipv6Subnetwork1, "IPV6_ONLY", "EXTERNAL")
+		ipv4VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+		dualstackVM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+		ipv6VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
 
 		allSingleVMs := []*imagetest.TestVM{ipv4VM1, dualstackVM1, ipv6VM1}
 		for _, vm := range allSingleVMs {
@@ -136,14 +123,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		ipv4Subnetwork2, err := network2.CreateSubnetwork("ipv4-2", "10.0.0.0/24")
-		if err != nil {
-			return err
-		}
-		dualstackSubnetwork2, err := network2.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
+		subnetwork2, err := network2.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
 			Subnetwork: compute.Subnetwork{
 				Name:           "dual-2",
-				IpCidrRange:    "10.0.1.0/24",
+				IpCidrRange:    "10.0.0.0/24",
 				StackType:      "IPV4_IPV6",
 				Ipv6AccessType: "INTERNAL",
 			},
@@ -151,16 +134,24 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		ipv6Subnetwork2, err := network2.CreateSubnetworkFromDaisySubnetwork(&daisy.Subnetwork{
-			Subnetwork: compute.Subnetwork{
-				Name:           "ipv6-2",
-				StackType:      "IPV6_ONLY",
-				Ipv6AccessType: "INTERNAL",
-			},
-		})
+
+		// Add firewall rules allowing TCP traffic.
+		if err := network2.CreateFirewallRule("allow-connection-ipv4", "tcp", nil, []string{"0.0.0.0/0"}); err != nil {
+			return err
+		}
+		if err := network2.CreateFirewallRule("allow-connection-ipv6", "tcp", nil, []string{"0::0/0"}); err != nil {
+			return err
+		}
+
+		// Create the ping VMs. There's one for each subnetwork.
+		pingVM, err := t.CreateTestVM("ping")
 		if err != nil {
 			return err
 		}
+		pingVM.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+		pingVM.SetPrivateIP(network2, pingVMIPv4)
+		pingVM.AddScope("https://www.googleapis.com/auth/compute") // Compute scope is needed for setting metadata.
+		pingVM.RunTests("TestEmpty")
 
 		// Create the VMs.
 		ipv4ipv4, err := t.CreateTestVM("ipv4ipv4")
@@ -200,38 +191,39 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 
-		// Add networks to VMs.
-		ipv4ipv4.AddCustomNetworkWithStackType(network1, ipv4Subnetwork1, "IPV4_ONLY", "")
-		ipv4ipv4.AddCustomNetworkWithStackType(network2, ipv4Subnetwork2, "IPV4_ONLY", "")
+		// Add networks to VMs. Primary NIC must be EXTERNAL IPv6 for tests to work.
+		ipv4ipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+		ipv4ipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
 
-		ipv4dual.AddCustomNetworkWithStackType(network1, ipv4Subnetwork1, "IPV4_ONLY", "")
-		ipv4dual.AddCustomNetworkWithStackType(network2, dualstackSubnetwork2, "IPV4_IPV6", "INTERNAL")
+		ipv4dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+		ipv4dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		ipv4ipv6.AddCustomNetworkWithStackType(network1, ipv4Subnetwork1, "IPV4_ONLY", "")
-		ipv4ipv6.AddCustomNetworkWithStackType(network2, ipv6Subnetwork2, "IPV6_ONLY", "INTERNAL")
+		ipv4ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+		ipv4ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
 
-		dualipv4.AddCustomNetworkWithStackType(network1, dualstackSubnetwork1, "IPV4_IPV6", "")
-		dualipv4.AddCustomNetworkWithStackType(network2, ipv4Subnetwork2, "IPV4_ONLY", "INTERNAL")
+		dualipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+		dualipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "INTERNAL")
 
-		dualdual.AddCustomNetworkWithStackType(network1, dualstackSubnetwork1, "IPV4_IPV6", "")
-		dualdual.AddCustomNetworkWithStackType(network2, dualstackSubnetwork2, "IPV4_IPV6", "INTERNAL")
+		dualdual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+		dualdual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		dualipv6.AddCustomNetworkWithStackType(network1, dualstackSubnetwork1, "IPV4_IPV6", "")
-		dualipv6.AddCustomNetworkWithStackType(network2, ipv6Subnetwork2, "IPV6_ONLY", "INTERNAL")
+		dualipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+		dualipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
 
-		ipv6ipv4.AddCustomNetworkWithStackType(network1, ipv6Subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6ipv4.AddCustomNetworkWithStackType(network2, ipv4Subnetwork2, "IPV4_ONLY", "")
+		ipv6ipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+		ipv6ipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
 
-		ipv6dual.AddCustomNetworkWithStackType(network1, ipv6Subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6dual.AddCustomNetworkWithStackType(network2, dualstackSubnetwork2, "IPV4_IPV6", "INTERNAL")
+		ipv6dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+		ipv6dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		ipv6ipv6.AddCustomNetworkWithStackType(network1, ipv6Subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6ipv6.AddCustomNetworkWithStackType(network2, ipv6Subnetwork2, "IPV6_ONLY", "INTERNAL")
+		ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+		ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
 
 		allMultiVMs = append(allMultiVMs, ipv4ipv4, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual, ipv6ipv6)
 		allVMs = append(allVMs, allMultiVMs...)
 		for _, vm := range allMultiVMs {
 			vm.AddMetadata("network-interfaces-count", "2")
+			vm.AddScope("https://www.googleapis.com/auth/compute.readonly") // Readonly scope is needed for reading metadata.
 		}
 	}
 
