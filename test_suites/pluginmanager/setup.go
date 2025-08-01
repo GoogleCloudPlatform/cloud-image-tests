@@ -35,5 +35,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	pluginStopVM.RunTests("TestCorePluginStop")
+	disableACSVM, err := t.CreateTestVM("acsdisabled")
+	if err != nil {
+		return err
+	}
+	disableACSVM.RunTests("TestACSDisabled")
 	return nil
 }
