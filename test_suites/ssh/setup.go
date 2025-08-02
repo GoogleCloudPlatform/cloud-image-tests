@@ -27,6 +27,8 @@ var Name = "ssh"
 const (
 	user  = "test-user"
 	user2 = "test-user2"
+	user3 = "test-user3"
+	user4 = "test-user4"
 )
 
 // TestSetup sets up the test workflow.
@@ -37,6 +39,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	publicKey2, err := t.AddSSHKey(user2)
+	if err != nil {
+		return err
+	}
+	publicKey3, err := t.AddSSHKey(user3)
+	if err != nil {
+		return err
+	}
+	// This public key is passed down to the server instance through metadata,
+	// this key is then used to change the user's key in the TestSSHChangeKey.
+	publicKey4, err := t.AddSSHKey(user4)
 	if err != nil {
 		return err
 	}
@@ -58,9 +70,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 		vm4.AddUser(user, publicKey)
 		vm4.AddUser(user2, publicKey2)
+		vm4.AddUser(user3, publicKey3)
+
+		vm4.AddMetadata("target-public-key", publicKey4)
+
+		vm4.AddScope("https://www.googleapis.com/auth/cloud-platform")
 		vm4.AddMetadata("enable-guest-attributes", "true")
 		vm4.AddMetadata("enable-oslogin", "false")
-		vm4.RunTests("TestSwitchDefaultConfig")
+		vm4.RunTests("TestSSHChangeKey|TestSwitchDefaultConfig")
 		runTests += "|TestDeleteLocalUser"
 	}
 	vm.RunTests(runTests)
@@ -71,6 +88,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	vm2.AddUser(user, publicKey)
 	vm2.AddUser(user2, publicKey2)
+
 	vm2.AddMetadata("enable-guest-attributes", "true")
 	vm2.AddMetadata("enable-oslogin", "false")
 	vm2.AddMetadata("enable-windows-ssh", "true")
