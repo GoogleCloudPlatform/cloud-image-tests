@@ -16,14 +16,25 @@
 package networkinterfacenaming
 
 import (
+	"flag"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "networkinterfacenaming"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name = "networkinterfacenaming"
+
+	// nicnamingMetalZone is the zone where the metal instance is created.
+	// By default, it is set to us-central1-a. The zone must be a zone in which
+	// the c3-metal machine type is available.
+	//
+	// Refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions for the list of zones.
+	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "us-central1-a", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -76,10 +87,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if t.Image.Architecture == "X86_64" && utils.HasFeature(t.Image, "IDPF") {
 		c3metal := &daisy.Instance{}
 		c3metal.MachineType = "c3-standard-192-metal"
-		c3metal.Zone = "us-central1-a"
+		c3metal.Zone = *nicnamingMetalZone
 		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
 		c3MetalDiskType := imagetest.DiskTypeNeeded(c3metal.MachineType)
-		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: "us-central1-a"}}, c3metal)
+		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: *nicnamingMetalZone}}, c3metal)
 		if err != nil {
 			return err
 		}
