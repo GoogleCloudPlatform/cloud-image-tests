@@ -24,8 +24,6 @@ cloud.google.com/go/secretmanager v1.11.5/go.mod h1:eAGv+DaCHkeVyQi0BeXgAHOU0Rdr
 cloud.google.com/go/storage v1.39.1 h1:MvraqHKhogCOTXTlct/9C3K3+Uy2jBmFYb3/Sp6dVtY=
 cloud.google.com/go/storage v1.39.1/go.mod h1:xK6xZmxZmo+fyP7+DEF6FhNc24/JAe95OLyOHCXFH1o=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250723205259-e13e9bc51d0e h1:U1+RQ1kjJVCmOVOy5AV5bmSCXnpNwIifgUrNHMkwMdw=
-github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250723205259-e13e9bc51d0e/go.mod h1:mnW3z4PWKlgD8pPAaMCFHp8ikG2k0DgOLVVAm9yhzUk=
 github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250730030519-56c4754109a5 h1:ABFcUiAcIkmbrcJtirU9fMMBCrKsT45uI6g5LLT56Q8=
 github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20250730030519-56c4754109a5/go.mod h1:mnW3z4PWKlgD8pPAaMCFHp8ikG2k0DgOLVVAm9yhzUk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

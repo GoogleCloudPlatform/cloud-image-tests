@@ -17,13 +17,17 @@ package pluginmanager
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"google.golang.org/grpc"
 )
 
 // Plugin struct represents the bare minimum plugin information required to
@@ -266,3 +270,145 @@ func TestCorePluginStop(t *testing.T) {
 		utils.ProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
+
+func disableACS(t *testing.T) {
+	t.Helper()
+	conf := `
+[Core]
+acs_client = false
+`
+	file := "/etc/default/instance_configs.cfg"
+	if utils.IsWindows() {
+		file = `C:\Program Files\Google\Compute Engine\instance_configs.cfg`
+	}
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		t.Fatalf("Failed to open instance_configs.cfg: %v", err)
+	}
+	if _, err := f.WriteString(conf); err != nil {
+		t.Fatalf("Failed to write to instance_configs.cfg: %v", err)
+	}
+	f.Close()
+}
+
+func stopAgentManager(t *testing.T) {
+	t.Helper()
+	if utils.IsWindows() {
+		out, err := utils.RunPowershellCmd(`Stop-Service -Name GCEAgentManager -Verbose`)
+		if err != nil {
+			t.Fatalf("Failed to restart GCEAgentManager service: %v, \noutput: \n%+v", err, out)
+		}
+		return
+	}
+	cmd := exec.Command("systemctl", "stop", "google-guest-agent-manager")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to restart google-guest-agent-manager: %v, \noutput: \n%s", err, string(out))
+	}
+}
+
+func startAgentManager(t *testing.T) {
+	t.Helper()
+	if utils.IsWindows() {
+		out, err := utils.RunPowershellCmd(`Start-Service -Name GCEAgentManager -Verbose`)
+		if err != nil {
+			t.Fatalf("Failed to start GCEAgentManager service: %v, \noutput: \n%+v", err, out)
+		}
+		return
+	}
+	cmd := exec.Command("systemctl", "start", "google-guest-agent-manager")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to start google-guest-agent-manager: %v, \noutput: \n%s", err, string(out))
+	}
+}
+
+func configureTestACS(t *testing.T, socketPath string) {
+	t.Helper()
+
+	conf := `
+[ACS]
+host = %s
+`
+	file := "/etc/default/instance_configs.cfg"
+	if utils.IsWindows() {
+		file = `C:\Program Files\Google\Compute Engine\instance_configs.cfg`
+	}
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		t.Fatalf("Failed to open instance_configs.cfg: %v", err)
+	}
+	if _, err := f.WriteString(fmt.Sprintf(conf, socketPath)); err != nil {
+		t.Fatalf("Failed to write to instance_configs.cfg: %v", err)
+	}
+	f.Close()
+}
+
+func TestACSDisabled(t *testing.T) {
+	// Skip if ggactl_plugin is not available to avoid running on images where
+	// the new agent is not yet installed.
+	ggactlCleanupPath(t)
+
+	stopAgentManager(t)
+	utils.EnableAgentDebugLogging(t)
+	server, socketPath := startTestServer(t)
+	configureTestACS(t, socketPath)
+	startAgentManager(t)
+	// Wait for some activity on the ACS server.
+	time.Sleep(time.Second * 60)
+	server.Stop()
+	if requestCount <= 0 {
+		t.Errorf("Request count on ACS server: %d, want > 0 when ACS is enabled", requestCount)
+	}
+
+	// Reset the request count and disable ACS.
+	requestCount = 0
+	stopAgentManager(t)
+	disableACS(t)
+	server, socketPath = startTestServer(t)
+	configureTestACS(t, socketPath)
+	startAgentManager(t)
+	// Wait for some activity on the ACS server.
+	time.Sleep(time.Second * 60)
+	server.Stop()
+	if requestCount > 0 {
+		t.Errorf("Request count on ACS server: %d, want 0 after ACS is disabled", requestCount)
+	}
+
+	// Core plugin should be running regardless of ACS being enabled or disabled.
+	if utils.IsWindows() {
+		utils.ProcessExistsWindows(t, true, "CorePlugin")
+	} else {
+		utils.ProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
+	}
+}
+
+func startTestServer(t *testing.T) (*grpc.Server, string) {
+	t.Helper()
+
+	socketPath := filepath.Join(t.TempDir(), "test.sock")
+	lis, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Skipf("Failed to listen on socket: %v, skipping the test as UDS is unavailable", err)
+	}
+
+	s := grpc.NewServer(grpc.UnknownServiceHandler(fakeServiceHandler))
+
+	go func() {
+		t.Logf("Serving gRPC server on UDS socket: %s", socketPath)
+		if err := s.Serve(lis); err != nil {
+			t.Logf("Failed to serve gRPC server: %v", err)
+		}
+		t.Logf("gRPC server stopped")
+	}()
+	return s, socketPath
+}
+
+func fakeServiceHandler(srv any, stream grpc.ServerStream) error {
+	atomic.AddInt64(&requestCount, 1)
+	return nil
+}
+
+// Request counter keeps track of the number of requests received by the fake
+// gRPC server.
+var requestCount int64
