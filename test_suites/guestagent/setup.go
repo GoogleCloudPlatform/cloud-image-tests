@@ -64,7 +64,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		windowsaccountVM.RunTests("TestWindowsPasswordReset")
+		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
+		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
+		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
 	}
+
 	return nil
 }

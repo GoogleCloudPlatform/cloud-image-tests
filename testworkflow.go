@@ -741,7 +741,7 @@ type testResult struct {
 }
 
 func getTestResults(ctx context.Context, ts *TestWorkflow) ([]string, error) {
-	results := []string{}
+	var results []string
 	createVMsStep, ok := ts.wf.Steps[createVMsStepName]
 	if ok {
 		for _, vm := range createVMsStep.CreateInstances.Instances {
@@ -1196,7 +1196,7 @@ func getTestsBySuiteName(name, localPath string) []string {
 func (t *TestWorkflow) getLastStepForVM(vmname string) (*daisy.Step, error) {
 	step := "wait-" + vmname
 	if _, ok := t.wf.Steps[step]; !ok {
-		return nil, fmt.Errorf("no step " + step)
+		return nil, fmt.Errorf("no step %s", step)
 	}
 	rdeps := make(map[string][]string)
 	for dependent, dependencies := range t.wf.Dependencies {
