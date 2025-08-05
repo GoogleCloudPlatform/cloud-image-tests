@@ -18,15 +18,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-)
-
-const (
-	expectedStartupContent = "startup_success"
 )
 
 // TestStartupScriptFailedLinux tests that a script failed execute doesn't crash the vm.
@@ -86,35 +81,11 @@ func testDaemonScriptWindows() error {
 // the script does not run after a reinstall/upgrade of guest agent.
 func TestStartupScripts(t *testing.T) {
 	ctx := utils.Context(t)
-	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read startup script result key: %v", err)
-	}
-	if result != expectedStartupContent {
-		t.Fatalf(`startup script output expected "%s", got "%s".`, expectedStartupContent, result)
-	}
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Fatalf("could not determine image: %v", err)
-	} else if strings.Contains(image, "sles") || strings.Contains(image, "suse") {
-		t.Skipf("image %s has known issues with metadata scripts on reinstall", image)
-	} else if strings.Contains(image, "cos") {
-		return
-	}
-	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", "result"), "")
-	if err != nil {
-		t.Fatalf("failed to clear startup script result: %s", err)
-	}
+	testScripts(t, "startup", true)
 
 	reinstallGuestAgent(ctx, t)
 
-	result, err = utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read startup script result key: %v", err)
-	}
-	if result == expectedStartupContent {
-		t.Errorf("startup script reexected after a reinstall of guest agent")
-	}
+	testScripts(t, "startup", false)
 }
 
 // Determine if the OS is Windows or Linux and run the appropriate failure test.

@@ -16,15 +16,12 @@ package metadata
 
 import (
 	"fmt"
-	"path"
-	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 const (
-	expectedShutdownContent = "shutdown_success"
 	// The designed shutdown limit is 90s. Let's verify it's executed no less than 80s.
 	shutdownTime = 80
 )
@@ -54,35 +51,11 @@ func testShutdownScriptFailedWindows(t *testing.T) error {
 // shutdown scripts don't run on reinstall or upgrade of the guest-agent.
 func TestShutdownScripts(t *testing.T) {
 	ctx := utils.Context(t)
-	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read shutdown script result key: %v", err)
-	}
-	if result != expectedShutdownContent {
-		t.Errorf(`shutdown script output expected "%s", got "%s".`, expectedShutdownContent, result)
-	}
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Fatalf("could not determine image: %v", err)
-	} else if strings.Contains(image, "sles") || strings.Contains(image, "suse") {
-		t.Skipf("image %s has known issues with metadata scripts on reinstall", image)
-	} else if strings.Contains(image, "cos") {
-		return
-	}
-	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", "result"), "")
-	if err != nil {
-		t.Fatalf("failed to clear shutdown script result: %s", err)
-	}
+	testScripts(t, "shutdown", true)
 
 	reinstallGuestAgent(ctx, t)
 
-	result, err = utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read shutdown script result key: %v", err)
-	}
-	if result == expectedShutdownContent {
-		t.Errorf("shutdown script executed after a reinstall of guest agent")
-	}
+	testScripts(t, "shutdown", false)
 }
 
 // Determine if the OS is Windows or Linux and run the appropriate failure test.
@@ -95,16 +68,5 @@ func TestShutdownScriptsFailed(t *testing.T) {
 		if err := testShutdownScriptFailedLinux(t); err != nil {
 			t.Fatalf("Shutdown script failure test failed with error: %v", err)
 		}
-	}
-}
-
-// Determine if the OS is Windows or Linux and run the appropriate daemon test.
-func TestShutdownURLScripts(t *testing.T) {
-	result, err := utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", "result")
-	if err != nil {
-		t.Fatalf("failed to read shutdown script result key: %v", err)
-	}
-	if result != expectedShutdownContent {
-		t.Fatalf(`shutdown script output expected "%s", got "%s".`, expectedShutdownContent, result)
 	}
 }
