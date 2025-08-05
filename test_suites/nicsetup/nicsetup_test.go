@@ -80,6 +80,9 @@ func TestPrimaryNIC(t *testing.T) {
 	// Check the configurations for the primary NIC exist.
 	managers.VerifyNIC(t, nic, true)
 
+	// Check that the primary NIC has the proper connection.
+	verifyConnection(t, nic)
+
 	// Disable primary NIC configuration.
 	enablePrimaryNIC(t, false)
 	t.Logf("Disabled primary NIC configuration")
@@ -98,4 +101,13 @@ func TestSecondaryNIC(t *testing.T) {
 
 	// Check the configurations for the secondary NIC exist.
 	managers.VerifyNIC(t, nic, true)
+
+	// Check that the secondary NIC has the proper connection.
+	verifyConnection(t, nic)
+}
+
+// TestEmpty is a no-op test that sets up the ping VM and sets the IPv6 address
+// in metadata.
+func TestEmpty(t *testing.T) {
+	testEmpty(t)
 }

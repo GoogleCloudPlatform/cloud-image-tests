@@ -1100,7 +1100,9 @@ func (t *TestWorkflow) AddSSHKey(user string) (string, error) {
 	return string(publicKey), nil
 }
 
-// CreateFirewallRule create firewall rule.
+// CreateFirewallRule create firewall rule. The firewall rule is created in the
+// given network as an ALLOW rule for the given protocol and ports. The ranges
+// are the source ranges from which the traffic is allowed.
 func (n *Network) CreateFirewallRule(firewallName, protocol string, ports, ranges []string) error {
 	createFirewallStep, _, err := n.testWorkflow.appendCreateFirewallStep(firewallName, n.name, protocol, ports, ranges)
 	if err != nil {
