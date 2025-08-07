@@ -197,6 +197,12 @@ func TestPackagesSigned(t *testing.T) {
 	}
 	execList := getExecutableList(image)
 	for _, exec := range execList {
+		if !utils.Exists(exec, utils.TypeFile) {
+			// Some executables may not be present based on guest-agent package
+			// version.
+			t.Logf("Skipping %q as it does not exist", exec)
+			continue
+		}
 		command := fmt.Sprintf("(Get-AuthenticodeSignature '%s').Status", exec)
 		output, err := utils.RunPowershellCmd(command)
 		if err != nil {
