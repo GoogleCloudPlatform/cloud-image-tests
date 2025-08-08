@@ -149,8 +149,11 @@ func TestCompatManager(t *testing.T) {
 	skipIfNoCompatManager(t)
 	utils.EnableAgentDebugLogging(t)
 
+	// It could be rollforward package or old agent package.
 	if utils.IsCoreDisabled() {
-		checkCompatManagerIsDisabled(t)
+		if !utils.IfOldAgentInstalled() {
+			checkCompatManagerIsDisabled(t)
+		}
 		t.Logf("Core plugin is disabled, skipping remaining compat manager tests.")
 		return
 	}

@@ -767,6 +767,17 @@ func UpsertMetadata(ctx context.Context, key, value string) error {
 	return nil
 }
 
+// IfOldAgentInstalled returns true if the old agent is installed.
+func IfOldAgentInstalled() bool {
+	var oldggactl string
+	if IsWindows() {
+		oldggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin_cleanup.exe`
+	} else {
+		oldggactl = "/usr/bin/ggactl_plugin_cleanup"
+	}
+	return Exists(oldggactl, TypeFile)
+}
+
 // IsCoreDisabled returns true if the core plugin is disabled by the config file.
 func IsCoreDisabled() bool {
 	var file string
@@ -777,8 +788,8 @@ func IsCoreDisabled() bool {
 	}
 	content, err := os.ReadFile(file)
 	if err != nil {
-		// Default to false as per phase3 release.
-		return false
+		// This file was present only when core plugin was disabled.
+		return IfOldAgentInstalled()
 	}
 	return strings.Contains(string(content), "enabled=false")
 }

@@ -39,13 +39,23 @@ func getProcessLists(corePluginEnabled bool) (wantProcesses, dontWantProcess []s
 		if corePluginEnabled {
 			return []string{"GCECompatMetadataScripts", "GCEMetadataScriptRunner"}, []string{"GCEMetadataScripts"}
 		}
+
+		// Core plugin is disabled if old agent is installed or rollforward package is installed.
+
+		if utils.IfOldAgentInstalled() {
+			return []string{"GCEMetadataScripts", "GCECompatMetadataScripts"}, []string{"GCEMetadataScriptRunner"}
+		}
 		return []string{"GCEMetadataScripts"}, []string{"GCECompatMetadataScripts", "GCEMetadataScriptRunner"}
 	}
 
 	if corePluginEnabled {
 		return []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/gce_metadata_script_runner"}, []string{"/usr/bin/google_metadata_script_runner"}
 	}
-	return []string{"/usr/bin/google_metadata_script_runner"}, []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/gce_metadata_script_runner"}
+
+	if utils.IfOldAgentInstalled() {
+		return []string{"/usr/bin/gce_compat_metadata_script_runner", "/usr/bin/google_metadata_script_runner"}, []string{"/usr/bin/gce_metadata_script_runner"}
+	}
+	return []string{"/usr/bin/google_metadata_script_runner"}, []string{"/usr/bin/gce_metadata_script_runner", "/usr/bin/gce_compat_metadata_script_runner"}
 }
 
 func processExists(t *testing.T, shouldExist bool, processName string) {
