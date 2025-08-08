@@ -8,6 +8,7 @@ for testing GCE Images.
 Testing components are built into a container image. The entrypoint is
 `/manager`, which supports the following options:
 
+```
     Usage:
     -machine_type string
     	sets default machine_type for test runs, regardless of architecture
@@ -21,7 +22,7 @@ Testing components are built into a container image. The entrypoint is
     -project string
     	project to use for test runner
     -test_projects string
-    	comma separated list of projects to be used for tests. defaults to the test runner project
+    	comma separated list of projects to be used for tests. Defaults to the test runner project
     -compute_endpoint_override string
     	use a different endpoint for compute client libraries
      -exclude string
@@ -33,7 +34,10 @@ Testing components are built into a container image. The entrypoint is
     -gcs_path string
     	GCS Path for Daisy working directory
     -images string
-    	comma separated list of images to test
+    	comma separated list of images to test. These can be fully qualified
+        image URLs (like "projects/my-project/global/images/my-image" or
+        "projects/my-project/global/images/family/my-family") or just the name
+        of the family if the family is a standard image (like "debian-12")
     -local_path string
     	path where test binaries are stored
     -out_path string
@@ -52,11 +56,13 @@ Testing components are built into a container image. The entrypoint is
     	instead of running, print out the parsed test workflows and exit
     -validate
     	validate all the test workflows and exit
+```
 
 The following flags are provided to the manager but interpreted by test suites
-when run, see the [the test\_suites documentation](test_suites/README.md) for
+when run, see the [the `test_suites` documentation](test_suites/README.md) for
 more information.
 
+```
     -shapevalidation_test_filter string
     	regexp filter for shapevalidation test cases, only cases with a matching family name will be run (default ".*")
     -storageperf_test_filter string
@@ -66,31 +72,37 @@ more information.
     -networkperf_test_filter string
     	regexp filter for networkperf test cases, only cases with a matching name will be run (default ".*")
     -nicsetup_vmtype string
-        string indicating type of VMs to create for nicsetup test cases. Valid values are "both", "single", and "multi". (default "both")
+        string indicating type of VMs to create for nicsetup test cases.
+        Valid values are "both", "single", and "multi". "single" creates only
+        single-NIC VMs, "multi" creates only multi-NIC VMs, and "both" creates
+        both (default "both")
+```
 
+It can be invoked via Docker as:
 
-It can be invoked via docker as:
-
-    $ images="projects/debian-cloud/global/images/family/debian-10,"
-    $ images+="projects/debian-cloud/global/images/family/debian-9"
-    $ docker run gcr.io/gcp-guest/cloud-image-tests --project $PROJECT \
-      --zone $ZONE --images $images
+```shell
+images="projects/debian-cloud/global/images/family/debian-11,rhel-9"
+docker run gcr.io/cloud-image-tools/cloud-image-tests --project $PROJECT \
+    --zone $ZONE --images $images
+```
 
 ### Credentials ###
 
 The test manager is designed to be run in a Google Cloud environment, and will
 use application default credentials. If you are not in a Google Cloud
 environment and need to specify the credentials to use, you can provide them as
-a docker volume and specify the path with the GOOGLE\_APPLICATION\_CREDENTIALS
+a docker volume and specify the path with the `GOOGLE_APPLICATION_CREDENTIALS`
 environment variable.
 
 Assuming your application default or service account credentials are in a file
 named credentials.json:
 
-    $ docker run -v /path/to/local/creds:/creds \
-      -e GOOGLE_APPLICATION_CREDENTIALS=/creds/credentials.json \
-      gcr.io/gcp-guest/cloud-image-tests -project $PROJECT \
-      -zone $ZONE -images $images
+```shell
+docker run -v /path/to/local/creds:/creds \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/creds/credentials.json \
+    gcr.io/gcp-guest/cloud-image-tests -project $PROJECT \
+    -zone $ZONE -images $images
+```
 
 The manager will exit with 0 if all tests completed successfully, 1 otherwise.
 JUnit format XML will also be output.
@@ -100,14 +112,14 @@ JUnit format XML will also be output.
 Tests are organized into go packages in the `test_suites` directory and are
 written in go. Each package must at a minimum contain a setup file (by
 convention named setup.go) and at least one test file (by convention named
-`$packagename_test.go`). Due to golang style conventions, the package name
+`$packagename_test.go`). Due to Golang style conventions, the package name
 cannot contain an underscore. Thus, for the test suite name to match the package
 name, the name of the test suite should not contain an underscore. For example,
 if a new test suite was created to test image licenses, it should be called
 `imagelicensing`, not `image_licensing`.
 
-The setup.go file describes the workflow to run including the VMs and other GCE
-resources to create, any necessary configuration for those resources, which
+The `setup.go` file describes the workflow to run including the VMs and other
+GCE resources to create, any necessary configuration for those resources, which
 specific tests to run, etc.. It is here where you can also skip an entire test
 package based on inputs e.g. image, zone or compute endpoint or other
 conditions.
@@ -151,6 +163,64 @@ func TestSomeCondition(t *testing.T) {
 }
 ```
 
+If there are functions or libraries with differences across OSes, then you
+should split the relevant functions across different OSes (an example of such a
+library is the internal `syscall` library). For example, if in the Windows
+library `X` defines constant `Y` (but not `Z`), but in the Linux library it
+defines constant `Z` (but not `Y`), then the test can look something like the
+following
+
+`mydefaulttest.go`:
+```go
+package mydefaulttest
+
+import (
+    "testing"
+)
+
+func TestSomeCondition(t *testing.T) {
+    runTestCondition(t)
+}
+```
+
+`mydefaulttest_windows.go`
+```go
+//go:build windows
+
+package mydefaulttest
+
+import (
+    "testing"
+    "X"
+)
+
+func runTestCondition(t *testing.T) {
+    t.Helper()
+
+    testVar := X.Y
+    // Test something on Windows.
+}
+```
+
+`mydefaulttest_linux.go`
+```go
+//go:build linux
+
+package mydefaulttest
+
+import (
+    "testing"
+    "X"
+)
+
+func runTestCondition(t *testing.T) {
+    t.Helper()
+
+    testVar := X.Z
+    // Test something on Linux.
+}
+```
+
 Note that there are also functions available in the [test_utils.go](utils/test_utils.go)
 for some OS level abstractions such as running a Windows powershell command or
 checking if a Linux binary exists.
@@ -178,6 +248,10 @@ func Setup(t *imagetest.Testworkflow) {
 }
 ```
 
+For tests that need to either skip a test case or modify its behavior based on
+the image it's running, you can use the `utils/exceptions` library to define
+them. You can refer to the implementation [here](https://github.com/GoogleCloudPlatform/cloud-image-tests/blob/main/utils/exceptions/exceptions.go)
+
 ### Testing features in compute beta API ###
 
 Tests that need to run against features in the beta API can do so by creating
@@ -186,31 +260,52 @@ beta instance API. However, due to limitation with daisy's create instances
 step, if one instance in a TestWorkflow uses the beta API all instances in that
 workflow must use the beta API.
 
-## Building the container image ##
+## Building and running the container image ##
 
 From the root directory of this repository:
 
-    $ docker build -t cloud-image-tests -f imagetest/Dockerfile .
+```shell
+docker build -t cloud-image-tests -f Dockerfile .
+```
+
+To run the locally-built Docker image:
+
+```shell
+docker run cloud-image-tests --project $PROJECT \
+    --zone $ZONE --images $images
+```
+
+<!-- disableFinding(LINK_ID) -->
+Make sure to define and include the
+[application default credentials](#credentials) if needed.
+<!-- enableFinding(LINK_ID) -->
 
 ## Testing on a local machine ##
 
 From the `imagetest` directory of this repository, where outspath is
 the folder where test outputs are stored:
 
-    $ local_build.sh -o $outspath
+```shell
+local_build.sh -o $outspath
+```
 
 By default, all test suites are built. To build only one test suite:
 
-    $ local_build.sh -o $outspath -s $test_suite_name
+```shell
+local_build.sh -o $outspath -s $test_suite_name
+```
 
 To build from a directory other than `imagetest`
 
-    $ local_build.sh -o $outspath -i $path_to_imagetest
+```shell
+local_build.sh -o $outspath -i $path_to_imagetest
+```
 
 To run the tests, cd into $outspath, set the shell variables and run
 
-    $ manager -zone $ZONE -project $PROJECT -images $images -filter $test_suite_name -local_path .
-
+```shell
+manager -zone $ZONE -project $PROJECT -images $images -filter $test_suite_name -local_path .
+```
 
 ## What is being tested ##
 
@@ -220,4 +315,4 @@ collective whole represents the quality assurance bar for releasing a [supported
 GCE Image][gce-images], and the test suites here must all pass before Google
 engineers will release a new GCE image.
 
-The tests are documented in [the test\_suites directory](test_suites/README.md).
+The tests are documented in [the `test_suites` directory](test_suites/README.md).

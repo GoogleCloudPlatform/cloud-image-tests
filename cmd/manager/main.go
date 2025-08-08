@@ -376,6 +376,11 @@ func main() {
 		}
 		// If the image is a family, we need to find the project of the image.
 		for _, image := range strings.Split(*images, ",") {
+			// Ignore empty strings.
+			if image == "" {
+				log.Print("Skipping empty image")
+				continue
+			}
 			if !strings.Contains(image, "/") {
 				// Find the project of the image.
 				project := ""
@@ -394,7 +399,7 @@ func main() {
 					}
 				}
 				if project == "" {
-					log.Fatalf("unknown image %s", image)
+					log.Fatalf("unknown image %q", image)
 				}
 
 				// Check whether the image is an image family or a specific image version.
