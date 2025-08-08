@@ -72,6 +72,8 @@ import (
 )
 
 var (
+	// zones is a flag.Value that represents a comma-separated list of zones. Initialized in init().
+	zones                   StringSlice
 	project                 = flag.String("project", "", "project to use for test runner")
 	testProjects            = flag.String("test_projects", "", "comma separated list of projects to be used for tests. defaults to the test runner project")
 	zone                    = flag.String("zone", "us-central1-a", "zone to be used for tests")
@@ -96,6 +98,11 @@ var (
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
+
+	// roundRobinZones is a list of zones to be used for tests. This is used to
+	// distribute tests across zones when the zones flag is set and zone flag is
+	// not set.
+	zonesRoundRobin []string
 )
 
 var (
@@ -147,6 +154,20 @@ var (
 	}
 )
 
+// StringSlice is a flag.Value that represents a comma-separated list of strings.
+type StringSlice []string
+
+// Set implements flag.Value.Set.
+func (s *StringSlice) Set(value string) error {
+	*s = append(*s, strings.Split(strings.ReplaceAll(value, " ", ""), ",")...)
+	return nil
+}
+
+// String implements flag.Value.String.
+func (s *StringSlice) String() string {
+	return strings.Join(*s, ",")
+}
+
 type logWriter struct {
 	log *log.Logger
 }
@@ -156,10 +177,49 @@ func (l *logWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+func init() {
+	flag.Var(&zones, "zones", "A comma-separated list of zones (e.g., --zones=\"us-east4, us-west1, us-west4\")")
+}
+
+// selectZoneFromZonesFlag round robins the zone list, so that the same zone is
+// not used for every test. Tests are meant to be equally distributed across
+// zones.
+func selectZoneFromZonesFlag(zones []string) string {
+	if len(zonesRoundRobin) == 0 {
+		zonesRoundRobin = make([]string, len(zones))
+		copy(zonesRoundRobin, zones)
+	}
+
+	result := zonesRoundRobin[0]
+	if len(zonesRoundRobin) > 1 {
+		zonesRoundRobin = append(zonesRoundRobin[1:], result)
+	}
+
+	return result
+}
+
+// selectZone returns the zone to be used for the test. If the zone flag is set,
+// it is returned. Otherwise, a zone is selected from the zones flag.
+func selectZone() string {
+	if len(zones) == 0 {
+		return *zone
+	}
+	return selectZoneFromZonesFlag(zones)
+}
+
+// displayFlagZone returns the zone to be displayed in the log. If the zones
+// flag is set, it is returned. Otherwise, the zone flag is returned.
+func displayFlagZone() string {
+	if len(zones) > 0 {
+		return zones.String()
+	}
+	return *zone
+}
+
 func main() {
 	flag.Parse()
-	if *project == "" || *zone == "" || *images == "" {
-		log.Fatal("Must provide project, zone and images arguments")
+	if *project == "" || (*zone == "" && len(zones) == 0) || *images == "" {
+		log.Fatal("Must provide project, zone (or zones) and images arguments")
 		return
 	}
 	var testProjectsReal []string
@@ -169,7 +229,7 @@ func main() {
 		testProjectsReal = strings.Split(*testProjects, ",")
 	}
 
-	log.Printf("Running in project %s zone %s. Tests will run in projects: %s", *project, *zone, testProjectsReal)
+	log.Printf("Running in project %s zone(s) %s. Tests will run in projects: %s", *project, displayFlagZone(), testProjectsReal)
 	if *gcsPath != "" {
 		log.Printf("gcs_path set to %s", *gcsPath)
 	}
@@ -422,7 +482,7 @@ func main() {
 				Image:                   image,
 				Timeout:                 *timeout,
 				Project:                 *project,
-				Zone:                    *zone,
+				Zone:                    selectZone(),
 				ExcludeFilter:           *testExcludeFilter,
 				X86Shape:                *x86Shape,
 				ARM64Shape:              *arm64Shape,
@@ -452,18 +512,18 @@ func main() {
 	}
 
 	if *printwf {
-		imagetest.PrintTests(ctx, storageclient, testWorkflows, *project, *zone, *gcsPath, *localPath)
+		imagetest.PrintTests(ctx, storageclient, testWorkflows, *project, *gcsPath, *localPath)
 		return
 	}
 
 	if *validate {
-		if err := imagetest.ValidateTests(ctx, storageclient, testWorkflows, *project, *zone, *gcsPath, *localPath); err != nil {
+		if err := imagetest.ValidateTests(ctx, storageclient, testWorkflows, *project, *gcsPath, *localPath); err != nil {
 			log.Printf("Validate failed: %v\n", err)
 		}
 		return
 	}
 
-	suites, err := imagetest.RunTests(ctx, storageclient, testWorkflows, *project, *zone, *gcsPath, *localPath, *parallelCount, *parallelStagger, testProjectsReal)
+	suites, err := imagetest.RunTests(ctx, storageclient, testWorkflows, *project, *gcsPath, *localPath, *parallelCount, *parallelStagger, testProjectsReal)
 	if err != nil {
 		log.Fatalf("Failed to run tests: %v", err)
 	}

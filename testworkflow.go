@@ -605,7 +605,7 @@ func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, g
 
 // finalizeWorkflows adds the final necessary data to each workflow for it to
 // be able to run, including the final copy-objects step.
-func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPrefix, localPath string) error {
+func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, localPath string) error {
 	log.Printf("Storing artifacts and logs in %s", gcsPrefix)
 	for _, twf := range tests {
 		if twf.wf == nil {
@@ -617,8 +617,6 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, zone, gcsPref
 		// $GCS_PATH/2021-04-20T11:44:08-07:00/image_validation/debian-10
 		twf.GCSPath = fmt.Sprintf("%s/%s/%s", gcsPrefix, twf.Name, twf.Image.Name)
 		twf.wf.GCSPath = twf.GCSPath
-
-		twf.wf.Zone = zone
 
 		// Process quota steps and associated creation steps.
 		for quotaStepName, createStepName := range map[string]string{
@@ -835,13 +833,13 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 }
 
 // PrintTests prints all test workflows.
-func PrintTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, zone, gcsPath, localPath string) {
+func PrintTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, gcsPath, localPath string) {
 	gcsPrefix, err := getGCSPrefix(ctx, storageClient, project, gcsPath)
 	if err != nil {
 		log.Printf("Error determining GCS prefix: %v", err)
 		gcsPrefix = ""
 	}
-	if err := finalizeWorkflows(ctx, testWorkflows, zone, gcsPrefix, localPath); err != nil {
+	if err := finalizeWorkflows(ctx, testWorkflows, gcsPrefix, localPath); err != nil {
 		log.Printf("Error finalizing workflow: %v", err)
 	}
 	for _, test := range testWorkflows {
@@ -854,12 +852,12 @@ func PrintTests(ctx context.Context, storageClient *storage.Client, testWorkflow
 }
 
 // ValidateTests validates all test workflows.
-func ValidateTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, zone, gcsPath, localPath string) error {
+func ValidateTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, gcsPath, localPath string) error {
 	gcsPrefix, err := getGCSPrefix(ctx, storageClient, project, gcsPath)
 	if err != nil {
 		return err
 	}
-	if err := finalizeWorkflows(ctx, testWorkflows, zone, gcsPrefix, localPath); err != nil {
+	if err := finalizeWorkflows(ctx, testWorkflows, gcsPrefix, localPath); err != nil {
 		return err
 	}
 	for _, test := range testWorkflows {
@@ -936,7 +934,7 @@ func (tm *testMetrics) progress() string {
 }
 
 // RunTests runs all test workflows.
-func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, zone, gcsPath, localPath string, parallelCount int, parallelStagger string, testProjects []string) (junit.Testsuites, error) {
+func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows []*TestWorkflow, project, gcsPath, localPath string, parallelCount int, parallelStagger string, testProjects []string) (junit.Testsuites, error) {
 	gcsPrefix, err := getGCSPrefix(ctx, storageClient, project, gcsPath)
 	if err != nil {
 		return junit.Testsuites{}, err
@@ -947,7 +945,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 	}
 
 	metrics := newTestMetrics(len(testWorkflows))
-	finalizeWorkflows(ctx, testWorkflows, zone, gcsPrefix, localPath)
+	finalizeWorkflows(ctx, testWorkflows, gcsPrefix, localPath)
 
 	testResults := make(chan testResult, len(testWorkflows))
 	testchan := make(chan *TestWorkflow, len(testWorkflows))
@@ -1064,7 +1062,7 @@ func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkfl
 	defer clean()
 
 	start := time.Now()
-	log.Printf("running test %s/%s (ID %s) in project %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, metrics.progress())
+	log.Printf("running test %s/%s (ID %s) in project: %s, zone: %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, metrics.progress())
 	if err := test.wf.Run(ctx); err != nil {
 		res.err = err
 		return res
