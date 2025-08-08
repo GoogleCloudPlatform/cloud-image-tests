@@ -15,9 +15,14 @@
 package packagemanager
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -56,5 +61,50 @@ func testRepoAvailability(t *testing.T) {
 			// Googet does not set failing exit code when repos are unreachable.
 			t.Fatalf("exec.CommandContext(%s).CombinedOutput() = output: %s which contains %q", cmd.String(), out, googetErrorMatch)
 		}
+	}
+}
+
+func TestRemoveAgentSetup(t *testing.T) {
+	markerFile := filepath.Join(os.TempDir(), "marker")
+	if utils.Exists(markerFile, utils.TypeFile) {
+		pid, err := os.ReadFile(markerFile)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%s) = %v, want nil", markerFile, err)
+		}
+
+		pids := strings.Split(strings.TrimSpace(string(pid)), "--")
+		t.Logf("Read Pids from marker file: %v", pids)
+
+		pidInt, err := strconv.Atoi(pids[0])
+		if err != nil {
+			t.Fatalf("Error converting string %q to int: %v", pids[0], err)
+		}
+		parentPidInt, err := strconv.Atoi(pids[1])
+		if err != nil {
+			t.Fatalf("Error converting string %q to int: %v", pids[1], err)
+		}
+
+		// Kill parent process first as it would end up returning/uploading results
+		// for the wrong test.
+		killProcess(t, parentPidInt)
+		killProcess(t, pidInt)
+
+		removeAgent(t)
+		validateAgentRemoved(t)
+	} else {
+		// setup for test
+		currentPid := os.Getpid()
+		parentPid := os.Getppid()
+		write := fmt.Sprintf("%d--%d", currentPid, parentPid)
+		err := os.WriteFile(markerFile, []byte(write), 0644)
+		if err != nil {
+			t.Fatalf("os.Create(%s) = %v, want nil", markerFile, err)
+		}
+		t.Logf("Created marker file: %q, with current pid: %d, parent pid: %d", markerFile, currentPid, parentPid)
+
+		configurePackageRemoveTask(t)
+		// Package removal test should kill this process. Until then, wait to avoid
+		// race conditions as it would end up returning results for the wrong test.
+		time.Sleep(1 * time.Hour)
 	}
 }

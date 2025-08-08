@@ -16,8 +16,10 @@
 package packagemanager
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
-	daisy "github.com/GoogleCloudPlatform/compute-daisy"
+	"github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
 )
 
@@ -77,5 +79,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	ipv4OnlyVM.RunTests("TestRepoReachabilityIPv4Only")
 
+	// Running the test only on guest-agent images to avoid noise and ensure its
+	// not flaky.
+	if strings.Contains(t.Image.Name, "guest-agent") {
+		removeAgentVM, err := t.CreateTestVM("removeagent")
+		if err != nil {
+			return err
+		}
+		removeAgentVM.RunTests("TestRemoveAgentSetup")
+	}
 	return nil
 }
