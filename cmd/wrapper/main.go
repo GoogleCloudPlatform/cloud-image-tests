@@ -89,6 +89,7 @@ func main() {
 
 		for f := 0; f < 5; f++ {
 			log.Printf("FINISHED-TEST")
+			log.Printf("sleeping 1 second %d", os.Getpid())
 			time.Sleep(1 * time.Second)
 		}
 	}(ctx, firstBootSpecialAttribute)
@@ -102,6 +103,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to get metadata _test_results_url: %v", err)
 	}
+	log.Printf("resultsURL: %s", resultsURL)
 
 	propertiesURL, err := utils.GetMetadata(ctx, "instance", "attributes", "_test_properties_url")
 	if err != nil {
@@ -211,7 +213,7 @@ func main() {
 func executeCmd(cmd, dir string, arg []string) ([]byte, error) {
 	command := exec.Command(cmd, arg...)
 	command.Dir = dir
-	log.Printf("Going to execute: %q", command.String())
+	log.Printf("Going to execute: %q, pid: %d, ppid: %d", command.String(), os.Getpid(), os.Getppid())
 
 	output, err := command.Output()
 	if err != nil {
@@ -236,6 +238,11 @@ func uploadGCSObject(ctx context.Context, client *storage.Client, path string, d
 		if err := dst.Close(); err != nil {
 			return fmt.Errorf("failed to close gcs writer: %w", err)
 		}
+		databytes, err := io.ReadAll(data)
+		if err != nil {
+			log.Printf("failed to read data: %v", err)
+		}
+		log.Printf("uploaded to bucket %s object %s:\n%s", u.Host, object, string(databytes))
 		return nil
 	}
 
