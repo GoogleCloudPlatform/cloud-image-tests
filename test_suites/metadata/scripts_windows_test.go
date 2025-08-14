@@ -30,6 +30,13 @@ import (
 func testScripts(t *testing.T, stage string, success bool) {
 	t.Helper()
 
+	windowsImageFamily, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		// This check is done so that we skip the bat-test on windows 2016 and is not fatal if it fails.
+		t.Errorf("couldn't get windows-image-family from metadata, %v", err)
+	}
+	isWindows2016 := (strings.Contains(windowsImageFamily, "windows") && strings.Contains(windowsImageFamily, "2016"))
+
 	tests := []struct {
 		name           string
 		guestAttribute string
@@ -42,11 +49,19 @@ func testScripts(t *testing.T, stage string, success bool) {
 			name:           fmt.Sprintf("%s-cmd-test-%t", stage, success),
 			guestAttribute: fmt.Sprintf("%s-cmd-result", stage),
 		},
-		{
+	}
+
+	// windows 2016 does not have the curl command which is used in `batCmd` in setup.go.
+	if !isWindows2016 {
+		tests = append(tests, struct {
+			name           string
+			guestAttribute string
+		}{
 			name:           fmt.Sprintf("%s-bat-test-%t", stage, success),
 			guestAttribute: fmt.Sprintf("%s-bat-result", stage),
-		},
+		})
 	}
+
 	// Only startup scripts can't run URL test.
 	if stage == "sysprep" || stage == "shutdown" {
 		tests = append(tests, struct {
