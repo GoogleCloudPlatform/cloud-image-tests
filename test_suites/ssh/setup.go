@@ -61,26 +61,35 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm.AddMetadata("enable-guest-attributes", "true")
 	vm.AddMetadata("enable-windows-ssh", "true")
 	vm.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
-	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes|TestDeleteUserDefault"
-
+	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes"
 	if !strings.Contains(t.Image.Name, "windows") {
-		vm4, err := t.CreateTestVM("server2")
-		if err != nil {
-			return err
-		}
-		vm4.AddUser(user, publicKey)
-		vm4.AddUser(user2, publicKey2)
-		vm4.AddUser(user3, publicKey3)
-
-		vm4.AddMetadata("target-public-key", publicKey4)
-
-		vm4.AddScope("https://www.googleapis.com/auth/cloud-platform")
-		vm4.AddMetadata("enable-guest-attributes", "true")
-		vm4.AddMetadata("enable-oslogin", "false")
-		vm4.RunTests("TestSSHChangeKey|TestSwitchDefaultConfig")
-		runTests += "|TestDeleteLocalUser"
+		// Windows does not remove the local users.
+		runTests += "|TestDeleteLocalUser|TestDeleteUserDefault"
 	}
+
 	vm.RunTests(runTests)
+
+	vm4, err := t.CreateTestVM("server2")
+	if err != nil {
+		return err
+	}
+	vm4.AddUser(user, publicKey)
+	vm4.AddUser(user2, publicKey2)
+	vm4.AddUser(user3, publicKey3)
+
+	vm4.AddMetadata("target-public-key", publicKey4)
+
+	vm4.AddScope("https://www.googleapis.com/auth/cloud-platform")
+	vm4.AddMetadata("enable-guest-attributes", "true")
+	vm4.AddMetadata("enable-oslogin", "false")
+	vm4.AddMetadata("enable-windows-ssh", "true")
+	vm4.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
+	server2Tests := "TestSSHChangeKey"
+	if !strings.Contains(t.Image.Name, "windows") {
+		// Windows does not remove the local users.
+		server2Tests += "|TestSwitchDefaultConfig"
+	}
+	vm4.RunTests(server2Tests)
 
 	vm2, err := t.CreateTestVM("server")
 	if err != nil {

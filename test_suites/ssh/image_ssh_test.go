@@ -145,10 +145,6 @@ func TestSSHChangeKey(t *testing.T) {
 
 // TestSSHInstanceKey test SSH completes successfully for an instance metadata key.
 func TestSSHInstanceKey(t *testing.T) {
-	// TODO(b/432559183): Re-enable this test once the bug is fixed.
-	if utils.IsWindows() {
-		t.Skip("Skipping test for windows due to b/432559183")
-	}
 	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
@@ -255,10 +251,6 @@ func TestDeleteLocalUser(t *testing.T) {
 }
 
 func TestDeleteUserDefault(t *testing.T) {
-	// TODO(b/432559183): Re-enable this test once the bug is fixed.
-	if utils.IsWindows() {
-		t.Skip("Skipping test for windows due to b/432559183")
-	}
 	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
