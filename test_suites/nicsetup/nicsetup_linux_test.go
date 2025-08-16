@@ -32,7 +32,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/nicsetup/managers"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 	"google.golang.org/api/compute/v1"
 )
 
@@ -120,24 +119,6 @@ func getIPAddressOutput(t *testing.T) []addressEntry {
 	return addressEntries
 }
 
-// connectionException checks if the connection test should be skipped due to
-// a known issue.
-func connectionException(t *testing.T) bool {
-	t.Helper()
-
-	// TODO(b/436596282) -- Remove once bug is fixed on core plugin.
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		t.Fatalf("Failed to get image metadata: %v", err)
-	}
-	match := exceptions.MatchAll(image, exceptions.ImageDebian, exceptions.Exception{Version: 11, Type: exceptions.Equal})
-	if match {
-		t.Logf("Skipping connection test for Debian 11 due to b/436596282")
-		return true
-	}
-	return false
-}
-
 // verifyConnection verifies that the given NIC has the proper connection.
 //
 // This first checks the `ip address` output to make sure that the NIC is up
@@ -194,10 +175,6 @@ func verifyConnection(t *testing.T, nic managers.EthernetInterface) {
 	}
 	if !passed {
 		t.Fatalf("NIC %q not found in `ip address` output", nic.Name)
-	}
-
-	if connectionException(t) {
-		return
 	}
 
 	if nic.Index == 0 {
@@ -360,10 +337,6 @@ func retryConnection(t *testing.T, dialer *net.Dialer, protocol, dest string) er
 // ping VM.
 func testEmpty(t *testing.T) {
 	t.Helper()
-
-	if connectionException(t) {
-		return
-	}
 
 	// Get the real name of this VM.
 	name, err := utils.GetInstanceName(utils.Context(t))
