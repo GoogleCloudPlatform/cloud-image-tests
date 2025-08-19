@@ -37,7 +37,7 @@ import (
 
 const (
 	// numMetadataRetries is the number of times to retry getting metadata.
-	numMetadataRetries = 6
+	numMetadataRetries = 30
 	// metadataRetryDelay is the delay between metadata retries.
 	metadataRetryDelay = time.Second * 10
 	// Retry the connection to ensure the destination is reachable.
