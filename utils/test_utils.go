@@ -893,7 +893,7 @@ func InstallPackage(packages ...string) error {
 func ProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
 
-	status, err := RunPowershellCmd("Get-Process")
+	status, err := RunPowershellCmd("Get-Process | Select-Object Name, Path")
 	if err != nil {
 		t.Fatalf("Failed to run Get-Process powershell command: %v, process status: %+v", err, status)
 	}
