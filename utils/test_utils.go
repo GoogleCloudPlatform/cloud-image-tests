@@ -32,7 +32,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -893,16 +892,9 @@ func InstallPackage(packages ...string) error {
 func ProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
 
-	status, err := RunPowershellCmd("Get-Process | Select-Object Name, Path")
-	if err != nil {
-		t.Fatalf("Failed to run Get-Process powershell command: %v, process status: %+v", err, status)
-	}
-
-	pattern := regexp.MustCompile(fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(processName)))
-	got := pattern.MatchString(status.Stdout)
-
-	if got != shouldExist {
-		t.Fatalf("Process %q expected to exist: [%t], got: [%t]\nOutput:\n %s", processName, shouldExist, got, status.Stdout)
+	status, err := RunPowershellCmd(fmt.Sprintf("Get-Process -Name %s", processName))
+	if (err != nil) != !shouldExist {
+		t.Fatalf("Failed to run Get-Process powershell command: %v, process status: %+v, shouldExist: %t", err, status, shouldExist)
 	}
 }
 
