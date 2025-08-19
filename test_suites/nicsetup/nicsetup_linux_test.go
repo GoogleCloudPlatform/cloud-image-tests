@@ -36,27 +36,39 @@ import (
 )
 
 const (
+	// Metadata constants. Sometimes the ping VM takes longer to start than the
+	// other VMs, so we need to retry getting the metadata for a period of time
+	// to make sure we give enough time for the ping VM to start up and set its
+	// metadata.
+
 	// numMetadataRetries is the number of times to retry getting metadata.
 	numMetadataRetries = 30
 	// metadataRetryDelay is the delay between metadata retries.
 	metadataRetryDelay = time.Second * 10
+
+	// Connection constants. These are set lower because the connections are only
+	// attempted after we get a valid IPv4 and IPv6 address to which to connect.
+	// So we don't need to wait as long for retries.
+
 	// Retry the connection to ensure the destination is reachable.
-	numConnectionRetries = 10
+	numConnectionRetries = 5
 	// connectionRetryDelay is the delay between connection retries.
-	connectionRetryDelay = time.Second * 10
+	connectionRetryDelay = time.Second
 	// connectionTimeout is the timeout for connection attempts.
-	connectionTimeout = time.Second * 20
+	connectionTimeout = time.Second
+
 	// tcpTimeout is the timeout for TCP connections. We need to give ample time
 	// for all pinging VMs to start up and connect to the ping VM.
 	tcpTimeout = time.Minute * 10
+	// expectedConnections is the number of connections we expect to receive for
+	// each of IPv4 and IPv6. This number is 2/3 of the number of multiNIC Vms.
+	expectedConnections = 6
+
 	// ipv6AddrKey is the key containing the IPv6 address of the ping VM.
 	ipv6AddrKey = "ipv6_addr"
 	// pingVMPort is the port to listen on for the ping VM. This is chosen
 	// arbitrarily to avoid conflicts with other services.
 	pingVMPort = 1234
-	// expectedConnections is the number of connections we expect to receive for
-	// each of IPv4 and IPv6. This number is 2/3 of the number of multiNIC Vms.
-	expectedConnections = 6
 )
 
 var (
@@ -306,6 +318,8 @@ func createConnection(t *testing.T, nic managers.EthernetInterface, ipv4Addr, ip
 			t.Errorf("unexpected success dialing %q via NIC %q (IPv6)", ipv6Addr, nic.Name)
 		}
 	}
+
+	t.Logf("%s: Finished creating connections via NIC %q", getCurrentTime(), nic.Name)
 }
 
 // retryConnection retries the connection to the given destination host or VM
