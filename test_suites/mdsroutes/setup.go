@@ -88,7 +88,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	tests := []string{"TestDNS", "TestMetadataPath"}
 
 	// TODO(b/428199320): Remove this once the bug is fixed.
-	if !exceptions.MatchAll(t.Image.Family, exceptions.ImageUbuntu, exceptions.Exception{Version: 2204}) {
+	if !exceptions.MatchAll(t.Image.Name, exceptions.ImageUbuntu, exceptions.Exception{Version: 2204}) {
 		tests = append(tests, "TestMDSRoutes")
 		return nil
 	}
