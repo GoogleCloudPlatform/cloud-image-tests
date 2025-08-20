@@ -78,6 +78,12 @@ var (
 	// numIPv6Connections is the number of IPv6 connections received.
 	numIPv6Connections = 0
 	ipv6ConnectionsMu  sync.Mutex
+	// expectedIpv4Connections is the number of IPv4 connections we expect to
+	// receive. By default, we assume an amount equal to if IPv6 is not supported.
+	expectedIPv4Connections = 1
+	// expectedIPv6Connections is the number of IPv6 connections we expect to
+	// receive. By default, we assume an amount equal to if IPv6 is not supported.
+	expectedIPv6Connections = 0
 )
 
 // addressEntry is a representation of a single NIC entry in the `ip address` output.
@@ -114,21 +120,21 @@ func getCurrentTime() string {
 
 // getIPAddressOutput gets the `ip address` output. This is used to both verify
 // the address entries for each NIC and for the ping VM to get its IPv6 address.
-func getIPAddressOutput(t *testing.T) []addressEntry {
+func getIPAddressOutput(t *testing.T) ([]addressEntry, error) {
 	t.Helper()
 
 	// Check the `ip address` output.
 	out, err := exec.Command("ip", "--json", "address").Output()
 	if err != nil {
-		t.Fatalf("failed to run `ip address`: %v", err)
+		return nil, fmt.Errorf("failed to run `ip address`: %v", utils.ParseStderr(err))
 	}
 
 	// Unmarshal the output.
 	var addressEntries []addressEntry
 	if err := json.Unmarshal(out, &addressEntries); err != nil {
-		t.Fatalf("failed to unmarshal `ip address` output: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal `ip address` output: %v", err)
 	}
-	return addressEntries
+	return addressEntries, nil
 }
 
 // verifyConnection verifies that the given NIC has the proper connection.
@@ -141,52 +147,57 @@ func verifyConnection(t *testing.T, nic managers.EthernetInterface) {
 	t.Helper()
 
 	// Check the `ip address` output.
-	addressEntries := getIPAddressOutput(t)
+	addressEntries, addrError := getIPAddressOutput(t)
 
-	// Check the address entries.
-	var passed bool
-	for _, entry := range addressEntries {
-		if entry.IfName == nic.Name {
-			// Make sure the interface is UP.
-			if entry.OperState != "UP" {
-				t.Errorf("NIC %q does is not UP, state is %q", nic.Name, entry.OperState)
-			}
+	// Check the address entries. Only check if the address entries command ran
+	// successfully.
+	if addrError == nil {
+		var passed bool
+		for _, entry := range addressEntries {
+			if entry.IfName == nic.Name {
+				// Make sure the interface is UP.
+				if entry.OperState != "UP" {
+					t.Errorf("NIC %q does is not UP, state is %q", nic.Name, entry.OperState)
+				}
 
-			// Check whether the interface has global IPv4 and IPv6 addresses.
-			var hasIpv4, hasIpv6 bool
-			for _, info := range entry.AddrInfo {
-				// Global scope has external connectivity.
-				if info.Scope == "global" {
-					// inet family is IPv4.
-					if info.Family == "inet" {
-						if net.ParseIP(info.Local).To4() == nil {
-							t.Errorf("NIC %q has invalid IPv4 address %q", nic.Name, info.Local)
+				// Check whether the interface has global IPv4 and IPv6 addresses.
+				var hasIpv4, hasIpv6 bool
+				for _, info := range entry.AddrInfo {
+					// Global scope has external connectivity.
+					if info.Scope == "global" {
+						// inet family is IPv4.
+						if info.Family == "inet" {
+							if net.ParseIP(info.Local).To4() == nil {
+								t.Errorf("NIC %q has invalid IPv4 address %q", nic.Name, info.Local)
+							}
+							hasIpv4 = true
+							nic.IPv4Address = info.Local
 						}
-						hasIpv4 = true
-						nic.IPv4Address = info.Local
-					}
-					// inet6 family is IPv6.
-					if info.Family == "inet6" {
-						if net.ParseIP(info.Local).To4() != nil {
-							t.Errorf("NIC %q has invalid IPv6 address %q", nic.Name, info.Local)
+						// inet6 family is IPv6.
+						if info.Family == "inet6" {
+							if net.ParseIP(info.Local).To4() != nil {
+								t.Errorf("NIC %q has invalid IPv6 address %q", nic.Name, info.Local)
+							}
+							hasIpv6 = true
+							nic.IPv6Address = info.Local
 						}
-						hasIpv6 = true
-						nic.IPv6Address = info.Local
 					}
 				}
+				if nic.StackType&managers.Ipv4 != 0 && !hasIpv4 {
+					t.Errorf("NIC %q does not have IPv4 address", nic.Name)
+				}
+				if nic.StackType&managers.Ipv6 != 0 && !hasIpv6 {
+					t.Errorf("NIC %q does not have IPv6 address", nic.Name)
+				}
+				passed = true
+				break
 			}
-			if nic.StackType&managers.Ipv4 != 0 && !hasIpv4 {
-				t.Errorf("NIC %q does not have IPv4 address", nic.Name)
-			}
-			if nic.StackType&managers.Ipv6 != 0 && !hasIpv6 {
-				t.Errorf("NIC %q does not have IPv6 address", nic.Name)
-			}
-			passed = true
-			break
 		}
-	}
-	if !passed {
-		t.Fatalf("NIC %q not found in `ip address` output", nic.Name)
+		if !passed {
+			t.Fatalf("NIC %q not found in `ip address` output", nic.Name)
+		}
+	} else {
+		t.Logf("Skipping ip address check for NIC %q: %v", nic.Name, addrError)
 	}
 
 	if nic.Index == 0 {
@@ -211,20 +222,28 @@ func connectionPing(t *testing.T, nic managers.EthernetInterface) {
 		t.Fatalf("Failed to get ping VM name: %v", err)
 	}
 
+	supportsIpv6, err := getSupportsIPv6(t)
+	if err != nil {
+		t.Fatalf("Failed to get supportsIpv6: %v", err)
+	}
+
 	var ipv6Addr string
-	for i := 0; i < numMetadataRetries; i++ {
-		metadata := utils.GetInstanceMetadata(t, pingVM)
-		for _, item := range metadata.Items {
-			if item.Key == ipv6AddrKey {
-				ipv6Addr = *item.Value
+	// Only attempt to fetch the IPv6 address from the metadata if the image supports IPv6.
+	if supportsIpv6 {
+		for i := 0; i < numMetadataRetries; i++ {
+			metadata := utils.GetInstanceMetadata(t, pingVM)
+			for _, item := range metadata.Items {
+				if item.Key == ipv6AddrKey {
+					ipv6Addr = *item.Value
+					break
+				}
+			}
+			if ipv6Addr != "" {
 				break
 			}
+			t.Logf("%s: Failed to get IPv6 address from metadata, retrying in %v", getCurrentTime(), metadataRetryDelay)
+			time.Sleep(metadataRetryDelay)
 		}
-		if ipv6Addr != "" {
-			break
-		}
-		t.Logf("%s: Failed to get IPv6 address from metadata, retrying in %v", getCurrentTime(), metadataRetryDelay)
-		time.Sleep(metadataRetryDelay)
 	}
 
 	createConnection(t, nic, pingVMIPv4, ipv6Addr, strconv.Itoa(pingVMPort))
@@ -352,40 +371,53 @@ func retryConnection(t *testing.T, dialer *net.Dialer, protocol, dest string) er
 func testEmpty(t *testing.T) {
 	t.Helper()
 
-	// Get the real name of this VM.
-	name, err := utils.GetInstanceName(utils.Context(t))
+	// Get whether the image supports IPv6.
+	supportsIpv6, err := getSupportsIPv6(t)
 	if err != nil {
-		t.Fatalf("Failed to get ping VM name: %v", err)
+		t.Fatalf("Failed to get supportsIpv6: %v", err)
 	}
-	metadata := utils.GetInstanceMetadata(t, name)
 
-	// Get the IPv6 address of the ping VM.
-	var ipv6Addr string
-	addressEntries := getIPAddressOutput(t)
-	for _, entry := range addressEntries {
-		for _, info := range entry.AddrInfo {
-			if info.Family == "inet6" && info.Scope == "global" {
-				if net.ParseIP(info.Local) == nil {
-					t.Errorf("NIC %q has invalid IPv6 address %q", entry.IfName, info.Local)
+	// Get the IPv6 address of the ping VM. This is only needed if the image
+	// supports IPv6.
+	if supportsIpv6 {
+		expectedIPv6Connections = expectedConnections
+		expectedIPv4Connections = expectedConnections
+
+		// Get the real name of this VM.
+		name, err := utils.GetInstanceName(utils.Context(t))
+		if err != nil {
+			t.Fatalf("Failed to get ping VM name: %v", err)
+		}
+		metadata := utils.GetInstanceMetadata(t, name)
+
+		var ipv6Addr string
+		addressEntries, err := getIPAddressOutput(t)
+		if err != nil {
+			t.Fatalf("Failed to get `ip address` output: %v", err)
+		}
+		for _, entry := range addressEntries {
+			for _, info := range entry.AddrInfo {
+				if info.Family == "inet6" && info.Scope == "global" {
+					if net.ParseIP(info.Local) == nil {
+						t.Errorf("NIC %q has invalid IPv6 address %q", entry.IfName, info.Local)
+					}
+					ipv6Addr = info.Local
+					break
 				}
-				ipv6Addr = info.Local
-				break
 			}
 		}
+		t.Logf("Ping VM IPv6 address: %s", ipv6Addr)
+		// Add and set the IPv6 address to the metadata of the ping VM.
+		metadata.Items = append(metadata.Items, &compute.MetadataItems{
+			Key:   ipv6AddrKey,
+			Value: &ipv6Addr,
+		})
+		utils.SetInstanceMetadata(t, name, metadata)
 	}
-	t.Logf("Ping VM IPv6 address: %s", ipv6Addr)
-	// Add and set the IPv6 address to the metadata of the ping VM.
-	metadata.Items = append(metadata.Items, &compute.MetadataItems{
-		Key:   ipv6AddrKey,
-		Value: &ipv6Addr,
-	})
-	utils.SetInstanceMetadata(t, name, metadata)
 
 	// Set timeouts for the listeners.
 	ipv4TimeoutCtx, ipv4Cancel := context.WithTimeout(utils.Context(t), tcpTimeout)
 	defer ipv4Cancel()
-	ipv6TimeoutCtx, ipv6Cancel := context.WithTimeout(utils.Context(t), tcpTimeout)
-	defer ipv6Cancel()
 	hangCtx, hangCancel := context.WithTimeout(utils.Context(t), tcpTimeout)
 	defer hangCancel()
 
@@ -397,13 +429,6 @@ func testEmpty(t *testing.T) {
 	}
 	ipv4Listener.SetDeadline(time.Now().Add(tcpTimeout))
 	defer ipv4Listener.Close()
-
-	ipv6Listener, err := net.ListenTCP("tcp6", &net.TCPAddr{Port: pingVMPort})
-	if err != nil {
-		t.Fatalf("Failed to listen on IPv6: %v", err)
-	}
-	ipv6Listener.SetDeadline(time.Now().Add(tcpTimeout))
-	defer ipv6Listener.Close()
 
 	// Accept IPv4 connections on the ping VM port.
 	go func() {
@@ -427,7 +452,7 @@ func testEmpty(t *testing.T) {
 						if strings.HasPrefix(conn.RemoteAddr().String(), "10.0.0.") {
 							ipv4ConnectionsMu.Lock()
 							numIPv4Connections++
-							if numIPv4Connections == expectedConnections {
+							if numIPv4Connections == expectedIPv4Connections {
 								t.Logf("%s: Received expected number of IPv4 connections, closing IPv4 listener.", getCurrentTime())
 								ipv4Cancel()
 								ipv4Listener.Close()
@@ -440,38 +465,50 @@ func testEmpty(t *testing.T) {
 		}
 	}()
 	// Accept IPv6 connections on the ping VM port.
-	go func() {
-		t.Logf("%s: Starting IPv6 listener", getCurrentTime())
-		for {
-			select {
-			case <-ipv6TimeoutCtx.Done():
-				t.Logf("%s: IPv6 timeout expired", getCurrentTime())
-				return
-			default:
-				c, err := ipv6Listener.AcceptTCP()
-				if err != nil {
-					if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
-						t.Logf("%s: Failed to accept IPv6 connection: %v", getCurrentTime(), err)
-					}
-				} else {
-					go func(conn *net.TCPConn) {
-						t.Logf("%s: Accepted IPv6 connection from %s", getCurrentTime(), conn.RemoteAddr().String())
-						defer conn.Close()
-						ipv6ConnectionsMu.Lock()
-						// We don't need to check if the connection is from within the network
-						// because IPv6 is internal to the network only.
-						numIPv6Connections++
-						if numIPv6Connections == expectedConnections {
-							t.Logf("%s: Received expected number of IPv6 connections, closing IPv6 listener.", getCurrentTime())
-							ipv6Cancel()
-							ipv6Listener.Close()
+	// Only start listening on IPv6 if the image supports IPv6.
+	if supportsIpv6 {
+		ipv6TimeoutCtx, ipv6Cancel := context.WithTimeout(utils.Context(t), tcpTimeout)
+		defer ipv6Cancel()
+		ipv6Listener, err := net.ListenTCP("tcp6", &net.TCPAddr{Port: pingVMPort})
+		if err != nil {
+			t.Fatalf("Failed to listen on IPv6: %v", err)
+		}
+		ipv6Listener.SetDeadline(time.Now().Add(tcpTimeout))
+		defer ipv6Listener.Close()
+
+		go func() {
+			t.Logf("%s: Starting IPv6 listener", getCurrentTime())
+			for {
+				select {
+				case <-ipv6TimeoutCtx.Done():
+					t.Logf("%s: IPv6 timeout expired", getCurrentTime())
+					return
+				default:
+					c, err := ipv6Listener.AcceptTCP()
+					if err != nil {
+						if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
+							t.Logf("%s: Failed to accept IPv6 connection: %v", getCurrentTime(), err)
 						}
-						ipv6ConnectionsMu.Unlock()
-					}(c)
+					} else {
+						go func(conn *net.TCPConn) {
+							t.Logf("%s: Accepted IPv6 connection from %s", getCurrentTime(), conn.RemoteAddr().String())
+							defer conn.Close()
+							ipv6ConnectionsMu.Lock()
+							// We don't need to check if the connection is from within the network
+							// because IPv6 is internal to the network only.
+							numIPv6Connections++
+							if numIPv6Connections == expectedIPv6Connections {
+								t.Logf("%s: Received expected number of IPv6 connections, closing IPv6 listener.", getCurrentTime())
+								ipv6Cancel()
+								ipv6Listener.Close()
+							}
+							ipv6ConnectionsMu.Unlock()
+						}(c)
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	// Hang the main process until the timeout is expired. This ensures that
 	// the TCP listeners run for the full duration of the test.
@@ -485,7 +522,7 @@ func testEmpty(t *testing.T) {
 			ipv6ConnectionsMu.Lock()
 			// If we reached the expected number of connections for both IPv4 and IPv6,
 			// then we can exit the loop early.
-			if numIPv4Connections == expectedConnections && numIPv6Connections == expectedConnections {
+			if numIPv4Connections == expectedIPv4Connections && numIPv6Connections == expectedIPv6Connections {
 				ipv4ConnectionsMu.Unlock()
 				ipv6ConnectionsMu.Unlock()
 				t.Logf("Received expected number of connections, stopping")

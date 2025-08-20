@@ -46,6 +46,21 @@ func getNumInterfaces(t *testing.T) int {
 	return num
 }
 
+// getSupportsIPv6 returns whether the image supports IPv6.
+func getSupportsIPv6(t *testing.T) (bool, error) {
+	t.Helper()
+
+	val, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", supportIpv6Key)
+	if err != nil {
+		return false, fmt.Errorf("couldn't get support-ipv6 from metadata: %v", err)
+	}
+	supportsIpv6, err := strconv.ParseBool(val)
+	if err != nil {
+		return false, fmt.Errorf("couldn't convert support-ipv6 to bool: %v", err)
+	}
+	return supportsIpv6, nil
+}
+
 // enablePrimaryNIC enables/disables the primary NIC configuration.
 func enablePrimaryNIC(t *testing.T, enable bool) {
 	t.Helper()

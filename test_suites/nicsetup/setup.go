@@ -21,12 +21,19 @@ import (
 	"flag"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
+)
+
+const (
+	pingVMIPv4     = "10.0.0.128"
+	supportIpv6Key = "supports-ipv6"
 )
 
 var (
@@ -40,10 +47,15 @@ var (
 
 	// possibleVMTypes is the list of possible VM types for the test.
 	possibleVMTypes = []string{"multi", "single", "both"}
-)
 
-const (
-	pingVMIPv4 = "10.0.0.128"
+	// ipv6Exceptions are the list of images that do not support IPv6.
+	ipv6Exceptions = []exceptions.Exception{
+		exceptions.Exception{
+			Match:   exceptions.ImageSLES,
+			Version: 12,
+			Type:    exceptions.Equal,
+		},
+	}
 )
 
 // TestSetup sets up the test workflow.
@@ -57,7 +69,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return fmt.Errorf("invalid vmtype: %s\nMust be one of: %v", *vmtype, possibleVMTypes)
 	}
 
-	// Create an IPv4 network.
+	// Verify that the image supports IPv6.
+	supportsIpv6 := !exceptions.HasMatch(t.Image.Name, ipv6Exceptions)
+
+	// Create an primary network.
 	network1, err := t.CreateNetwork("network1", false)
 	if err != nil {
 		return err
@@ -75,32 +90,37 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// List of all VMs to create.
-	// List of VMs with IPv4 primary NIC.
 	var allVMs []*imagetest.TestVM
-	// List of VMs with IPv4 secondary NIC.
+	// List of all multi NIC VMs.
 	var allMultiVMs []*imagetest.TestVM
 
 	// The following are all single NIC VMs.
 	if *vmtype != "multi" {
+		var allSingleVMs []*imagetest.TestVM
+
 		ipv4VM1, err := t.CreateTestVM("ipv4")
 		if err != nil {
 			return err
 		}
-		dualstackVM1, err := t.CreateTestVM("dual")
-		if err != nil {
-			return err
-		}
-		ipv6VM1, err := t.CreateTestVM("ipv6")
-		if err != nil {
-			return err
-		}
-
-		// Add networks to VMs.
 		ipv4VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
-		dualstackVM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
-		ipv6VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+		allSingleVMs = append(allSingleVMs, ipv4VM1)
 
-		allSingleVMs := []*imagetest.TestVM{ipv4VM1, dualstackVM1, ipv6VM1}
+		// Only create dual stack and IPv6 only VMs if the image supports IPv6.
+		if supportsIpv6 {
+			dualstackVM1, err := t.CreateTestVM("dual")
+			if err != nil {
+				return err
+			}
+			ipv6VM1, err := t.CreateTestVM("ipv6")
+			if err != nil {
+				return err
+			}
+			dualstackVM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+			ipv6VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+
+			allSingleVMs = append(allSingleVMs, dualstackVM1, ipv6VM1)
+		}
+
 		for _, vm := range allSingleVMs {
 			vm.AddMetadata("network-interfaces-count", "1")
 		}
@@ -148,9 +168,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		pingVM.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+		if supportsIpv6 {
+			pingVM.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+		} else {
+			pingVM.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
+		}
 		pingVM.SetPrivateIP(network2, pingVMIPv4)
 		pingVM.AddScope("https://www.googleapis.com/auth/compute") // Compute scope is needed for setting metadata.
+		pingVM.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
 		pingVM.RunTests("TestEmpty")
 
 		// Create the VMs.
@@ -158,68 +183,71 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if err != nil {
 			return err
 		}
-		ipv4dual, err := t.CreateTestVM("ipv4dual")
-		if err != nil {
-			return err
-		}
-		ipv4ipv6, err := t.CreateTestVM("ipv4ipv6")
-		if err != nil {
-			return err
-		}
-		dualipv4, err := t.CreateTestVM("dualipv4")
-		if err != nil {
-			return err
-		}
-		dualdual, err := t.CreateTestVM("dualdual")
-		if err != nil {
-			return err
-		}
-		dualipv6, err := t.CreateTestVM("dualipv6")
-		if err != nil {
-			return err
-		}
-		ipv6ipv4, err := t.CreateTestVM("ipv6ipv4")
-		if err != nil {
-			return err
-		}
-		ipv6dual, err := t.CreateTestVM("ipv6dual")
-		if err != nil {
-			return err
-		}
-		ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
-		if err != nil {
-			return err
-		}
-
-		// Add networks to VMs. Primary NIC must be EXTERNAL IPv6 for tests to work.
 		ipv4ipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
 		ipv4ipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
+		allMultiVMs = append(allMultiVMs, ipv4ipv4)
 
-		ipv4dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
-		ipv4dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+		if supportsIpv6 {
+			ipv4dual, err := t.CreateTestVM("ipv4dual")
+			if err != nil {
+				return err
+			}
+			ipv4ipv6, err := t.CreateTestVM("ipv4ipv6")
+			if err != nil {
+				return err
+			}
+			dualipv4, err := t.CreateTestVM("dualipv4")
+			if err != nil {
+				return err
+			}
+			dualdual, err := t.CreateTestVM("dualdual")
+			if err != nil {
+				return err
+			}
+			dualipv6, err := t.CreateTestVM("dualipv6")
+			if err != nil {
+				return err
+			}
+			ipv6ipv4, err := t.CreateTestVM("ipv6ipv4")
+			if err != nil {
+				return err
+			}
+			ipv6dual, err := t.CreateTestVM("ipv6dual")
+			if err != nil {
+				return err
+			}
+			ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
+			if err != nil {
+				return err
+			}
 
-		ipv4ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
-		ipv4ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+			// Add networks to VMs. Primary NIC must be EXTERNAL IPv6 for tests to work.
+			ipv4dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+			ipv4dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		dualipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
-		dualipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "INTERNAL")
+			ipv4ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
+			ipv4ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
 
-		dualdual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
-		dualdual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+			dualipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+			dualipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "INTERNAL")
 
-		dualipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
-		dualipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+			dualdual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+			dualdual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		ipv6ipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6ipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
+			dualipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_IPV6", "")
+			dualipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
 
-		ipv6dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
+			ipv6ipv4.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+			ipv6ipv4.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_ONLY", "")
 
-		ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
-		ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+			ipv6dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+			ipv6dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-		allMultiVMs = append(allMultiVMs, ipv4ipv4, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual, ipv6ipv6)
+			ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+			ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+
+			allMultiVMs = append(allMultiVMs, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual, ipv6ipv6)
+		}
 		allVMs = append(allVMs, allMultiVMs...)
 		for _, vm := range allMultiVMs {
 			vm.AddMetadata("network-interfaces-count", "2")
@@ -228,6 +256,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	for _, vm := range allVMs {
+		vm.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
+
 		var tests []string
 		if slices.Contains(allMultiVMs, vm) {
 			tests = append(tests, "TestSecondaryNIC")
