@@ -123,7 +123,7 @@ func skipIfUbuntu(t *testing.T) {
 	}
 }
 
-func TestNetworManagerRestart(t *testing.T) {
+func TestNetworkManagerRestart(t *testing.T) {
 	utils.LinuxOnly(t)
 	// TODO(b/434210587): Remove this skip once the bug is fixed.
 	skipIfUbuntu(t)
@@ -134,6 +134,10 @@ func TestNetworManagerRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	restartNetworkManager(ctx, t)
+
+	// This is how long the guest agent can take to re-apply the routes, plus a
+	// bit of padding to give time for the agent to re-add the routes.
+	time.Sleep(65 * time.Second)
 	afterRestart, err := getGoogleRoutes(iface.Name)
 	if err != nil {
 		t.Fatal(err)

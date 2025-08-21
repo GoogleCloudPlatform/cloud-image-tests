@@ -81,7 +81,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	multinictests := "TestStaticIP|TestWaitForPing"
 	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !strings.Contains(t.Image.Name, "cos") {
-		multinictests += "|TestAlias|TestGgactlCommand|TestNetworManagerRestart"
+		multinictests += "|TestAlias|TestGgactlCommand|TestNetworkManagerRestart"
 	}
 
 	// VM2 for multiNIC
