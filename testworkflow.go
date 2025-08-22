@@ -603,10 +603,18 @@ func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, g
 	return fmt.Sprintf("%s/%s", strings.TrimSuffix(gcsPath, "/"), time.Now().Format(time.RFC3339)), nil
 }
 
+func logGCSDirectoryURL(gsutilPath string) {
+	p := strings.TrimPrefix(gsutilPath, "gs://")
+	link := fmt.Sprintf("https://console.cloud.google.com/storage/browser/%s", p)
+	log.Printf("Logs and artifacts can be found at: %s", link)
+}
+
 // finalizeWorkflows adds the final necessary data to each workflow for it to
 // be able to run, including the final copy-objects step.
 func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, localPath string) error {
 	log.Printf("Storing artifacts and logs in %s", gcsPrefix)
+	logGCSDirectoryURL(gcsPrefix)
+
 	for _, twf := range tests {
 		if twf.wf == nil {
 			return fmt.Errorf("found nil workflow in finalize")
