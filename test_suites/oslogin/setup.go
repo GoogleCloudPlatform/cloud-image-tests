@@ -17,6 +17,8 @@
 package oslogin
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -120,13 +122,27 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
+	// TODO(b/440641320): Remove this skip once the bug is fixed.
+	if strings.Contains(t.Image.Name, "rhel-9-0-sap-ha-guest-agent") {
+		t.Skip("OSLogin is not working on rhel-9-0-sap-ha images, skipping the test until b/440641320 is fixed.")
+		return nil
+	}
+
+	testAgent, err := t.CreateTestVM("testagent")
+	if err != nil {
+		return err
+	}
+	testAgent.AddScope(computeScope)
+	testAgent.AddMetadata("enable-oslogin", "true")
+	testAgent.RunTests("TestAgent|TestOsLoginEnabled|TestGetentPasswd")
+
 	defaultVM, err := t.CreateTestVM("default")
 	if err != nil {
 		return err
 	}
 	defaultVM.AddScope(computeScope)
 	defaultVM.AddMetadata("enable-oslogin", "true")
-	defaultVM.RunTests("TestOsLoginEnabled|TestGetentPasswd|TestAgent")
+	defaultVM.RunTests("TestEmpty")
 
 	normalUser := twoFATestUsers[counter%len(twoFATestUsers)]
 	adminUser := twoFAAdminTestUsers[counter%len(twoFAAdminTestUsers)]

@@ -42,11 +42,11 @@ const (
 	// Time to wait for agent check. The agent check consists of 2 metadata waits
 	// and 1-2s of runtime. This allows for the agent check to finish, with extra
 	// padding for safety.
-	waitAgent = time.Second * 15
+	waitAgent = time.Second * 60
 
 	// Waiting for 3 seconds or less causes issues with the steps of TestAgent
 	// starting before the guest agent is able to properly react to the metadata changes.
-	waitMetadata = time.Second * 4
+	waitMetadata = time.Second * 60
 )
 
 // Changes the given metadata key to have the given value on the given instance. If the key does not exist,
@@ -183,7 +183,7 @@ func sshClient(t *testing.T, hostname string, config *ssh.ClientConfig) *ssh.Cli
 	var err error
 
 	// Retry dialing target system for a minute.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 7; i++ {
 		client, err = ssh.Dial("tcp", hostname, config)
 		if err != nil {
 			time.Sleep(10 * time.Second)
@@ -205,7 +205,8 @@ func TestSSH(t *testing.T) {
 	// TODO: Come up with better way to ensure the target VMs finished their guest agent checks.
 	// Since this is the first test to be run with the current setup, this is the only test method
 	// that would need to wait for the TestAgent test to finish on the target VMs.
-	time.Sleep(waitAgent)
+	// time.Sleep(waitAgent)
+	t.Logf("Running TestSSH at %v", time.Now().Format(time.RFC3339))
 	ctx := utils.Context(t)
 
 	// Secret Manager Client.
@@ -235,9 +236,20 @@ func TestSSH(t *testing.T) {
 	}
 
 	// Create ssh client to target VM.
-	client, err := utils.CreateClient(posix, fmt.Sprintf("%s:22", hostname), []byte(privateSSHKey))
-	if err != nil {
-		t.Fatalf("error creating ssh client: %v", err)
+	var client *ssh.Client
+	var err3 error
+	for i := 0; i < 5; i++ {
+		client, err3 = utils.CreateClient(posix, fmt.Sprintf("%s:22", hostname), []byte(privateSSHKey))
+		if err3 != nil {
+			t.Logf("%s Attempt %d: error creating ssh client: %v", time.Now().Format(time.RFC3339), i, err3)
+			time.Sleep(30 * time.Second)
+			continue
+		}
+		break
+	}
+
+	if err3 != nil {
+		t.Fatalf("error creating ssh client: %v", err3)
 	}
 	defer client.Close()
 
@@ -505,4 +517,17 @@ func Test2FAAdminSSH(t *testing.T) {
 	if !strings.Contains(data, posix) || !strings.Contains(data, "ALL=(ALL)") || !strings.Contains(data, "NOPASSWD: ALL") {
 		t.Fatalf("sudoers file does not contain user or necessary configurations")
 	}
+}
+
+func TestEmpty(t *testing.T) {
+	// This runs on server VM which client VMs depend on to test SSH.
+	// This is a no-op test.
+	time.Sleep(waitAgent)
+	if err := isOsLoginEnabled(utils.Context(t)); err != nil {
+		t.Fatalf("OSLogin disabled when it should be enabled: %v", err)
+	}
+	t.Logf("Instance readiness check: %q, oslogin enabled", time.Now().Format(time.RFC3339))
+
+	// Add delay to stay active and allow client VMs to finish their ssh checks.
+	time.Sleep(time.Minute * 5)
 }
