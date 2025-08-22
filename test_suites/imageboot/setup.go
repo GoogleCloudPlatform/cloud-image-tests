@@ -34,7 +34,9 @@ var sbUnsupported = []*regexp.Regexp{
 	// Waiting on MSFT signed shims:
 	regexp.MustCompile("rhel-8.*arm64"),
 	regexp.MustCompile("rhel-9.*arm64"), // https://issues.redhat.com/browse/RHEL-4326
+	regexp.MustCompile("rhel-10.*arm64.*"),
 	regexp.MustCompile("centos-stream-9.*arm64"),
+	regexp.MustCompile("centos-stream-10.*arm64.*"),
 	regexp.MustCompile("(sles-15|opensuse-leap).*arm64"), // https://bugzilla.suse.com/show_bug.cgi?id=1214761
 }
 
