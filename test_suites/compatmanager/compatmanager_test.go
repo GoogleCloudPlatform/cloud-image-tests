@@ -147,7 +147,6 @@ func checkCompatManagerIsDisabled(t *testing.T) {
 func TestCompatManager(t *testing.T) {
 	ctx := context.Background()
 	skipIfNoCompatManager(t)
-	utils.EnableAgentDebugLogging(t)
 
 	// It could be rollforward package or old agent package.
 	if utils.IsCoreDisabled() {

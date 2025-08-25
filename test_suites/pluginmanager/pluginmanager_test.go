@@ -180,7 +180,6 @@ func ggactlCleanupPath(t *testing.T) string {
 func TestPluginCleanup(t *testing.T) {
 	execPath := ggactlCleanupPath(t)
 	plugin := createTestPlugin(t)
-	utils.EnableAgentDebugLogging(t)
 
 	tests := []struct {
 		name     string
@@ -350,7 +349,6 @@ func TestACSDisabled(t *testing.T) {
 	ggactlCleanupPath(t)
 
 	stopAgentManager(t)
-	utils.EnableAgentDebugLogging(t)
 	server, socketPath := startTestServer(t)
 	configureTestACS(t, socketPath)
 	startAgentManager(t)
