@@ -55,6 +55,12 @@ var (
 			Version: 12,
 			Type:    exceptions.Equal,
 		},
+		exceptions.Exception{
+			// TODO(b/440780139): rhel-9-0-sap-ha and rhel-8-6-sap-ha does not work
+			// with IPv6. Remove the exception if it is expected to work and bug is
+			// fixed.
+			Match: "rhel-(?:9-0|8-6)-sap-ha",
+		},
 	}
 )
 
