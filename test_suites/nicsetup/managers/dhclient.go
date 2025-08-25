@@ -44,6 +44,14 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 		t.Fatalf("Failed to get dhclient processes: %v", err)
 	}
 
+	// We check if core plugin is enabled. On versions of the guest agent that
+	// don't have core plugin enabled, there is a bug where multiple dhclient
+	// processes can be running for the same NIC.
+	coreDisabled := utils.IsCoreDisabled()
+	if coreDisabled {
+		t.Logf("Core plugin disabled, skipping dhclient duplicate process check.")
+	}
+
 	var ipv4Process, ipv6Process bool
 	for _, process := range strings.Split(string(processes), "\n") {
 		fields := strings.Fields(process)
@@ -62,12 +70,12 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 
 		// Check if the process is IPv4 or IPv6.
 		if slices.Contains(fields, "-6") {
-			if ipv6Process {
+			if ipv6Process && !coreDisabled {
 				t.Errorf("Found multiple IPv6 dhclient processes for NIC %q", nic.Name)
 			}
 			ipv6Process = true
 		} else {
-			if ipv4Process {
+			if ipv4Process && !coreDisabled {
 				t.Errorf("Found multiple IPv4 dhclient processes for NIC %q", nic.Name)
 			}
 			ipv4Process = true
