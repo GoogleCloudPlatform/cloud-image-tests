@@ -29,7 +29,10 @@ import (
 )
 
 const (
+	// metadataURLPrefix is the base URL for the metadata server.
 	metadataURLPrefix = "http://metadata.google.internal/computeMetadata/v1/"
+	// httpTimeout is the timeout for HTTP requests.
+	httpTimeout = time.Second * 30
 )
 
 var (
@@ -87,7 +90,7 @@ func PutMetadata(ctx context.Context, path string, data string) error {
 }
 
 func doHTTPRequest(req *http.Request) (*http.Response, error) {
-	client := &http.Client{}
+	client := &http.Client{Timeout: httpTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {

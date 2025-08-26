@@ -113,11 +113,6 @@ type addressInfo struct {
 	Scope string `json:"scope"`
 }
 
-// getCurrentTime returns the current time in RFC3339 format.
-func getCurrentTime() string {
-	return time.Now().Format(time.RFC3339)
-}
-
 // getIPAddressOutput gets the `ip address` output. This is used to both verify
 // the address entries for each NIC and for the ping VM to get its IPv6 address.
 func getIPAddressOutput(t *testing.T) ([]addressEntry, error) {
@@ -145,6 +140,7 @@ func getIPAddressOutput(t *testing.T) ([]addressEntry, error) {
 // whether the NIC is the primary or secondary NIC, respectively.
 func verifyConnection(t *testing.T, nic managers.EthernetInterface) {
 	t.Helper()
+	t.Logf("%s: Verifying connection for NIC %q", getCurrentTime(), nic.Name)
 
 	// Check the `ip address` output.
 	addressEntries, addrError := getIPAddressOutput(t)
@@ -216,15 +212,11 @@ func verifyConnection(t *testing.T, nic managers.EthernetInterface) {
 // get the IPv6 address from the metadata.
 func connectionPing(t *testing.T, nic managers.EthernetInterface) {
 	t.Helper()
+	t.Logf("%s: Getting ping VM parameters", getCurrentTime())
 
 	pingVM, err := utils.GetRealVMName(utils.Context(t), "ping")
 	if err != nil {
 		t.Fatalf("Failed to get ping VM name: %v", err)
-	}
-
-	supportsIpv6, err := getSupportsIPv6(t)
-	if err != nil {
-		t.Fatalf("Failed to get supportsIpv6: %v", err)
 	}
 
 	var ipv6Addr string
@@ -371,12 +363,6 @@ func retryConnection(t *testing.T, dialer *net.Dialer, protocol, dest string) er
 func testEmpty(t *testing.T) {
 	t.Helper()
 
-	// Get whether the image supports IPv6.
-	supportsIpv6, err := getSupportsIPv6(t)
-	if err != nil {
-		t.Fatalf("Failed to get supportsIpv6: %v", err)
-	}
-
 	// Get the IPv6 address of the ping VM. This is only needed if the image
 	// supports IPv6.
 	if supportsIpv6 {
@@ -415,28 +401,25 @@ func testEmpty(t *testing.T) {
 		utils.SetInstanceMetadata(t, name, metadata)
 	}
 
-	// Set timeouts for the listeners.
-	ipv4TimeoutCtx, ipv4Cancel := context.WithTimeout(utils.Context(t), tcpTimeout)
-	defer ipv4Cancel()
-	hangCtx, hangCancel := context.WithTimeout(utils.Context(t), tcpTimeout)
-	defer hangCancel()
-
 	// Start listening on the ping VM port. The other VMs should be able to connect
 	// to this VM with the given port.
 	ipv4Listener, err := net.ListenTCP("tcp4", &net.TCPAddr{Port: pingVMPort})
 	if err != nil {
 		t.Fatalf("Failed to listen on IPv4: %v", err)
 	}
-	ipv4Listener.SetDeadline(time.Now().Add(tcpTimeout))
+	ipv4Context, ipv4Cancel := context.WithCancel(utils.Context(t))
 	defer ipv4Listener.Close()
+	defer ipv4Cancel()
+
+	hangCtx, hangCancel := context.WithTimeout(utils.Context(t), tcpTimeout)
+	defer hangCancel()
 
 	// Accept IPv4 connections on the ping VM port.
 	go func() {
 		t.Logf("%s: Starting IPv4 listener", getCurrentTime())
 		for {
 			select {
-			case <-ipv4TimeoutCtx.Done():
-				t.Logf("%s: IPv4 timeout expired", getCurrentTime())
+			case <-ipv4Context.Done():
 				return
 			default:
 				c, err := ipv4Listener.AcceptTCP()
@@ -467,21 +450,19 @@ func testEmpty(t *testing.T) {
 	// Accept IPv6 connections on the ping VM port.
 	// Only start listening on IPv6 if the image supports IPv6.
 	if supportsIpv6 {
-		ipv6TimeoutCtx, ipv6Cancel := context.WithTimeout(utils.Context(t), tcpTimeout)
-		defer ipv6Cancel()
 		ipv6Listener, err := net.ListenTCP("tcp6", &net.TCPAddr{Port: pingVMPort})
 		if err != nil {
 			t.Fatalf("Failed to listen on IPv6: %v", err)
 		}
-		ipv6Listener.SetDeadline(time.Now().Add(tcpTimeout))
+		ipv6Context, ipv6Cancel := context.WithCancel(utils.Context(t))
+		defer ipv6Cancel()
 		defer ipv6Listener.Close()
 
 		go func() {
 			t.Logf("%s: Starting IPv6 listener", getCurrentTime())
 			for {
 				select {
-				case <-ipv6TimeoutCtx.Done():
-					t.Logf("%s: IPv6 timeout expired", getCurrentTime())
+				case <-ipv6Context.Done():
 					return
 				default:
 					c, err := ipv6Listener.AcceptTCP()
@@ -510,18 +491,20 @@ func testEmpty(t *testing.T) {
 		}()
 	}
 
-	// Hang the main process until the timeout is expired. This ensures that
-	// the TCP listeners run for the full duration of the test.
+	// Hang the main process until we receive the expected number of connections.
+	// Without a separate hang context, this ensures that the TCP listeners will
+	// continue running until the test times out, or until the expected number
+	// of connections is received, whichever comes first.
 	for {
 		select {
 		case <-hangCtx.Done():
-			t.Logf("%s: Hanging context expired, stopping", getCurrentTime())
+			t.Logf("%s: Hanging context done, stopping", getCurrentTime())
 			return
 		default:
 			ipv4ConnectionsMu.Lock()
 			ipv6ConnectionsMu.Lock()
 			// If we reached the expected number of connections for both IPv4 and IPv6,
-			// then we can exit the loop early.
+			// then we can stop the test.
 			if numIPv4Connections == expectedIPv4Connections && numIPv6Connections == expectedIPv6Connections {
 				ipv4ConnectionsMu.Unlock()
 				ipv6ConnectionsMu.Unlock()

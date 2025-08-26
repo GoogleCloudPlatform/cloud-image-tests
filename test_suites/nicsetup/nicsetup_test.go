@@ -16,6 +16,7 @@ package nicsetup
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"testing"
@@ -32,33 +33,41 @@ const (
 	instanceConfigLoc = "/etc/default/instance_configs.cfg.template"
 )
 
+var (
+	// supportsIpv6 is whether the image supports IPv6. If not, then all IPv6-related tests will be skipped.
+	supportsIpv6 bool
+)
+
+// getCurrentTime returns the current time in RFC3339 format.
+func getCurrentTime() string {
+	return time.Now().Format(time.RFC3339)
+}
+
 // getNumInterfaces returns the number of interfaces set by the setup.
 func getNumInterfaces(t *testing.T) int {
 	t.Helper()
-	val, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "network-interfaces-count")
+	t.Logf("%s: Getting number of interfaces", getCurrentTime())
+
+	ifaces, err := net.Interfaces()
 	if err != nil {
-		t.Fatalf("couldn't get network-interfaces-count from metadata: %v", err)
+		t.Fatalf("net.Interfaces() failed: %v", err)
 	}
-	num, err := strconv.Atoi(val)
-	if err != nil {
-		t.Fatalf("couldn't convert network-interfaces-count to int: %v", err)
-	}
-	return num
+	return len(utils.FilterLoopbackTunnelingInterfaces(ifaces))
 }
 
-// getSupportsIPv6 returns whether the image supports IPv6.
-func getSupportsIPv6(t *testing.T) (bool, error) {
+// getSupportsIPv6 sets the global variable supportsIpv6 to whether the image supports IPv6.
+func getSupportsIPv6(t *testing.T) {
 	t.Helper()
+	var err error
 
 	val, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", supportIpv6Key)
 	if err != nil {
-		return false, fmt.Errorf("couldn't get support-ipv6 from metadata: %v", err)
+		t.Fatalf("couldn't get support-ipv6 from metadata: %v", err)
 	}
-	supportsIpv6, err := strconv.ParseBool(val)
+	supportsIpv6, err = strconv.ParseBool(val)
 	if err != nil {
-		return false, fmt.Errorf("couldn't convert support-ipv6 to bool: %v", err)
+		t.Fatalf("couldn't convert support-ipv6 to bool: %v", err)
 	}
-	return supportsIpv6, nil
 }
 
 // enablePrimaryNIC enables/disables the primary NIC configuration.
@@ -82,47 +91,59 @@ manage_primary_nic = %t
 	time.Sleep(time.Second * 10)
 }
 
-func TestPrimaryNIC(t *testing.T) {
-	nic := managers.GetNIC(t, 0)
+// TestNICSetup tests the NIC setup for the primary NIC, and the secondary NIC
+// if it exists.
+func TestNICSetup(t *testing.T) {
+	t.Logf("%s: Testing Primary NIC", getCurrentTime())
+	primaryNIC := managers.GetNIC(t, 0)
+	var secondaryNIC managers.EthernetInterface
+
+	numInterfaces := getNumInterfaces(t)
+	if numInterfaces > 1 {
+		secondaryNIC = managers.GetNIC(t, 1)
+	}
+	getSupportsIPv6(t)
 
 	// Check that no configurations for the primary NIC exist.
-	managers.VerifyNIC(t, nic, false)
+	managers.VerifyNIC(t, primaryNIC, false)
 
 	// Enable primary NIC configuration.
 	enablePrimaryNIC(t, true)
-	t.Logf("Enabled primary NIC configuration")
+	t.Logf("%s: Enabled primary NIC configuration", getCurrentTime())
 
 	// Check the configurations for the primary NIC exist.
-	managers.VerifyNIC(t, nic, true)
+	managers.VerifyNIC(t, primaryNIC, true)
 
 	// Check that the primary NIC has the proper connection.
-	verifyConnection(t, nic)
+	verifyConnection(t, primaryNIC)
 
 	// Disable primary NIC configuration.
 	enablePrimaryNIC(t, false)
-	t.Logf("Disabled primary NIC configuration")
+	t.Logf("%s: Disabled primary NIC configuration", getCurrentTime())
 
 	// Check that the configurations for the primary NIC don't exist.
-	managers.VerifyNIC(t, nic, false)
-}
+	managers.VerifyNIC(t, primaryNIC, false)
+	t.Logf("%s: Finished testing primary NIC", getCurrentTime())
 
-func TestSecondaryNIC(t *testing.T) {
-	numInterfaces := getNumInterfaces(t)
-	if numInterfaces != 2 {
-		t.Skipf("Secondary NIC test only runs on multi-NIC VMs")
+	// Test secondary NIC if it exists.
+	if numInterfaces < 2 {
+		t.Logf("%s: No secondary NIC, skipping secondary NIC test", getCurrentTime())
+		return
 	}
-
-	nic := managers.GetNIC(t, 1)
+	t.Logf("%s: Testing secondary NIC", getCurrentTime())
 
 	// Check the configurations for the secondary NIC exist.
-	managers.VerifyNIC(t, nic, true)
+	managers.VerifyNIC(t, secondaryNIC, true)
 
 	// Check that the secondary NIC has the proper connection.
-	verifyConnection(t, nic)
+	verifyConnection(t, secondaryNIC)
+
+	t.Logf("%s: Finished testing secondary NIC", getCurrentTime())
 }
 
 // TestEmpty is a no-op test that sets up the ping VM and sets the IPv6 address
 // in metadata.
 func TestEmpty(t *testing.T) {
+	getSupportsIPv6(t)
 	testEmpty(t)
 }

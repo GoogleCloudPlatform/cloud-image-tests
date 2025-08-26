@@ -20,7 +20,9 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -36,6 +38,11 @@ const (
 	Ipv4Ipv6 NicStackType = 0x3
 	// Ipv6 represents an IPv6-only NIC.
 	Ipv6 NicStackType = 0x2
+)
+
+var (
+	// vmNameOnce is used to log the VM name only once.
+	vmNameOnce sync.Once
 )
 
 // EthernetInterface represents an ethernet interface.
@@ -74,22 +81,23 @@ func VerifyNIC(t *testing.T, nic EthernetInterface, exist bool) {
 	t.Helper()
 
 	mgr := primaryNICManager(t)
+	currTime := time.Now().Format(time.RFC3339)
 
 	switch mgr {
 	case systemdNetworkd:
-		t.Logf("Testing systemd-networkd for NIC %q", nic.Name)
+		t.Logf("%s: Testing systemd-networkd for NIC %q", currTime, nic.Name)
 		testSystemdNetworkd(t, nic, exist)
 	case dhclient:
-		t.Logf("Testing dhclient for NIC %q", nic.Name)
+		t.Logf("%s: Testing dhclient for NIC %q", currTime, nic.Name)
 		testDhclient(t, nic, exist)
 	case netplan:
-		t.Logf("Testing netplan for NIC %q", nic.Name)
+		t.Logf("%s: Testing netplan for NIC %q", currTime, nic.Name)
 		testNetplan(t, nic, exist)
 	case networkManager:
-		t.Logf("Testing NetworkManager for NIC %q", nic.Name)
+		t.Logf("%s: Testing NetworkManager for NIC %q", currTime, nic.Name)
 		testNetworkManager(t, nic, exist)
 	case wicked:
-		t.Logf("Testing wicked for NIC %q", nic.Name)
+		t.Logf("%s: Testing wicked for NIC %q", currTime, nic.Name)
 		testWicked(t, nic, exist)
 	default:
 		t.Fatalf("unknown nic manager: %d", mgr)
@@ -118,9 +126,11 @@ func getNICType(t *testing.T, index int) NicStackType {
 		t.Fatalf("couldn't get _test_vmname from metadata: %v", err)
 	}
 
+	currTime := time.Now().Format(time.RFC3339)
 	// Log the VM name for debugging purposes. We can't include the VM name in
-	// the test name, so we log it to give clarity to the test results.
-	t.Logf("VM name: %s\n", name)
+	// the test name, so we log it to give clarity to the test results. We only
+	// log the VM name once to avoid spamming the logs.
+	vmNameOnce.Do(func() { t.Logf("%s: VM name: %s\n", currTime, name) })
 
 	// The VM name is of the form <network stack type><network stack type>...
 	// For example, "ipv4ipv4" is a multiNIC VM with two IPv4 NICs. The network

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -125,10 +124,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			ipv6VM1.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
 
 			allSingleVMs = append(allSingleVMs, dualstackVM1, ipv6VM1)
-		}
-
-		for _, vm := range allSingleVMs {
-			vm.AddMetadata("network-interfaces-count", "1")
 		}
 		allVMs = append(allVMs, allSingleVMs...)
 	}
@@ -256,20 +251,13 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 		allVMs = append(allVMs, allMultiVMs...)
 		for _, vm := range allMultiVMs {
-			vm.AddMetadata("network-interfaces-count", "2")
 			vm.AddScope("https://www.googleapis.com/auth/compute.readonly") // Readonly scope is needed for reading metadata.
 		}
 	}
 
 	for _, vm := range allVMs {
 		vm.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
-
-		var tests []string
-		if slices.Contains(allMultiVMs, vm) {
-			tests = append(tests, "TestSecondaryNIC")
-		}
-		tests = append(tests, "TestPrimaryNIC")
-		vm.RunTests(strings.Join(tests, "|"))
+		vm.RunTests("TestNICSetup")
 	}
 	return nil
 }
