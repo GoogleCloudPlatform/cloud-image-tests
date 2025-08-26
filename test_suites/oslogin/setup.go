@@ -134,6 +134,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	testAgent.AddScope(computeScope)
 	testAgent.AddMetadata("enable-oslogin", "true")
+	testAgent.AddMetadata("enable-oslogin-2fa", "true")
 	testAgent.RunTests("TestAgent|TestOsLoginEnabled|TestGetentPasswd")
 
 	defaultVM, err := t.CreateTestVM("default")
@@ -168,7 +169,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	twofa.AddScope(computeScope)
 	twofa.AddMetadata("enable-oslogin", "true")
 	twofa.AddMetadata("enable-oslogin-2fa", "true")
-	twofa.RunTests("TestAgent")
+	twofa.RunTests("TestEmpty")
 
 	// This is used to stagger the admin users to avoid hitting 2FA quotas.
 	counter++
