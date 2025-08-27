@@ -69,6 +69,7 @@ func processExists(t *testing.T, shouldExist bool, processName string) {
 func verifyMetadataScriptsProcesses(t *testing.T, corePluginEnabled bool) {
 	t.Helper()
 	wantedProcesses, dontWantProcesses := getProcessLists(corePluginEnabled)
+	t.Logf("Verifying metadata script processes, want: %v, dont want: %v, core plugin enabled: %t", wantedProcesses, dontWantProcesses, corePluginEnabled)
 
 	for _, wantProcess := range wantedProcesses {
 		processExists(t, true, wantProcess)
@@ -110,46 +111,61 @@ func verifyFileOutput(t *testing.T, event string, corePluginEnabled bool) {
 
 func TestDefaultMetadataScriptShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "shutdown", corePluginEnabled)
 }
 
 func TestDefaultMetadataScriptStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "startup", corePluginEnabled)
 }
 
 func TestMetadataScriptCompatStartup(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "startup", !utils.IsCoreDisabled())
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "startup", corePluginEnabled)
 }
 
 func TestMetadataScriptCompatShutdown(t *testing.T) {
 	skipIfNoMetadataScriptCompat(t)
-
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "shutdown", !utils.IsCoreDisabled())
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "shutdown", corePluginEnabled)
 }
 
 func TestDefaultMetadataScriptSysprep(t *testing.T) {
 	utils.WindowsOnly(t)
 	skipIfNoMetadataScriptCompat(t)
-
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())
+	skipIfSysprepNotUpdated(t)
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "sysprep", corePluginEnabled)
 }
 
 func TestMetadataScriptCompatSysprep(t *testing.T) {
 	utils.WindowsOnly(t)
 	skipIfNoMetadataScriptCompat(t)
+	skipIfSysprepNotUpdated(t)
+	corePluginEnabled := !utils.IsCoreDisabled()
+	verifyMetadataScriptsProcesses(t, corePluginEnabled)
+	verifyFileOutput(t, "sysprep", corePluginEnabled)
+}
 
-	verifyMetadataScriptsProcesses(t, !utils.IsCoreDisabled())
-	verifyFileOutput(t, "sysprep", !utils.IsCoreDisabled())
+func skipIfSysprepNotUpdated(t *testing.T) {
+	filePath := `google_metadata_script_runner_adapt.ps1`
+	instanceActivate := `C:\Program Files\Google\Compute Engine\sysprep\instance_setup.ps1`
+	got, err := os.ReadFile(instanceActivate)
+	if err != nil {
+		t.Fatalf("Failed to read file %q: %v", instanceActivate, err)
+	}
+	script := string(got)
+	if !strings.Contains(script, filePath) {
+		t.Skipf("Sysprep script is not updated, skipping the test.")
+	}
 }
 
 func readCommands(t *testing.T, path string) string {

@@ -374,10 +374,11 @@ func TestACSDisabled(t *testing.T) {
 	}
 
 	// Core plugin should be running regardless of ACS being enabled or disabled.
+	shouldExist := !utils.IsCoreDisabled()
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, true, "CorePlugin")
+		utils.ProcessExistsWindows(t, shouldExist, "CorePlugin")
 	} else {
-		utils.ProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
+		utils.ProcessExistsLinux(t, shouldExist, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
 
