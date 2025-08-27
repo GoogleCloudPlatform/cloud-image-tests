@@ -373,6 +373,13 @@ func TestACSDisabled(t *testing.T) {
 		t.Errorf("Request count on ACS server: %d, want 0 after ACS is disabled", requestCount)
 	}
 
+	// On images where core plugin is disabled, we don't need to check for the
+	// core plugin process.
+	if utils.IsCoreDisabled() {
+		t.Logf("Core plugin is disabled, skipping the core plugin process check")
+		return
+	}
+
 	// Core plugin should be running regardless of ACS being enabled or disabled.
 	if utils.IsWindows() {
 		utils.ProcessExistsWindows(t, true, "CorePlugin")
