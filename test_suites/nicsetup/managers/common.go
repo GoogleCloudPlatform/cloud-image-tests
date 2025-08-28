@@ -17,7 +17,9 @@
 package managers
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"sync"
@@ -25,6 +27,7 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 )
 
 // NicStackType represents the type of a NIC. It can be IPv4-only, IPv4/IPv6, or
@@ -43,6 +46,8 @@ const (
 var (
 	// vmNameOnce is used to log the VM name only once.
 	vmNameOnce sync.Once
+	// image is the image of the instance.
+	image string
 )
 
 // EthernetInterface represents an ethernet interface.
@@ -74,6 +79,14 @@ const (
 	// wicked represents the wicked NIC manager.
 	wicked
 )
+
+func init() {
+	var err error
+	image, err = utils.GetMetadata(context.Background(), "instance", "image")
+	if err != nil {
+		fmt.Printf("couldn't get image from metadata: %v\n", err)
+	}
+}
 
 // VerifyNIC verifies whether the configurations for the given NIC and
 // network manager service exists or not.
@@ -150,20 +163,58 @@ func getNICType(t *testing.T, index int) NicStackType {
 	return Ipv4
 }
 
+// IsUbuntu2004 returns true if the image is Ubuntu 18.04.
+func IsUbuntu2004(t *testing.T) bool {
+	t.Helper()
+	return exceptions.MatchAll(image, exceptions.ImageUbuntu, exceptions.Exception{
+		Version: 2004,
+		Type:    exceptions.Equal,
+	})
+}
+
+// IsUbuntu1804 returns true if the image is Ubuntu 18.04.
+func IsUbuntu1804(t *testing.T) bool {
+	t.Helper()
+	return exceptions.MatchAll(image, exceptions.ImageUbuntu, exceptions.Exception{
+		Version: 1804,
+		Type:    exceptions.Equal,
+	})
+}
+
+func shouldUseNetplan(t *testing.T) bool {
+	t.Helper()
+	// Ubuntu 18.04 is a special case where netplan is present, but we don't use it.
+	return !exceptions.HasMatch(image, []exceptions.Exception{
+		exceptions.Exception{
+			Match:   exceptions.ImageUbuntu,
+			Version: 1804,
+			Type:    exceptions.Equal,
+		},
+		exceptions.Exception{
+			Match:   exceptions.ImageUbuntu,
+			Version: 1604,
+			Type:    exceptions.Equal,
+		},
+	})
+}
+
 // primaryNICManager returns the primary NIC manager.
 //
 // This is a very basic check, and may have mixed results on images with multiple
 // NIC managers.
 func primaryNICManager(t *testing.T) nicManager {
 	t.Helper()
+	t.Logf("Checking primary NIC manager")
 
-	// Check for netplan.
-	if _, err := exec.LookPath("netplan"); err == nil {
-		return netplan
-	}
-	// Check systemd-networkd.
-	if _, err := exec.Command("systemctl", "is-active", "systemd-networkd").Output(); err == nil {
-		return systemdNetworkd
+	if shouldUseNetplan(t) {
+		// Check for netplan
+		if _, err := exec.LookPath("netplan"); err == nil {
+			return netplan
+		}
+		// Check systemd-networkd.
+		if _, err := exec.Command("systemctl", "is-active", "systemd-networkd").Output(); err == nil {
+			return systemdNetworkd
+		}
 	}
 	// Check NetworkManager.
 	if _, err := exec.Command("systemctl", "is-active", "NetworkManager").Output(); err == nil {

@@ -88,7 +88,7 @@ manage_primary_nic = %t
 	}
 
 	// Wait for the guest agent to restart.
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 20)
 }
 
 // TestNICSetup tests the NIC setup for the primary NIC, and the secondary NIC
@@ -99,10 +99,14 @@ func TestNICSetup(t *testing.T) {
 	var secondaryNIC managers.EthernetInterface
 
 	numInterfaces := getNumInterfaces(t)
+	t.Logf("%s: Number of interfaces: %d", getCurrentTime(), numInterfaces)
+
 	if numInterfaces > 1 {
 		secondaryNIC = managers.GetNIC(t, 1)
 	}
 	getSupportsIPv6(t)
+
+	isUbuntu1804 := managers.IsUbuntu1804(t)
 
 	// Check that no configurations for the primary NIC exist.
 	managers.VerifyNIC(t, primaryNIC, false)
@@ -111,8 +115,14 @@ func TestNICSetup(t *testing.T) {
 	enablePrimaryNIC(t, true)
 	t.Logf("%s: Enabled primary NIC configuration", getCurrentTime())
 
+	shouldExist := true
+	if isUbuntu1804 {
+		// Agent does not launch dhclient on Ubuntu 18.04 for primary NIC.
+		shouldExist = false
+	}
+
 	// Check the configurations for the primary NIC exist.
-	managers.VerifyNIC(t, primaryNIC, true)
+	managers.VerifyNIC(t, primaryNIC, shouldExist)
 
 	// Check that the primary NIC has the proper connection.
 	verifyConnection(t, primaryNIC)
