@@ -31,8 +31,9 @@ import (
 func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 	t.Helper()
 
-	// Process for primary NIC should always be running.
-	if nic.Index == 0 {
+	// Process for primary NIC should always be running, except on Ubuntu 18.04,
+	// where dhclient process may not necessarily be running.
+	if nic.Index == 0 && !isUbuntu1804(t) {
 		exist = true
 	}
 
@@ -41,6 +42,9 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 	// Find IPv4 dhclient process.
 	processes, err := exec.Command("pgrep", "dhclient", "-a").Output()
 	if err != nil {
+		if !exist {
+			return
+		}
 		t.Fatalf("Failed to get dhclient processes: %v", err)
 	}
 
@@ -84,10 +88,6 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 
 	// Older ubuntu versions only has dhclient running for IPv4 on primary NIC
 	// by default. So we assume the IPv6 process exists to let the test pass.
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		t.Fatalf("Failed to get image metadata: %v", err)
-	}
 	if strings.Contains(image, "ubuntu") && nic.Index == 0 && nic.StackType != Ipv4 {
 		ipv6Process = true
 	}
