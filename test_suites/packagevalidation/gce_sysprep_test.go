@@ -25,8 +25,22 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
+func resetDebugLogs(t *testing.T) {
+	t.Helper()
+	script := `
+(Get-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg") -replace 'log_level = 4', 'log_level = 3' | Set-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg"
+(Get-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg") -replace 'log_verbosity = 4', 'log_verbosity = 0' | Set-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg"
+`
+
+	out, err := utils.RunPowershellCmd(script)
+	if err != nil {
+		t.Fatalf("Failed to reset log settings: %v, output: %+v", err, out)
+	}
+}
+
 func TestGCESysprep(t *testing.T) {
 	utils.WindowsOnly(t)
+	resetDebugLogs(t)
 	ctx := utils.Context(t)
 	err := os.WriteFile(`C:\Windows\Temp\test.txt`, []byte(`test file`), 0777)
 	if err != nil {
