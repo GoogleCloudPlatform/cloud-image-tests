@@ -169,7 +169,7 @@ func SkipPrimaryRollback(t *testing.T, singleNIC bool) bool {
 	t.Helper()
 	return singleNIC && exceptions.HasMatch(image, []exceptions.Exception{
 		exceptions.Exception{
-			Match: "debian-12-guest-agent-stable.*",
+			Match: "debian-12(?:-arm64)?-guest-agent-stable.*",
 			Type:  exceptions.Equal,
 		},
 	})
