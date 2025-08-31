@@ -16,8 +16,11 @@
 package compatmanager
 
 import (
+	"fmt"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/exceptions"
 	"github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
 )
@@ -50,8 +53,26 @@ Get-Process | Format-List * | Out-File -FilePath 'C:\sysprep.txt' -Encoding ASCI
 `
 )
 
+var ubuntuExceptions = []exceptions.Exception{
+	{
+		Match:   "ubuntu-2404-lts-(amd64|arm64)-guest-agent-stable.*",
+		Version: 2404,
+	},
+	{
+		Match:   "ubuntu-2504-(amd64|arm64)-guest-agent-stable.*",
+		Version: 2504,
+	},
+}
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	hasException := exceptions.HasMatch(t.Image.Name, ubuntuExceptions)
+
+	if hasException {
+		t.Skip(fmt.Sprintf("Skipping test for image %q, derived image does not have compat manager disabled", t.Image.Name))
+		return nil
+	}
+
 	defaultVM, err := t.CreateTestVM("compatmanager")
 	if err != nil {
 		return err

@@ -106,6 +106,7 @@ func TestNICSetup(t *testing.T) {
 	}
 	getSupportsIPv6(t)
 
+	skipPrimaryRollbackCheck := managers.SkipPrimaryRollback(t, numInterfaces == 1)
 	isUbuntu1804 := managers.IsUbuntu1804(t)
 
 	// Check that no configurations for the primary NIC exist.
@@ -132,7 +133,15 @@ func TestNICSetup(t *testing.T) {
 	t.Logf("%s: Disabled primary NIC configuration", getCurrentTime())
 
 	// Check that the configurations for the primary NIC don't exist.
-	managers.VerifyNIC(t, primaryNIC, false)
+	if !skipPrimaryRollbackCheck {
+		managers.VerifyNIC(t, primaryNIC, false)
+	} else {
+		t.Logf("%s: Skipping primary NIC rollback test", getCurrentTime())
+	}
+
+	// Check that the primary NIC has the proper connection after rollback.
+	verifyConnection(t, primaryNIC)
+
 	t.Logf("%s: Finished testing primary NIC", getCurrentTime())
 
 	// Test secondary NIC if it exists.

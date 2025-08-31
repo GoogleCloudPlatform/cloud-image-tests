@@ -163,6 +163,18 @@ func getNICType(t *testing.T, index int) NicStackType {
 	return Ipv4
 }
 
+// SkipPrimaryRollback returns true if the primary NIC rollback test should be
+// skipped.
+func SkipPrimaryRollback(t *testing.T, singleNIC bool) bool {
+	t.Helper()
+	return singleNIC && exceptions.HasMatch(image, []exceptions.Exception{
+		exceptions.Exception{
+			Match: "debian-12-guest-agent-stable.*",
+			Type:  exceptions.Equal,
+		},
+	})
+}
+
 // IsUbuntu2004 returns true if the image is Ubuntu 18.04.
 func IsUbuntu2004(t *testing.T) bool {
 	t.Helper()
