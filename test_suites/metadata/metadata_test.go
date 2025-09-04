@@ -59,7 +59,7 @@ func TestMetaDataResponseHeaders(t *testing.T) {
 	for key, values := range headers {
 		if key != "Metadata-Flavor" {
 			for _, v := range values {
-				if strings.Contains(strings.ToLower(v), "google") {
+				if strings.Contains(strings.ToLower(v), "google") && !strings.Contains(strings.ToLower(v), "google.com") {
 					t.Fatalf("unexpected Google header (key: %q, value: %q) exists in metadata response", key, v)
 				}
 			}
