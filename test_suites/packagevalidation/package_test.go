@@ -230,6 +230,15 @@ func TestGuestPackages(t *testing.T) {
 			images:               []*regexp.Regexp{regexp.MustCompile("debian")},
 		},
 		{
+			name:   "gce-configs-trixie",
+			images: []*regexp.Regexp{regexp.MustCompile("debian-13.*")},
+		},
+		{
+			name:                 "gce-configs-trixie",
+			shouldNotBeInstalled: true,
+			images:               []*regexp.Regexp{regexp.MustCompile("debian-11.*"), regexp.MustCompile("debian-12.*")},
+		},
+		{
 			name:   "rdma-core",
 			images: []*regexp.Regexp{regexp.MustCompile("accelerator"), regexp.MustCompile("nvidia")},
 		},
