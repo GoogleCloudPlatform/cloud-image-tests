@@ -16,7 +16,6 @@ package acceleratorconfig
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -25,16 +24,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
-
-func isRockyLinux(ctx context.Context, t *testing.T) bool {
-	t.Helper()
-	content, err := os.ReadFile("/etc/os-release")
-	if err != nil {
-		t.Logf("Could not read os-release: %v, defaulting isRockyLinux to false", err)
-		return false
-	}
-	return strings.Contains(string(content), "rocky")
-}
 
 func installShowGids(ctx context.Context, t *testing.T) {
 	t.Helper()
