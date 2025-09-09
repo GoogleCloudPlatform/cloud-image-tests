@@ -151,7 +151,7 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "rocky") && strings.Contains(image.Name, "nvidia"):
 		project = "rocky-linux-cloud"
-		rockyVersion := strings.TrimPrefix(regexp.MustCompile("rocky-linux-[0-9]{1}").FindString(image.Name), "rocky-linux-")
+		rockyVersion := strings.TrimPrefix(regexp.MustCompile("rocky-linux-[0-9]{1,2}").FindString(image.Name), "rocky-linux-")
 		gpuDriverVersion := strings.TrimPrefix(regexp.MustCompile("nvidia-([0-9]{3}|latest)").FindString(image.Name), "nvidia-")
 		transform = func() {
 			requiredLicenses = []string{
