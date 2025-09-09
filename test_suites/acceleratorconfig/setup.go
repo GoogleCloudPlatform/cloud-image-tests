@@ -127,6 +127,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	tvm.RunTests("TestGpuCount|TestNicCount|TestGPUNumaMapping|TestNICNumaMapping|TestNICNaming")
+	tvm.RunTests("TestGpuCount|TestNicCount|TestGPUNumaMapping|TestNICNumaMapping|TestNICNaming|TestPCIETopology")
 	return nil
 }
