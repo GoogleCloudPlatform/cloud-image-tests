@@ -16,6 +16,7 @@ package acceleratorconfig
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -25,8 +26,25 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
+func isRockyLinux(ctx context.Context, t *testing.T) bool {
+	t.Helper()
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		t.Logf("Could not read os-release: %v, defaulting isRockyLinux to false", err)
+		return false
+	}
+	return strings.Contains(string(content), "rocky")
+}
+
 func installShowGids(ctx context.Context, t *testing.T) {
 	t.Helper()
+	// Rocky Linux accelerator OS already contains show_gids
+	if isRockyLinux(ctx, t) {
+		return
+	}
+	if err := utils.InstallPackage("git"); err != nil {
+		t.Fatalf("Failed to install git, err = %v", err)
+	}
 	if out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/Mellanox/mlnx-tools.git").CombinedOutput(); err != nil {
 		t.Fatalf("exec.CommandContext(ctx, git clone https://github.com/Mellanox/mlnx-tools.git).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", err, out)
 	}
@@ -34,11 +52,15 @@ func installShowGids(ctx context.Context, t *testing.T) {
 
 func runShowGids(ctx context.Context, t *testing.T) string {
 	t.Helper()
-	out, err := exec.CommandContext(ctx, "./mlnx-tools/sbin/show_gids").CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, ./mlnx-tools/sbin/show_gids).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", err, out)
+	command := "./mlnx-tools/sbin/show_gids"
+	if isRockyLinux(ctx, t) {
+		command = "show_gids"
 	}
-	t.Logf("./mlnx-tools/sbin/show_gids output:\n%s", out)
+	out, err := exec.CommandContext(ctx, command).CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, %s).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", command, err, out)
+	}
+	t.Logf("%s output:\n%s", command, out)
 	return string(out)
 }
 
@@ -75,10 +97,15 @@ func validateGIDTable(t *testing.T, gidTable string) {
 
 func resetGIDTable(ctx context.Context, t *testing.T) {
 	t.Helper()
-	t.Log("Restarting systemd-networkd to trigger a GID table rebuild")
-	out, err := exec.CommandContext(ctx, "systemctl", "restart", "systemd-networkd").CombinedOutput()
+	service := "systemd-networkd.service"
+	if isRockyLinux(ctx, t) {
+		service = "NetworkManager.service"
+	}
+	t.Logf("Restarting %s to trigger a GID table rebuild", service)
+	command := exec.CommandContext(ctx, "systemctl", "restart", service)
+	out, err := command.CombinedOutput()
 	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, systemctl restart systemd-networkd).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", err, out)
+		t.Fatalf("exec.CommandContext(ctx, %s).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", command, err, out)
 	}
 
 	// Wait a maximum of 10 seconds for the GID table to be rebuilt.
