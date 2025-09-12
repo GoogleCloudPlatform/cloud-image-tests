@@ -139,9 +139,9 @@ var armshapes = map[string]*shape{
 		cpu:   48,
 		mem:   192,
 		numa:  1,
-		disks: []*compute.Disk{{Name: "T2A", Type: imagetest.PdStandard, Zone: "us-central1-a"}},
-		zone:  "us-central1-a",
-		quota: &daisy.QuotaAvailable{Metric: "T2A_CPUS", Units: 48, Region: "us-central1"},
+		disks: []*compute.Disk{{Name: "T2A", Type: imagetest.PdStandard, Zone: "europe-west4-a"}},
+		zone:  "europe-west4-a",
+		quota: &daisy.QuotaAvailable{Metric: "T2A_CPUS", Units: 48, Region: "europe-west4"},
 	},
 }
 
