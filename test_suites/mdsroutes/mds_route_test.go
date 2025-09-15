@@ -29,21 +29,16 @@ const (
 	metadataServerURL = "http://metadata.google.internal/"
 )
 
-func isSLESImage(ctx context.Context, t *testing.T) bool {
+// Skip secondary NICs on Windows. Guest agent doesn't manage NICs on Windows,
+// so the routes/behavior are more unpredictable.
+// TODO(b/428199320): Remove check once fix is implemented.
+func shouldSkipSecondaryNICMDSCheck(ctx context.Context, t *testing.T) bool {
 	t.Helper()
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Failed to get image from metadata: %v", err)
 	}
-
-	return strings.Contains(image, "sles")
-}
-
-// Skip secondary NICs on Windows. Guest agent doesn't manage NICs on Windows,
-// so the routes/behavior are more unpredictable.
-// TODO(b/383775692): Remove SLES check once fix is implemented.
-func shouldSkipSecondaryNICMDSCheck(ctx context.Context, t *testing.T) bool {
-	return utils.IsWindows() || isSLESImage(ctx, t)
+	return utils.IsWindows() || strings.Contains(image, "sles") || strings.Contains(image, "debian-13")
 }
 
 func TestMetadataPath(t *testing.T) {
