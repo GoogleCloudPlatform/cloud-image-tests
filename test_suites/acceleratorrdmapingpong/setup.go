@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package acceleratorrdma validates rdma stacks on accelerator images.
-package acceleratorrdma
+// Package acceleratorrdmapingpong validates rdma reliable connections on accelerator images.
+package acceleratorrdmapingpong
 
 import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -22,7 +22,7 @@ import (
 
 var (
 	// Name is the name of the test package. It must match the directory name.
-	Name = "acceleratorrdma"
+	Name = "acceleratorrdmapingpong"
 )
 
 // TestSetup sets up test workflow.
@@ -36,7 +36,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	hostVM.RunTests("TestGPUDirectRDMAHost")
-	clientVM.RunTests("TestGPUDirectRDMAClient")
+	hostVM.RunTests("TestRDMAPingPongHost")
+	clientVM.RunTests("TestRDMAPingPongClient")
 	return nil
 }

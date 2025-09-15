@@ -34,6 +34,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmapingpong"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/compatmanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
@@ -274,6 +275,10 @@ func main() {
 		{
 			acceleratorrdma.Name,
 			acceleratorrdma.TestSetup,
+		},
+		{
+			acceleratorrdmapingpong.Name,
+			acceleratorrdmapingpong.TestSetup,
 		},
 		{
 			cvm.Name,
