@@ -15,6 +15,7 @@
 package oslogin
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -81,8 +82,22 @@ func TestGetentPasswdOsloginUser(t *testing.T) {
 	}
 }
 
+func rootUserEntry(ctx context.Context, t *testing.T) string {
+	t.Helper()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("failed to get image: %v", err)
+	}
+	// https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html-single/10.0_release_notes/index#:~:text=GECOS%20field%20for%20root%20user%20is%20changed%20to%20Super%20User
+	if strings.Contains(image, "rhel-10") {
+		return "root:x:0:0:Super User:/root:"
+	}
+	return "root:x:0:0:root:/root:"
+}
+
 func TestGetentPasswdAllUsers(t *testing.T) {
-	_, _, testUserEntry, err := getTestUserEntry(utils.Context(t))
+	ctx := utils.Context(t)
+	_, _, testUserEntry, err := getTestUserEntry(ctx)
 	if err != nil {
 		t.Fatalf("failed to get test user entry: %v", err)
 	}
@@ -92,7 +107,7 @@ func TestGetentPasswdAllUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getent command failed %v", err)
 	}
-	if !strings.Contains(string(out), "root:x:0:0:root:/root:") {
+	if !strings.Contains(string(out), rootUserEntry(ctx, t)) {
 		t.Errorf("getent passwd output does not contain user root")
 	}
 	if !strings.Contains(string(out), "nobody:x:") {
