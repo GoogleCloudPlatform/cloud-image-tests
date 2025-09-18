@@ -16,6 +16,7 @@ package acceleratorrdma
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -29,7 +30,7 @@ func setupPerftest(ctx context.Context, t *testing.T) {
 	t.Helper()
 	switch {
 	case utils.CheckLinuxCmdExists("yum"):
-		out, err := exec.CommandContext(ctx, "yum", "install", "-y", "git", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel").CombinedOutput()
+		out, err := exec.CommandContext(ctx, "yum", "install", "-y", "git", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel").CombinedOutput()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, yum, install, -y, git, cuda-toolkit, perftest, libtool, automake, autoconf, make, libibverbs-devel, librdmacm-devel, libibumad-devel, pciutils-devel).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
@@ -38,13 +39,14 @@ func setupPerftest(ctx context.Context, t *testing.T) {
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories, -y).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
-		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "cuda-toolkit", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
+		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, apt, install, -y, git, ibverbs-utils, cuda-toolkit, perftest, libtool, automake, autoconf, libibverbs-dev, librdmacm-dev, libibumad-dev, libpci-dev, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
 	default:
 		t.Fatalf("Unknown package manager, can't install build deps.")
 	}
+	installCudaRuntime(ctx, t)
 	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").CombinedOutput()
 	if err != nil {
 		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
@@ -66,6 +68,37 @@ func setupPerftest(ctx context.Context, t *testing.T) {
 	out, err = exec.CommandContext(ctx, "make").CombinedOutput()
 	if err != nil {
 		t.Fatalf("exec.CommandContext(ctx, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+	}
+}
+
+// installCudaRuntime installs a CUDA runtime version compatible with the pre-installed CUDA driver.
+func installCudaRuntime(ctx context.Context, t *testing.T) {
+	t.Helper()
+	// `nvidia-smi --version` output contains a line with a compatible CUDA runtime version like:
+	// `CUDA Version : 12.8`
+	out, err := exec.CommandContext(ctx, "nvidia-smi", "--version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(ctx, nvidia-smi --version).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+	}
+	cudaVersionLine := ""
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "CUDA Version") {
+			cudaVersionLine = line
+			break
+		}
+	}
+	if cudaVersionLine == "" {
+		t.Fatalf("Failed to find `CUDA Version` in nvidia-smi --version output:\n%s", out)
+	}
+	line := strings.Fields(cudaVersionLine)
+	if len(line) < 4 {
+		t.Fatalf("Failed to parse the CUDA version: expected at least 4 fields , got %d\n CUDA version line: %s", len(line), cudaVersionLine)
+	}
+	cudaVersion := line[len(line)-1]
+	cudaVersion = strings.ReplaceAll(cudaVersion, ".", "-")
+	cudaPackage := fmt.Sprintf("cuda-toolkit-%s", cudaVersion)
+	if err := utils.InstallPackage(cudaPackage); err != nil {
+		t.Fatalf("Unable to install the CUDA runtime: utils.InstallPackage(%s) = %v, want nil", cudaPackage, err)
 	}
 }
 
