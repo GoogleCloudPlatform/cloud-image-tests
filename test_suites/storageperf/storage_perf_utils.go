@@ -148,6 +148,7 @@ var hyperdiskThroughputIOPSMap = map[string]PerformanceTargets{
 	},
 }
 
+// See https://cloud.google.com/compute/docs/disks/performance#pd-balanced_7
 var pdbalanceIOPSMap = map[string]PerformanceTargets{
 	"c3-standard-88": {
 		randReadIOPS:  80000.0,
@@ -158,8 +159,8 @@ var pdbalanceIOPSMap = map[string]PerformanceTargets{
 	"c3d-standard-180": {
 		randReadIOPS:  80000.0,
 		randWriteIOPS: 80000.0,
-		seqReadBW:     2200.0,
-		seqWriteBW:    2200.0,
+		seqReadBW:     1200.0,
+		seqWriteBW:    1200.0,
 	},
 	"n2d-standard-64": {
 		randReadIOPS:  80000.0,
