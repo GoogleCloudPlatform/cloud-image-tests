@@ -218,7 +218,12 @@ func TestGuestPackages(t *testing.T) {
 		},
 		{
 			name:   "google-cloud-packages-archive-keyring",
-			images: []*regexp.Regexp{regexp.MustCompile("debian")},
+			images: []*regexp.Regexp{regexp.MustCompile("debian-11.*"), regexp.MustCompile("debian-12.*")},
+		},
+		{
+			name:                 "google-cloud-packages-archive-keyring",
+			shouldNotBeInstalled: true,
+			images:               []*regexp.Regexp{regexp.MustCompile("debian-13.*")},
 		},
 		{
 			name:   "isc-dhcp-client",
