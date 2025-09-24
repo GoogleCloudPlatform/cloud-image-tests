@@ -99,10 +99,10 @@ var (
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 
-	// roundRobinZones is a list of zones to be used for tests. This is used to
-	// distribute tests across zones when the zones flag is set and zone flag is
-	// not set.
-	zonesRoundRobin []string
+	// zonesRoundRobinIdx points to an index in the list of zones.
+	// This is used to distribute tests across the list of zones in a round robin fashion,
+	// when the zones flag is set.
+	zonesRoundRobinIdx = -1
 )
 
 var (
@@ -181,25 +181,18 @@ func init() {
 	flag.Var(&zones, "zones", "A comma-separated list of zones (e.g., --zones=\"us-east4, us-west1, us-west4\")")
 }
 
-// selectZoneFromZonesFlag round robins the zone list, so that the same zone is
-// not used for every test. Tests are meant to be equally distributed across
-// zones.
+// selectZoneFromZonesFlag performs a round robin over the zones list,
+// and returns the next zone in the list.
 func selectZoneFromZonesFlag(zones []string) string {
-	if len(zonesRoundRobin) == 0 {
-		zonesRoundRobin = make([]string, len(zones))
-		copy(zonesRoundRobin, zones)
+	zonesRoundRobinIdx++
+	if zonesRoundRobinIdx >= len(zones) {
+		zonesRoundRobinIdx = 0
 	}
-
-	result := zonesRoundRobin[0]
-	if len(zonesRoundRobin) > 1 {
-		zonesRoundRobin = append(zonesRoundRobin[1:], result)
-	}
-
-	return result
+	return zones[zonesRoundRobinIdx]
 }
 
-// selectZone returns the zone to be used for the test. If the zone flag is set,
-// it is returned. Otherwise, a zone is selected from the zones flag.
+// selectZone returns the zone to be used for the test. If the zones flag is set,
+// then a zone is selected from the zones flag. Otherwise, the zone flag is returned.
 func selectZone() string {
 	if len(zones) == 0 {
 		return *zone
@@ -207,9 +200,9 @@ func selectZone() string {
 	return selectZoneFromZonesFlag(zones)
 }
 
-// displayFlagZone returns the zone to be displayed in the log. If the zones
-// flag is set, it is returned. Otherwise, the zone flag is returned.
-func displayFlagZone() string {
+// displayZone returns the zone to be displayed in the log. If the zones
+// flag is set, its serialized string is returned. Otherwise, the zone flag is returned.
+func displayZone() string {
 	if len(zones) > 0 {
 		return zones.String()
 	}
@@ -229,7 +222,7 @@ func main() {
 		testProjectsReal = strings.Split(*testProjects, ",")
 	}
 
-	log.Printf("Running in project %s zone(s) %s. Tests will run in projects: %s", *project, displayFlagZone(), testProjectsReal)
+	log.Printf("Running in project %s zone(s) %s. Tests will run in projects: %s", *project, displayZone(), testProjectsReal)
 	if *gcsPath != "" {
 		log.Printf("gcs_path set to %s", *gcsPath)
 	}
