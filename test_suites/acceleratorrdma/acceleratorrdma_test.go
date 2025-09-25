@@ -21,13 +21,32 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 func setupPerftest(ctx context.Context, t *testing.T) {
 	t.Helper()
+	// Save and restore the working directory to avoid test order dependency.
+	homeDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		t.Logf("Test cleanup: Changing directory back to %q", homeDir)
+		if err := os.Chdir(homeDir); err != nil {
+			t.Fatalf("os.Chdir(%q) = %v, want nil", homeDir, err)
+		}
+	})
+
+	if _, err := os.Stat("./perftest/ib_write_bw"); err == nil {
+		t.Logf("Skipping setup step as linux-rdma/perftest was already built")
+		if err := os.Chdir("./perftest"); err != nil {
+			t.Fatalf("os.Chdir(./perftest) = %v, want nil", err)
+		}
+		return
+	}
+
 	switch {
 	case utils.CheckLinuxCmdExists("yum"):
 		out, err := exec.CommandContext(ctx, "yum", "install", "-y", "git", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel").CombinedOutput()
@@ -145,29 +164,29 @@ func TestGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(ctx, rdmaHostName)
-	if err != nil {
-		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", rdmaHostName, err)
-	}
-	ibWriteBWArgs = append(ibWriteBWArgs, target)
-	for {
-		ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
-		out, err := ibWriteBWCmd.CombinedOutput()
-		if err == nil {
-			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-			break
-		}
-		// Client may be ready before host, retry connection errors.
-		if strings.Contains(string(out), "Couldn't connect to "+target) {
-			time.Sleep(time.Second)
-			if ctx.Err() != nil {
-				t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-				t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
-			}
-			continue
-		}
+	runRDMAClientCommand(ctx, t, "./ib_write_bw", ibWriteBWArgs)
+}
 
-		t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = err %v, want nil", ibWriteBWCmd.String(), err)
+var writeWithImmediateArgs = []string{
+	"--write_with_imm",
+	"--size=64",
+}
+
+// Exercises the Write With Immediate RDMA verb which is frequently used by NCCL to signal operation
+// status. This is *not* a performance test.
+func TestWriteWithImmediateHost(t *testing.T) {
+	ctx := utils.Context(t)
+	setupPerftest(ctx, t)
+	command := exec.CommandContext(ctx, "./ib_write_lat", writeWithImmediateArgs...)
+	out, err := command.CombinedOutput()
+	t.Logf("%s output:\n%s", command, out)
+	if err != nil {
+		t.Fatalf("exec.CommandContext(%s).CombinedOutput() failed unexpectedly; err = %v", command, err)
 	}
+}
+
+func TestWriteWithImmediateClient(t *testing.T) {
+	ctx := utils.Context(t)
+	setupPerftest(ctx, t)
+	runRDMAClientCommand(ctx, t, "./ib_write_lat", writeWithImmediateArgs)
 }

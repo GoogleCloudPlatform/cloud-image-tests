@@ -137,13 +137,13 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	rdmaHost.Scheduling = schedulingConfig
 	rdmaHost.NetworkInterfaces = nicConfig
 	rdmaHost.GuestAccelerators = accelConfig
-	node1Disks := []*compute.Disk{{Name: rdmaHostName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	hostDisks := []*compute.Disk{{Name: rdmaHostName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	node1VM, err := t.CreateTestVMFromInstanceBeta(rdmaHost, node1Disks)
+	hostVM, err := t.CreateTestVMFromInstanceBeta(rdmaHost, hostDisks)
 	if err != nil {
 		return err
 	}
-	node1VM.RunTests("TestGPUDirectRDMAHost")
+	hostVM.RunTests("TestRDMAPingPongHost|TestGPUDirectRDMAHost|TestWriteWithImmediateHost")
 
 	rdmaClient := &daisy.InstanceBeta{}
 	rdmaClient.Name = rdmaClientName
@@ -152,12 +152,12 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	rdmaClient.Scheduling = schedulingConfig
 	rdmaClient.NetworkInterfaces = nicConfig
 	rdmaClient.GuestAccelerators = accelConfig
-	node2Disks := []*compute.Disk{{Name: rdmaClientName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
+	clientDisks := []*compute.Disk{{Name: rdmaClientName, Type: imagetest.HyperdiskBalanced, Zone: testZone, SizeGb: 80}}
 
-	node2VM, err := t.CreateTestVMFromInstanceBeta(rdmaClient, node2Disks)
+	clientVM, err := t.CreateTestVMFromInstanceBeta(rdmaClient, clientDisks)
 	if err != nil {
 		return err
 	}
-	node2VM.RunTests("TestGPUDirectRDMAClient")
+	clientVM.RunTests("TestRDMAPingPongClient|TestGPUDirectRDMAClient|TestWriteWithImmediateClient")
 	return nil
 }
