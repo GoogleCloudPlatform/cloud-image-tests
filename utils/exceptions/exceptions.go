@@ -45,11 +45,11 @@ const (
 
 const (
 	// ImageUbuntu is the base image name for all Ubuntu images.
-	ImageUbuntu = "ubuntu.*"
+	ImageUbuntu = ".*ubuntu.*"
 	// ImageUbuntuMinimal is the base image name for Ubuntu minimal images.
-	ImageUbuntuMinimal = "ubuntu-minimal.*"
+	ImageUbuntuMinimal = ".*ubuntu-minimal.*"
 	// ImageUbuntuNoMinimal is the base image name for Ubuntu images that are not minimal.
-	ImageUbuntuNoMinimal = "ubuntu-[0-9]+.*"
+	ImageUbuntuNoMinimal = ".*ubuntu-((?!minimal).*)-?[0-9]+.*"
 	// ImageCOS is the base image name for COS.
 	ImageCOS = "cos.*"
 	// ImageSLES is the base image name for SLES.
