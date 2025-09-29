@@ -47,9 +47,9 @@ func setupPerftest(ctx context.Context, t *testing.T) {
 		t.Fatalf("Unknown package manager, can't install build deps.")
 	}
 	installCudaRuntime(ctx, t)
-	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").CombinedOutput()
+	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "--branch=25.07.0-0.104", "https://github.com/linux-rdma/perftest").CombinedOutput()
 	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
+		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, --branch=25.07.0-0.104, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
 	}
 	if err := os.Chdir("./perftest"); err != nil {
 		t.Fatalf("os.Chdir(./perftest) = %v, want nil", err)
