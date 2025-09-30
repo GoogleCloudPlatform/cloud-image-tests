@@ -243,8 +243,18 @@ func TestAliasAgentRestart(t *testing.T) {
 
 func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 	utils.LinuxOnly(t)
-
 	ctx := utils.Context(t)
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+
+	// TODO(b/448377923): Remove this skip once the agent is released.
+	if strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent") {
+		t.Skipf("Skipping test as it is not expected to pass on previous version of guest agent (image: %s).", image)
+	}
+
 	iface := readNic(ctx, t, 0)
 
 	t.Cleanup(func() {
