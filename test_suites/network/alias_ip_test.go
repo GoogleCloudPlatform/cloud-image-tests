@@ -241,6 +241,68 @@ func TestAliasAgentRestart(t *testing.T) {
 	}
 }
 
+func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
+	utils.LinuxOnly(t)
+
+	ctx := utils.Context(t)
+	iface := readNic(ctx, t, 0)
+
+	t.Cleanup(func() {
+		// Swap the IP forwarding configuration from false to true.
+		swapIPForwardingConfiguration(t, "ip_forwarding = false")
+
+		if err := utils.RestartAgent(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	beforeRestart, err := getGoogleRoutes(iface.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Swap the IP forwarding configuration from true to false.
+	swapIPForwardingConfiguration(t, "ip_forwarding = true")
+
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	afterRestart, err := getGoogleRoutes(iface.Name)
+	if err == nil {
+		t.Fatal("Routes exists after restart, but should not exist")
+	}
+
+	if compare(beforeRestart, afterRestart) {
+		t.Fatalf("Routes are consistent after restart, but should not be")
+	}
+}
+
+func swapIPForwardingConfiguration(t *testing.T, currentConfig string) {
+	t.Helper()
+
+	configFile := "/etc/default/instance_configs.cfg"
+
+	toggle := map[string]string{
+		"ip_forwarding = true":  "ip_forwarding = false",
+		"ip_forwarding = false": "ip_forwarding = true",
+	}
+
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	from := currentConfig
+	to := toggle[currentConfig]
+
+	changedConfig := strings.ReplaceAll(string(data), from, to)
+
+	if err := os.WriteFile(configFile, []byte(changedConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func verifyIPExist(ctx context.Context, routes []string) error {
 	expected, err := utils.GetMetadata(ctx, "instance", "network-interfaces", "0", "ip-aliases", "0")
 	if err != nil {
