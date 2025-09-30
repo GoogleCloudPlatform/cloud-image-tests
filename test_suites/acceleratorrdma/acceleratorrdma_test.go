@@ -16,91 +16,13 @@ package acceleratorrdma
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/acceleratorutils"
 )
-
-func setupPerftest(ctx context.Context, t *testing.T) {
-	t.Helper()
-	switch {
-	case utils.CheckLinuxCmdExists("yum"):
-		out, err := exec.CommandContext(ctx, "yum", "install", "-y", "git", "perftest", "libtool", "automake", "autoconf", "make", "libibverbs-devel", "librdmacm-devel", "libibumad-devel", "pciutils-devel").CombinedOutput()
-		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, yum, install, -y, git, cuda-toolkit, perftest, libtool, automake, autoconf, make, libibverbs-devel, librdmacm-devel, libibumad-devel, pciutils-devel).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-		}
-	case utils.CheckLinuxCmdExists("apt"):
-		out, err := exec.CommandContext(ctx, "add-nvidia-repositories", "-y").CombinedOutput()
-		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories, -y).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-		}
-		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
-		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, apt, install, -y, git, ibverbs-utils, cuda-toolkit, perftest, libtool, automake, autoconf, libibverbs-dev, librdmacm-dev, libibumad-dev, libpci-dev, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-		}
-	default:
-		t.Fatalf("Unknown package manager, can't install build deps.")
-	}
-	installCudaRuntime(ctx, t)
-	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
-	}
-	if err := os.Chdir("./perftest"); err != nil {
-		t.Fatalf("os.Chdir(./perftest) = %v, want nil", err)
-	}
-	out, err = exec.CommandContext(ctx, "./autogen.sh").CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, ./autogen.sh).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-	}
-	configure := exec.CommandContext(ctx, "./configure")
-	configure.Env = append(configure.Environ(), "CUDA_H_PATH=/usr/local/cuda/include/cuda.h")
-	out, err = configure.CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, CUDA_H_PATH=/usr/local/cuda/include/cuda.h ./configure).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-	}
-	// -j$(nproc) causes compilation failures in some cases
-	out, err = exec.CommandContext(ctx, "make").CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-	}
-}
-
-// installCudaRuntime installs a CUDA runtime version compatible with the pre-installed CUDA driver.
-func installCudaRuntime(ctx context.Context, t *testing.T) {
-	t.Helper()
-	// `nvidia-smi --version` output contains a line with a compatible CUDA runtime version like:
-	// `CUDA Version : 12.8`
-	out, err := exec.CommandContext(ctx, "nvidia-smi", "--version").CombinedOutput()
-	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, nvidia-smi --version).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-	}
-	cudaVersionLine := ""
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.Contains(line, "CUDA Version") {
-			cudaVersionLine = line
-			break
-		}
-	}
-	if cudaVersionLine == "" {
-		t.Fatalf("Failed to find `CUDA Version` in nvidia-smi --version output:\n%s", out)
-	}
-	line := strings.Fields(cudaVersionLine)
-	if len(line) < 4 {
-		t.Fatalf("Failed to parse the CUDA version: expected at least 4 fields , got %d\n CUDA version line: %s", len(line), cudaVersionLine)
-	}
-	cudaVersion := line[len(line)-1]
-	cudaVersion = strings.ReplaceAll(cudaVersion, ".", "-")
-	cudaPackage := fmt.Sprintf("cuda-toolkit-%s", cudaVersion)
-	if err := utils.InstallPackage(cudaPackage); err != nil {
-		t.Fatalf("Unable to install the CUDA runtime: utils.InstallPackage(%s) = %v, want nil", cudaPackage, err)
-	}
-}
 
 func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
 	args := []string{
@@ -131,7 +53,7 @@ func buildIBWriteBWArgs(ctx context.Context, t *testing.T) []string {
 // This is *not* a performance test, performance numbers aren't checked.
 func TestGPUDirectRDMAHost(t *testing.T) {
 	ctx := utils.Context(t)
-	setupPerftest(ctx, t)
+	acceleratorutils.SetupRDMAPerftestLibrary(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
 	ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
 	out, err := ibWriteBWCmd.CombinedOutput()
@@ -143,31 +65,7 @@ func TestGPUDirectRDMAHost(t *testing.T) {
 
 func TestGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
-	setupPerftest(ctx, t)
+	acceleratorutils.SetupRDMAPerftestLibrary(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(ctx, rdmaHostName)
-	if err != nil {
-		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", rdmaHostName, err)
-	}
-	ibWriteBWArgs = append(ibWriteBWArgs, target)
-	for {
-		ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
-		out, err := ibWriteBWCmd.CombinedOutput()
-		if err == nil {
-			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-			break
-		}
-		// Client may be ready before host, retry connection errors.
-		if strings.Contains(string(out), "Couldn't connect to "+target) {
-			time.Sleep(time.Second)
-			if ctx.Err() != nil {
-				t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-				t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
-			}
-			continue
-		}
-
-		t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = err %v, want nil", ibWriteBWCmd.String(), err)
-	}
+	acceleratorutils.RunRDMAClientCommand(ctx, t, "./ib_write_bw", ibWriteBWArgs)
 }
