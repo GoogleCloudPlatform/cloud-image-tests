@@ -53,7 +53,7 @@
         "n4-highcpu-64":  45,
         "n4-highcpu-80":  50,
 
-        "c4-standard-2":   23,
+        "c4-standard-2":   10,
         "c4-standard-48":  34,
         "c4-standard-96":  67,
         "c4-standard-192": 100,
