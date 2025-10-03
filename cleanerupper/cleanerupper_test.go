@@ -27,6 +27,7 @@ import (
 	osconfigalpha "cloud.google.com/go/osconfig/apiv1alpha"
 	osconfig "cloud.google.com/go/osconfig/apiv1beta"
 	computeDaisy "github.com/GoogleCloudPlatform/compute-daisy/compute"
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/compute/v1"
 	osconfigv1alphapb "google.golang.org/genproto/googleapis/cloud/osconfig/v1alpha"
@@ -622,7 +623,20 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "Name": "test-target-http-proxy", "urlMap": "projects/test-project/regions/test-region/urlMaps/test-url-map"}]}`)
 		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/targetHttpProxies/test-target-http-proxy?alt=json&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
-
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/zones?alt=json&filter=name+eq+test-region-%%5Ba-z%%5D&pageToken=&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/zones/test-region-a", "Name": "test-region-a"}]}`)
+		} else if r.Method == "POST" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/operations//wait?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "Name": "test-network-endpoint-group", "Network": "projects/test-project/global/networks/test-network"}]}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups/test-network-endpoint-group?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "POST" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/operations//wait?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "Name": "test-network-endpoint-group", "Network": "projects/test-project/global/networks/test-network"}]}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups/test-network-endpoint-group?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else {
 			w.WriteHeader(555)
 			fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
@@ -644,7 +658,7 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 			clients: Clients{Daisy: daisyFake},
 			project: "test-project",
 			policy:  deleteEverything,
-			output:  []string{"projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule2"},
+			output:  []string{"projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule2"},
 			dryRun:  true,
 		},
 		{
@@ -652,7 +666,7 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 			clients: Clients{Daisy: daisyFake},
 			project: "test-project",
 			policy:  deleteEverything,
-			output:  []string{"projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule2"},
+			output:  []string{"projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule2"},
 		},
 		{
 			name:    "delete nothing",
@@ -669,17 +683,10 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 					t.Errorf("error from CleanLoadBalancerResources: %v", e)
 				}
 			}
-			if len(o) != len(tc.output) {
-				t.Errorf("unexpected output length from CleanLoadBalancerResources, want %d but got %d", len(tc.output), len(o))
-			}
 			sort.Strings(o)
 			sort.Strings(tc.output)
-			t.Logf("got %v", o)
-			t.Logf("want %v", tc.output)
-			for i := range o {
-				if o[i] != tc.output[i] {
-					t.Errorf("unexpected output from CleanLoadBalancerResources at position %d, want %s but got %s", i, tc.output[i], o[i])
-				}
+			if diff := cmp.Diff(tc.output, o); diff != "" {
+				t.Errorf("cmp.Diff(tc.output, o) != nil (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -703,6 +710,10 @@ func TestCleanNetworks(t *testing.T) {
 			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/test-region/backendServices/test-backend-service", "Name": "test-backend-service", "Network": "projects/test-project/global/networks/test-network"}]}`)
 		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/backendServices/test-backend-service?alt=json&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, fmt.Sprintf(`{"items":[{"SelfLink": "projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "Name": "test-network-endpoint-group", "Network": "projects/test-project/global/networks/test-network"}]}`))
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/global/routes?alt=json&pageToken=&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"items":[{"Network": "projects/test-project/global/networks/fake-network"}, {"SelfLink": "projects/test-project/global/routes/test-route", "Name": "test-route", "Network": "projects/test-project/global/networks/test-network"}]}`)
 		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/aggregated/subnetworks?alt=json&pageToken=&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"items":{"regions/test-region":{"subnetworks":[{"Network": "projects/test-project/global/networks/fake-network"}, {"Network": "projects/test-project/global/networks/test-network","SelfLink": "projects/test-project/regions/test-region/subnetworks/test-subnetwork", "Name": "test-subnetwork", "Region": "test-region", "IpCidrRange": "10.1.0.0/48"}, {"Network": "projects/test-project/global/networks/test-network","SelfLink": "projects/test-project/regions/test-region/subnetworks/test-subnetwork-2", "Name": "test-subnetwork-2", "Region": "test-region", "IpCidrRange": "10.128.0.0/48"}]}}}`)
 		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/global/firewalls/test-firewall?alt=json&prettyPrint=false", "test-project") {
@@ -721,11 +732,18 @@ func TestCleanNetworks(t *testing.T) {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else if r.Method == "POST" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/operations//wait?alt=json&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/networkEndpointGroups/test-network-endpoint-group?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
+		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/global/routes/test-route?alt=json&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/%s/targetHttpProxies?alt=json&pageToken=&prettyPrint=false", "test-project", "test-region") {
 			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/regions/test-region/targetHttpProxies/test-target-http-proxy", "Name": "test-target-http-proxy", "urlMap": "projects/test-project/regions/testRegion/urlMaps/test-url-map"}]}`)
 		} else if r.Method == "DELETE" && r.URL.String() == fmt.Sprintf("/projects/%s/regions/test-region/targetHttpProxies/test-target-http-proxy?alt=json&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Status":"DONE"}`)
-
+		} else if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/zones?alt=json&filter=name+eq+test-region-%%5Ba-z%%5D&pageToken=&prettyPrint=false", "test-project") {
+			fmt.Fprint(w, `{"items":[{"SelfLink": "projects/test-project/zones/test-region-a", "Name": "test-region-a"}]}`)
+		} else if r.Method == "POST" && r.URL.String() == fmt.Sprintf("/projects/%s/zones/%s/operations//wait?alt=json&prettyPrint=false", "test-project", "test-region-a") {
+			fmt.Fprint(w, `{"Status":"DONE"}`)
 		} else {
 			w.WriteHeader(555)
 			fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
@@ -747,7 +765,7 @@ func TestCleanNetworks(t *testing.T) {
 			clients: Clients{Daisy: daisyFake},
 			project: "test-project",
 			policy:  deleteEverything,
-			output:  []string{"projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/subnetworks/test-subnetwork"},
+			output:  []string{"projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/routes/test-route", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/subnetworks/test-subnetwork"},
 			dryRun:  true,
 		},
 		{
@@ -755,7 +773,7 @@ func TestCleanNetworks(t *testing.T) {
 			clients: Clients{Daisy: daisyFake},
 			project: "test-project",
 			policy:  deleteEverything,
-			output:  []string{"projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/subnetworks/test-subnetwork"},
+			output:  []string{"projects/test-project/zones/test-region-a/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/routes/test-route", "projects/test-project/regions/test-region/urlMaps/test-url-map", "projects/test-project/regions/test-region/networkEndpointGroups/test-network-endpoint-group", "projects/test-project/global/firewalls/test-firewall", "projects/test-project/global/networks/test-network", "projects/test-project/regions/test-region/backendServices/test-backend-service", "projects/test-project/regions/test-region/forwardingRules/test-forwarding-rule", "projects/test-project/regions/test-region/subnetworks/test-subnetwork"},
 		},
 		{
 			name:    "delete nothing",
@@ -774,15 +792,10 @@ func TestCleanNetworks(t *testing.T) {
 			}
 			t.Logf("got %v", o)
 			t.Logf("want %v", tc.output)
-			if len(o) != len(tc.output) {
-				t.Fatalf("unexpected output length from CleanNetworks, want %d but got %d", len(tc.output), len(o))
-			}
 			sort.Strings(o)
 			sort.Strings(tc.output)
-			for i := range o {
-				if o[i] != tc.output[i] {
-					t.Errorf("unexpected output from CleanNetworks at position %d, want %s but got %s", i, tc.output[i], o[i])
-				}
+			if diff := cmp.Diff(tc.output, o); diff != "" {
+				t.Errorf("CleanNetworks() returned unexpected diff (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -129,8 +129,7 @@ func TestRemoteConnectivity(t *testing.T) {
 	
 	Write-Output $result`
 
-	command := fmt.Sprintf(connectionCmd)
-	output, err := utils.RunPowershellCmd(command)
+	output, err := utils.RunPowershellCmd(connectionCmd)
 	if err != nil {
 		t.Fatalf("Unable to query server database: %v", err)
 	}

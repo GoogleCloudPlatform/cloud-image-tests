@@ -26,7 +26,7 @@ import (
 
 func TestOsLoginEnabled(t *testing.T) {
 	if err := isOsLoginEnabled(utils.Context(t)); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 }
 

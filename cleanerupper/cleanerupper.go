@@ -18,6 +18,7 @@ package cleanerupper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -463,7 +464,6 @@ func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFu
 
 	regionalForwardingRules := make(map[string][]*compute.ForwardingRule)
 	regionalBackendServices := make(map[string][]*compute.BackendService)
-	regionalNetworkEndpointGroups := make(map[string][]*compute.NetworkEndpointGroup)
 	regionalURLMaps := make(map[string][]*compute.UrlMap)
 	regionalHTTPProxies := make(map[string][]*compute.TargetHttpProxy)
 
@@ -670,39 +670,11 @@ func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFu
 
 		// Delete network endpoint groups, they might associated with health checks so
 		// wait for those to be deleted first.
-		regionalNEGs, ok := regionalNetworkEndpointGroups[region]
-		if !ok {
-			var err error
-			regionalNEGs, err = clients.Daisy.ListRegionNetworkEndpointGroups(project, region)
-			if err != nil {
-				errsMu.Lock()
-				errs = append(errs, err)
-				errsMu.Unlock()
-			} else {
-				regionalNetworkEndpointGroups[region] = regionalNEGs
-			}
+		deletedNEGs, err := deleteNetworkEndpointGroups(clients, project, region, delete, nil, dryRun)
+		if err != nil {
+			errs = append(errs, err)
 		}
-		for _, neg := range regionalNEGs {
-			if !delete(neg) {
-				continue
-			}
-			negpartial := fmt.Sprintf("projects/%s/regions/%s/networkEndpointGroups/%s", project, region, neg.Name)
-			wg.Add(1)
-			go func(negName string) {
-				defer wg.Done()
-				if !dryRun {
-					if err := clients.Daisy.DeleteRegionNetworkEndpointGroup(project, region, negName); err != nil {
-						errsMu.Lock()
-						defer errsMu.Unlock()
-						errs = append(errs, err)
-						return
-					}
-				}
-				deletedMu.Lock()
-				defer deletedMu.Unlock()
-				deleted = append(deleted, negpartial)
-			}(neg.Name)
-		}
+		deleted = append(deleted, deletedNEGs...)
 	}
 	wg.Wait()
 	return deleted, errs
@@ -728,9 +700,13 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 		return nil, []error{fmt.Errorf("error listing subnetworks in project %q: %v", project, err)}
 	}
 
+	routes, err := clients.Daisy.ListRoutes(project)
+	if err != nil {
+		return nil, []error{fmt.Errorf("error listing routes in project %q: %v", project, err)}
+	}
+
 	regionalForwardingRules := make(map[string][]*compute.ForwardingRule)
 	regionalBackendServices := make(map[string][]*compute.BackendService)
-	regionalNetworkEndpointGroups := make(map[string][]*compute.NetworkEndpointGroup)
 	regionalURLMaps := make(map[string][]*compute.UrlMap)
 	regionalHTTPProxies := make(map[string][]*compute.TargetHttpProxy)
 
@@ -788,7 +764,6 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 			}
 			// Don't delete network yet - wait until resources associated with it are
 			// deleted to avoid resource in use issues.
-
 			region := path.Base(sn.Region)
 			regionFRs, ok := regionalForwardingRules[region]
 			if !ok {
@@ -956,46 +931,13 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 			}
 			wg.Wait()
 
-			regionalNEGs, ok := regionalNetworkEndpointGroups[region]
-			if !ok {
-				var err error
-				regionalNEGs, err = clients.Daisy.ListRegionNetworkEndpointGroups(project, region)
-				if err != nil {
-					errsMu.Lock()
-					errs = append(errs, err)
-					errsMu.Unlock()
-				} else {
-					regionalNetworkEndpointGroups[region] = regionalNEGs
-				}
+			deletedNEGs, err := deleteNetworkEndpointGroups(clients, project, region, delete, n, dryRun)
+			if err != nil {
+				errs = append(errs, err)
 			}
-			for _, neg := range regionalNEGs {
-				// Delete all NEGs in the same region as the subnetwork.
-				if neg.Network != n.SelfLink {
-					continue
-				}
-				negpartial := fmt.Sprintf("projects/%s/regions/%s/networkEndpointGroups/%s", project, region, neg.Name)
-				wg.Add(1)
-				go func(negName string) {
-					defer wg.Done()
-					if !dryRun {
-						if err := clients.Daisy.DeleteRegionNetworkEndpointGroup(project, region, negName); err != nil {
-							errsMu.Lock()
-							defer errsMu.Unlock()
-							errs = append(errs, err)
-							return
-						}
-					}
-					deletedMu.Lock()
-					defer deletedMu.Unlock()
-					deleted = append(deleted, negpartial)
-				}(neg.Name)
-			}
-			// Wait for NEG deletion before subnetwork deletion to avoid resource in use
-			// issues.
-			wg.Wait()
+			deleted = append(deleted, deletedNEGs...)
 
 			subnetpartial := fmt.Sprintf("projects/%s/regions/%s/subnetworks/%s", project, region, sn.Name)
-			wg.Wait()
 			wg.Add(1)
 			go func(snName string) {
 				defer wg.Done()
@@ -1012,12 +954,32 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 				deleted = append(deleted, subnetpartial)
 			}(sn.Name)
 		}
-		// Wait for subnetwork deletion before network deletion to avoid resource
-		// in use issues.
+		// Delete all routes in the same network.
+		for _, r := range routes {
+			if r.Network != n.SelfLink {
+				continue
+			}
+			rpartial := fmt.Sprintf("projects/%s/global/routes/%s", project, r.Name)
+			wg.Add(1)
+			go func(rName string) {
+				defer wg.Done()
+				if !dryRun {
+					if err := clients.Daisy.DeleteRoute(project, rName); err != nil {
+						errsMu.Lock()
+						defer errsMu.Unlock()
+						errs = append(errs, err)
+						return
+					}
+				}
+				deletedMu.Lock()
+				defer deletedMu.Unlock()
+				deleted = append(deleted, rpartial)
+			}(r.Name)
+		}
+		// Wait for subnetwork and routes deletion before network deletion to avoid
+		// resource in use issues.
 		wg.Wait()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if !dryRun {
 				if err := clients.Daisy.DeleteNetwork(project, name); err != nil {
 					errsMu.Lock()
@@ -1029,10 +991,95 @@ func CleanNetworks(clients Clients, project string, delete PolicyFunc, dryRun bo
 			deletedMu.Lock()
 			defer deletedMu.Unlock()
 			deleted = append(deleted, netpartial)
-		}()
+		})
 	}
 	wg.Wait()
 	return deleted, errs
+}
+
+// deleteNetworkEndpointGroups deletes all network endpoint groups in the given network and region.
+func deleteNetworkEndpointGroups(clients Clients, project, region string, delete PolicyFunc, network *compute.Network, dryRun bool) ([]string, error) {
+	var errs []error
+	var errsMu sync.Mutex
+	var deleted []string
+	var deletedMu sync.Mutex
+	var wg sync.WaitGroup
+	regionalNEGs, err := clients.Daisy.ListRegionNetworkEndpointGroups(project, region)
+	if err != nil {
+		errsMu.Lock()
+		errs = append(errs, err)
+		errsMu.Unlock()
+	}
+	for _, neg := range regionalNEGs {
+		// Make sure the NEG is associated with the given network.
+		if network != nil && neg.Network != network.SelfLink {
+			continue
+		}
+		// Make sure the NEG should be deleted.
+		if !delete(neg) {
+			continue
+		}
+		negpartial := fmt.Sprintf("projects/%s/regions/%s/networkEndpointGroups/%s", project, region, neg.Name)
+		wg.Add(1)
+		go func(negName string) {
+			defer wg.Done()
+			if !dryRun {
+				if err := clients.Daisy.DeleteRegionNetworkEndpointGroup(project, region, negName); err != nil {
+					errsMu.Lock()
+					defer errsMu.Unlock()
+					errs = append(errs, err)
+					return
+				}
+			}
+			deletedMu.Lock()
+			defer deletedMu.Unlock()
+			deleted = append(deleted, negpartial)
+		}(neg.Name)
+	}
+
+	// Delete all zonal NEGs within the given region in the given network.
+	zones, err := clients.Daisy.ListZones(project, daisyCompute.Filter(fmt.Sprintf("name eq %s-[a-z]", region)))
+	if err != nil {
+		errsMu.Lock()
+		errs = append(errs, err)
+		errsMu.Unlock()
+	}
+	for _, zone := range zones {
+		zoneString := zone.Name
+		zonalNEGs, err := clients.Daisy.ListNetworkEndpointGroups(project, zoneString)
+		if err != nil {
+			errsMu.Lock()
+			errs = append(errs, err)
+			errsMu.Unlock()
+		}
+		for _, neg := range zonalNEGs {
+			// Make sure the NEG is associated with the given network.
+			if network != nil && neg.Network != network.SelfLink {
+				continue
+			}
+			// Make sure the NEG should be deleted.
+			if !delete(neg) {
+				continue
+			}
+			negpartial := fmt.Sprintf("projects/%s/zones/%s/networkEndpointGroups/%s", project, zoneString, neg.Name)
+			wg.Add(1)
+			go func(negName string) {
+				defer wg.Done()
+				if !dryRun {
+					if err := clients.Daisy.DeleteNetworkEndpointGroup(project, zoneString, negName); err != nil {
+						errsMu.Lock()
+						errs = append(errs, err)
+						errsMu.Unlock()
+					}
+				}
+				deletedMu.Lock()
+				defer deletedMu.Unlock()
+				deleted = append(deleted, negpartial)
+			}(neg.Name)
+		}
+	}
+	wg.Wait()
+	return deleted, errors.Join(errs...)
 }
 
 // CleanGuestPolicies deletes all guest policies indicated, returning a slice
