@@ -66,6 +66,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/vmspec"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/windowscontainers"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/winrm"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/wsfc"
 	"github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -403,6 +404,10 @@ func main() {
 		{
 			nicsetup.Name,
 			nicsetup.TestSetup,
+		},
+		{
+			wsfc.Name,
+			wsfc.TestSetup,
 		},
 	}
 
