@@ -21,9 +21,9 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/acceleratorutils"
 )
 
 func setupPerftest(ctx context.Context, t *testing.T) {
@@ -145,29 +145,5 @@ func TestGPUDirectRDMAClient(t *testing.T) {
 	ctx := utils.Context(t)
 	setupPerftest(ctx, t)
 	ibWriteBWArgs := buildIBWriteBWArgs(ctx, t)
-	target, err := utils.GetRealVMName(ctx, rdmaHostName)
-	if err != nil {
-		t.Fatalf("utils.GetRealVMName(%s) = %v, want nil", rdmaHostName, err)
-	}
-	ibWriteBWArgs = append(ibWriteBWArgs, target)
-	for {
-		ibWriteBWCmd := exec.CommandContext(ctx, "./ib_write_bw", ibWriteBWArgs...)
-		out, err := ibWriteBWCmd.CombinedOutput()
-		if err == nil {
-			t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-			break
-		}
-		// Client may be ready before host, retry connection errors.
-		if strings.Contains(string(out), "Couldn't connect to "+target) {
-			time.Sleep(time.Second)
-			if ctx.Err() != nil {
-				t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-				t.Fatalf("context expired before connecting to host: %v\nlast ib_write_bw error was: %v", ctx.Err(), err)
-			}
-			continue
-		}
-
-		t.Logf("%s output:\n%s", ibWriteBWCmd.String(), out)
-		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = err %v, want nil", ibWriteBWCmd.String(), err)
-	}
+	acceleratorutils.RunRDMAClientCommand(ctx, t, "./ib_write_bw", ibWriteBWArgs)
 }
