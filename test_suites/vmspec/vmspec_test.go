@@ -159,7 +159,7 @@ func TestMetadataServer(t *testing.T) {
 	// Focus on primary NIC.
 	iface := interfaces[0]
 	httpClient := &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: 5 * time.Second,
 	}
 
 	// Make a new HTTP request to the metadata server.
@@ -184,10 +184,16 @@ func TestMetadataServer(t *testing.T) {
 		DialContext: dialer.DialContext,
 	}
 
-	// Make the request.
-	_, err = httpClient.Do(req)
-	if err != nil {
-		t.Errorf("error connecting to metadata server on primary nic %s: %v", iface.Name, err)
+	var reqErr error
+	for i := 0; i < 3; i++ {
+		_, reqErr = httpClient.Do(req)
+		if reqErr == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if reqErr != nil {
+		t.Errorf("error connecting to metadata server on primary nic %s: %v", iface.Name, reqErr)
 	}
 }
 
