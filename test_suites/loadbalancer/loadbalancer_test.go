@@ -161,10 +161,13 @@ func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, back
 	waitFor := func(op *compute.Operation, err error) {
 		t.Helper()
 		if err != nil {
-			t.Fatalf("%v", err)
+			t.Fatalf("%s failed with error: %v", op.Name(), err)
 		}
-		if err := op.Wait(ctx); err != nil {
-			t.Fatal(err)
+		tCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+		t.Logf("Waiting for %s to complete for max 10 minutes", op.Name())
+		if err := op.Wait(tCtx); err != nil {
+			t.Fatalf("%s failed with error: %v", op.Name(), err)
 		}
 	}
 	zone, err := utils.GetMetadata(ctx, "instance", "zone")
