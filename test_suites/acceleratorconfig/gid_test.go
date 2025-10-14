@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/acceleratorutils"
 )
 
 func installShowGids(ctx context.Context, t *testing.T) {
 	t.Helper()
 	// Rocky Linux accelerator OS already contains show_gids
-	if isRockyLinux(ctx, t) {
+	if acceleratorutils.IsRockyLinux(ctx, t) {
 		return
 	}
 	if err := utils.InstallPackage("git"); err != nil {
@@ -42,7 +43,7 @@ func installShowGids(ctx context.Context, t *testing.T) {
 func runShowGids(ctx context.Context, t *testing.T) string {
 	t.Helper()
 	command := "./mlnx-tools/sbin/show_gids"
-	if isRockyLinux(ctx, t) {
+	if acceleratorutils.IsRockyLinux(ctx, t) {
 		command = "show_gids"
 	}
 	out, err := exec.CommandContext(ctx, command).CombinedOutput()
@@ -87,7 +88,7 @@ func validateGIDTable(t *testing.T, gidTable string) {
 func resetGIDTable(ctx context.Context, t *testing.T) {
 	t.Helper()
 	service := "systemd-networkd.service"
-	if isRockyLinux(ctx, t) {
+	if acceleratorutils.IsRockyLinux(ctx, t) {
 		service = "NetworkManager.service"
 	}
 	t.Logf("Restarting %s to trigger a GID table rebuild", service)

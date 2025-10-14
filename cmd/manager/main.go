@@ -33,7 +33,11 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratornccl"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmabandwidth"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmapingpong"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmawriteimmediate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/compatmanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
@@ -273,8 +277,24 @@ func main() {
 			acceleratorconfig.TestSetup,
 		},
 		{
+			acceleratornccl.Name,
+			acceleratornccl.TestSetup,
+		},
+		{
 			acceleratorrdma.Name,
 			acceleratorrdma.TestSetup,
+		},
+		{
+			acceleratorrdmabandwidth.Name,
+			acceleratorrdmabandwidth.TestSetup,
+		},
+		{
+			acceleratorrdmapingpong.Name,
+			acceleratorrdmapingpong.TestSetup,
+		},
+		{
+			acceleratorrdmawriteimmediate.Name,
+			acceleratorrdmawriteimmediate.TestSetup,
 		},
 		{
 			cvm.Name,
