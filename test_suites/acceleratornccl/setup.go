@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package acceleratorrdma validates rdma stacks on accelerator images.
-package acceleratorrdma
+// Package acceleratornccl runs nccl-tests on accelerator images.
+package acceleratornccl
 
 import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -22,7 +22,7 @@ import (
 
 var (
 	// Name is the name of the test package. It must match the directory name.
-	Name = "acceleratorrdma"
+	Name = "acceleratornccl"
 )
 
 // TestSetup sets up test workflow.
@@ -32,11 +32,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	hostVM, clientVM, err := acceleratorutils.CreateHostAndClientVMs(t, nics)
+	vm, err := acceleratorutils.CreateVM(t, "ncclVM", nics)
 	if err != nil {
 		return err
 	}
-	hostVM.RunTests("TestGPUDirectRDMAHost")
-	clientVM.RunTests("TestGPUDirectRDMAClient")
+	vm.RunTests("TestNCCL")
 	return nil
 }

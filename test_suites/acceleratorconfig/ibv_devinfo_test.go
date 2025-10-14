@@ -15,31 +15,17 @@
 package acceleratorconfig
 
 import (
-	"context"
 	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/acceleratorutils"
 )
-
-func installIbvUtils(ctx context.Context, t *testing.T) {
-	t.Helper()
-	// Rocky Linux accelerator OS already contains ibv_devinfo
-	if isRockyLinux(ctx, t) {
-		return
-	}
-	if out, err := exec.CommandContext(ctx, "apt", "update").CombinedOutput(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, apt update).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", err, out)
-	}
-	if out, err := exec.CommandContext(ctx, "apt", "install", "-y", "ibverbs-utils").CombinedOutput(); err != nil {
-		t.Fatalf("exec.CommandContext(ctx, apt install, -y, ibverbs-utils).CombinedOutput() failed unexpectedly; err = %v\noutput: %s", err, out)
-	}
-}
 
 func TestIbvDevinfo(t *testing.T) {
 	ctx := utils.Context(t)
-	installIbvUtils(ctx, t)
+	acceleratorutils.InstallIbVerbsUtils(ctx, t)
 
 	out, err := exec.CommandContext(ctx, "ibv_devinfo", "--verbose").CombinedOutput()
 	if err != nil {
