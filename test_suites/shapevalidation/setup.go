@@ -54,10 +54,9 @@ var x86shapes = map[string]*shape{
 		cpu:             176,
 		mem:             1408,
 		numa:            4,
-		disks:           []*compute.Disk{{Name: "C3", Type: imagetest.PdBalanced, Zone: "us-east1-b"}},
-		zone:            "us-east1-b",
+		disks:           []*compute.Disk{{Name: "C3", Type: imagetest.PdBalanced}},
 		requireFeatures: []string{"GVNIC"},
-		quota:           &daisy.QuotaAvailable{Metric: "C3_CPUS", Units: 176, Region: "us-east1"},
+		quota:           &daisy.QuotaAvailable{Metric: "C3_CPUS", Units: 176},
 	},
 	"C3D": {
 		name:            "c3d-highmem-360",
