@@ -35,6 +35,7 @@ var client = http.Client{Timeout: 5 * time.Second}
 
 // These functions only exist to make test result names less ambiguous
 func TestL3Backend(t *testing.T) { runBackend(t) }
+
 func TestL7Backend(t *testing.T) { runBackend(t) }
 
 func setupFirewall(t *testing.T) {
@@ -53,6 +54,7 @@ func setupFirewall(t *testing.T) {
 func runBackend(t *testing.T) {
 	ctx := utils.Context(t)
 	setupFirewall(t)
+
 	host, err := os.Hostname()
 	if err != nil {
 		t.Fatalf("could not get hostname: %v", err)
@@ -60,34 +62,64 @@ func runBackend(t *testing.T) {
 	srv := http.Server{
 		Addr: ":8080",
 	}
+	defer srv.Shutdown(ctx)
 	var count int
+
 	c := make(chan struct{})
 	stop := make(chan struct{})
+	stopped := false
+
+	stopServer := func() {
+		stop <- struct{}{}
+	}
+
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		if strings.Contains(req.Host, l3IlbIP4Addr) || strings.Contains(req.Host, l7IlbIP4Addr) {
 			c <- struct{}{}
 		}
+
 		body, err := io.ReadAll(req.Body)
-		io.WriteString(w, host)
+		if err != nil {
+			stopServer()
+		}
+
+		n, err := io.WriteString(w, host)
+		if err != nil || n != len(host) {
+			stopServer()
+		}
+
 		if err == nil && string(body) == "stop" {
-			stop <- struct{}{}
+			stopServer()
 		}
 	})
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			t.Errorf("Failed to serve http: %v", err)
 		}
 	}()
+
+	// If the server is not stopped after 10 minutes, stop it.
+	// We should make it configurable or have the test timeout propagated to
+	// this point.
+	timeOut := time.NewTimer(10 * time.Minute)
+	go func() {
+		<-timeOut.C
+		if !stopped {
+			stopServer()
+		}
+	}()
+
 countloop:
 	for {
 		select {
 		case <-c:
 			count++
 		case <-stop:
+			stopped = true
 			break countloop
 		}
 	}
-	srv.Shutdown(ctx)
 	if count < 1 {
 		t.Errorf("Receieved zero requests through load balancer")
 	}
