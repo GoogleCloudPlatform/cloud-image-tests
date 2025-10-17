@@ -30,7 +30,9 @@ var (
 	unsupportedImages = []string{
 		"windows-server-2025",
 		"windows-2025-dc",
+		// TODO(b/360913029): Remove skips for windows once b/356460144 is fixed.
 		"windows-11-24h2",
+		"windows-11-25h2",
 		"windows-server-2012-r2",
 		"rhel-8-2-sap",
 		"rhel-8-1-sap",
