@@ -107,6 +107,7 @@ var networkPerfTestConfig = []networkPerfTest{
 	{
 		name:        "n4-16",
 		machineType: "n4-standard-16",
+		diskType:    imagetest.HyperdiskBalanced,
 		arch:        "X86_64",
 		networks:    []string{"DEFAULT"},
 		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 64, Region: "us-east4"},
