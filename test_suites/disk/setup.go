@@ -34,11 +34,11 @@ var (
 	Name                = "disk"
 	blockdevNamingCases = []blockdevNamingConfig{
 		{
-			machineType: "t2a-standard-1",
+			machineType: "c4a-standard-1",
 			arch:        "ARM64",
 		},
 		{
-			machineType: "c3d-standard-4",
+			machineType: "c3-standard-4",
 			arch:        "X86_64",
 		},
 	}
@@ -73,7 +73,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			inst.MachineType = tc.machineType
 			series, _, _ := strings.Cut(tc.machineType, "-")
 			inst.Name = "blockNaming" + strings.ToUpper(series)
-			vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.PdBalanced}, {Name: "secondary", Type: imagetest.PdBalanced, SizeGb: 10}}, inst)
+			vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.HyperdiskBalanced}, {Name: "secondary", Type: imagetest.HyperdiskBalanced, SizeGb: 10}}, inst)
 			if err != nil {
 				return err
 			}
