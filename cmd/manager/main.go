@@ -111,23 +111,24 @@ var (
 	// When modifying this map, please make sure that the image family prefix is
 	// also added to the imageKeys list.
 	projectMap = map[string]string{
-		"almalinux":     "almalinux-cloud",
-		"centos":        "centos-cloud",
-		"cos":           "cos-cloud",
-		"debian":        "debian-cloud",
-		"fedora-cloud":  "fedora-cloud",
-		"fedora-coreos": "fedora-coreos-cloud",
-		"opensuse":      "opensuse-cloud",
-		"oracle-linux":  "oracle-linux-cloud",
-		"rhel":          "rhel-cloud",
-		"rhel-sap":      "rhel-sap-cloud",
-		"rocky-linux":   "rocky-linux-cloud",
-		"sles":          "suse-cloud",
-		"sles-sap":      "suse-sap-cloud",
-		"sql-":          "windows-sql-cloud",
-		"ubuntu":        "ubuntu-os-cloud",
-		"ubuntu-pro":    "ubuntu-os-pro-cloud",
-		"windows":       "windows-cloud",
+		"almalinux":          "almalinux-cloud",
+		"centos":             "centos-cloud",
+		"cos":                "cos-cloud",
+		"debian":             "debian-cloud",
+		"fedora-cloud":       "fedora-cloud",
+		"fedora-coreos":      "fedora-coreos-cloud",
+		"opensuse":           "opensuse-cloud",
+		"oracle-linux":       "oracle-linux-cloud",
+		"rhel":               "rhel-cloud",
+		"rhel-sap":           "rhel-sap-cloud",
+		"rocky-linux":        "rocky-linux-cloud",
+		"sles":               "suse-cloud",
+		"sles-sap":           "suse-sap-cloud",
+		"sql-":               "windows-sql-cloud",
+		"ubuntu":             "ubuntu-os-cloud",
+		"ubuntu-(.*-)?pro":   "ubuntu-os-pro-cloud",
+		"ubuntu-accelerator": "ubuntu-os-accelerator-images",
+		"windows":            "windows-cloud",
 	}
 
 	// An ordered list is required because some image names are substrings of
@@ -149,7 +150,8 @@ var (
 		"sles-sap",
 		"sql-",
 		// We need to list ubuntu-pro before ubuntu because ubuntu is a substring of ubuntu-pro.
-		"ubuntu-pro",
+		"ubuntu-(.*-)?pro",
+		"ubuntu-accelerator",
 		"ubuntu",
 		"windows",
 	}
@@ -451,7 +453,11 @@ func main() {
 							break
 						}
 					}
-					if strings.HasPrefix(image, k) {
+					imageRegex, err := regexp.Compile(k)
+					if err != nil {
+						log.Fatalf("failed regex: %v", err)
+					}
+					if imageRegex.MatchString(image) {
 						project = projectMap[k]
 						break
 					}
