@@ -22,6 +22,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -78,6 +79,7 @@ func TestHostname(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata: %v", err)
 	}
+	image = filepath.Base(image)
 
 	// On Ubuntu versions >= 24.04 (but not minimal), the hostname is the FQDN.
 	// However, if the hostname is longer than 63 characters, it will be truncated.

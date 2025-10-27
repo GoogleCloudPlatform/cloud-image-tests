@@ -45,33 +45,34 @@ const (
 
 const (
 	// ImageUbuntu is the base image name for all Ubuntu images.
-	ImageUbuntu = "ubuntu.*"
+	ImageUbuntu = ".*ubuntu.*"
 	// ImageUbuntuMinimal is the base image name for Ubuntu minimal images.
-	ImageUbuntuMinimal = "ubuntu-minimal.*"
+	ImageUbuntuMinimal = ".*ubuntu-minimal.*"
 	// ImageUbuntuNoMinimal is the base image name for Ubuntu images that are not minimal.
-	ImageUbuntuNoMinimal = "ubuntu-[0-9]+.*"
+	// This is a wonky workaround since Golang regex doesn't support negative lookahead.
+	ImageUbuntuNoMinimal = ".*ubuntu-((([^m].*)|(m[^i].*)|(mi[^n].*)|(min[^i].*)|(mini[^m].*)|(minim[^a].*)|(minima[^l].*))-)*[0-9]+.*"
 	// ImageCOS is the base image name for COS.
-	ImageCOS = "cos.*"
+	ImageCOS = ".*cos.*"
 	// ImageSLES is the base image name for SLES.
-	ImageSLES = "sles.*"
+	ImageSLES = ".*sles.*"
 	// ImageDebian is the base image name for Debian.
-	ImageDebian = "debian.*"
+	ImageDebian = ".*debian.*"
 	// ImageRHEL is the base image name for RHEL.
-	ImageRHEL = "rhel.*"
+	ImageRHEL = ".*rhel.*"
 	// ImageRHELSAP is the base image name for RHEL SAP.
-	ImageRHELSAP = "rhel.*sap.*"
+	ImageRHELSAP = ".*rhel.*sap.*"
 	// ImageOracle is the base image name for Oracle Linux.
-	ImageOracle = "oracle-linux.*"
+	ImageOracle = ".*oracle-linux.*"
 	// ImageRocky is the base image name for Rocky Linux.
-	ImageRocky = "rocky-linux.*"
+	ImageRocky = ".*rocky-linux.*"
 	// ImageCentOS is the base image name for CentOS.
-	ImageCentOS = "centos.*"
+	ImageCentOS = ".*centos.*"
 	// ImageWindows is the base image name for Windows.
-	ImageWindows = "windows.*"
+	ImageWindows = ".*windows.*"
 	// ImageSQL is the base image name for SQL server.
-	ImageSQL = "sql.*"
+	ImageSQL = ".*sql.*"
 	// ImageAlmaLinux is the base image name for AlmaLinux.
-	ImageAlmaLinux = "almalinux.*"
+	ImageAlmaLinux = ".*almalinux.*"
 )
 
 var (
