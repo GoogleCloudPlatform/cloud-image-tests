@@ -11,7 +11,7 @@ require (
 	github.com/GoogleCloudPlatform/compute-daisy v0.0.0-20251001231519-6d494f578c21
 	github.com/go-ini/ini v1.67.0
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-sev-guest v0.13.0
+	github.com/google/go-sev-guest v0.14.0
 	github.com/google/go-tdx-guest v0.3.1
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.15.0
