@@ -37,6 +37,11 @@ import (
 	vm_pb "github.com/GoogleCloudPlatform/cloud-image-tests/vm_test_info"
 )
 
+const (
+	// finishedTestRetries is the number of times to retry printing "FINISHED-TEST"
+	finishedTestRetries = 10
+)
+
 // In special cases such as the shutdown script, the guest attribute match
 // on the first boot must have a different name than the usual guest attribute.
 func checkFirstBootSpecialGA(ctx context.Context) bool {
@@ -87,7 +92,7 @@ func main() {
 			log.Printf("could not place guest attribute key to end test: %v", err)
 		}
 
-		for f := 0; f < 5; f++ {
+		for f := 0; f < finishedTestRetries; f++ {
 			log.Printf("FINISHED-TEST")
 			log.Printf("sleeping 1 second %d", os.Getpid())
 			time.Sleep(1 * time.Second)

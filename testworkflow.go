@@ -44,22 +44,25 @@ var (
 )
 
 const (
-	// PdStandard disktype string
+	// PdStandard disk type string
 	PdStandard = "pd-standard"
-	// PdSsd disktype string
+	// PdSsd disk type string
 	PdSsd = "pd-ssd"
-	// PdBalanced disktype string
+	// PdBalanced disk type string
 	PdBalanced = "pd-balanced"
-	// PdExtreme disktype string
+	// PdExtreme disk type string
 	PdExtreme = "pd-extreme"
-	// HyperdiskExtreme disktype string
+	// HyperdiskExtreme disk type string
 	HyperdiskExtreme = "hyperdisk-extreme"
-	// HyperdiskThroughput disktype string
+	// HyperdiskThroughput disk type string
 	HyperdiskThroughput = "hyperdisk-throughput"
-	// HyperdiskBalanced disktype string
+	// HyperdiskBalanced disk type string
 	HyperdiskBalanced = "hyperdisk-balanced"
-	// LocalSsd disktype string
+	// LocalSsd disk type string
 	LocalSsd = "local-ssd"
+
+	// guestAttributesKey is the metadata key used to enable guest attributes.
+	guestAttributesKey = "enable-guest-attributes"
 
 	testWrapperPath        = "/wrapper"
 	testWrapperPathWindows = "/wrapp"
@@ -140,6 +143,7 @@ func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix 
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 	instance.Metadata["_cit_timeout"] = t.wf.DefaultTimeout
 	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
+	instance.Metadata["enable-guest-attributes"] = "TRUE" // enable guest attributes by default.
 }
 
 // addNewVMStep adds an entirely new addVM step, separate from the step used and
@@ -313,6 +317,7 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.Metadata["_test_package_name"] = fmt.Sprintf("image_test%s", suffix)
 	instance.Metadata["_compute_endpoint"] = t.wf.ComputeEndpoint
 	instance.Metadata["_exclude_discrete_tests"] = t.testExcludeFilter
+	instance.Metadata["enable-guest-attributes"] = "TRUE" // enable guest attributes by default.
 
 	createInstances := &daisy.CreateInstances{}
 	createInstances.InstancesBeta = append(createInstances.InstancesBeta, instance)
