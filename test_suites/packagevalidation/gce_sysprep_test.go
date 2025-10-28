@@ -123,7 +123,7 @@ func TestGCESysprep(t *testing.T) {
 	if strings.TrimSpace(rdpFw.Stdout) == "" {
 		t.Errorf("could not find rdp firewall rule")
 	}
-	sysprepInstalled, err := utils.RunPowershellCmd(`googet installed google-compute-engine-sysprep.noarch`)
+	sysprepInstalled, err := utils.RunPowershellCmd(`googet installed google-compute-engine-sysprep`)
 	if err != nil {
 		t.Fatalf("could not check installed sysprep version: %v, stdoutput: %s stderr: %s", err, sysprepInstalled.Stdout, sysprepInstalled.Stderr)
 	}
