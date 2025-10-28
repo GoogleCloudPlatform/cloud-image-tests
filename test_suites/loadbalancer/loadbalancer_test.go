@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,6 +53,8 @@ func setupFirewall(t *testing.T) {
 
 func runBackend(t *testing.T) {
 	ctx := utils.Context(t)
+	tCtx, cancel := context.WithTimeout(ctx, 12*time.Minute)
+	defer cancel()
 	setupFirewall(t)
 	host, err := os.Hostname()
 	if err != nil {
@@ -63,12 +66,22 @@ func runBackend(t *testing.T) {
 	var count int
 	c := make(chan struct{})
 	stop := make(chan struct{})
+
+	t.Cleanup(func() {
+		close(c)
+		close(stop)
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		if strings.Contains(req.Host, l3IlbIP4Addr) || strings.Contains(req.Host, l7IlbIP4Addr) {
+			t.Logf("[%v] Received request from load balancer: %s", time.Now(), req.Host)
 			c <- struct{}{}
 		}
 		body, err := io.ReadAll(req.Body)
-		io.WriteString(w, host)
+		_, err2 := io.WriteString(w, host)
+		if err2 != nil {
+			t.Logf("Failed to write response: %v", err2)
+		}
 		if err == nil && string(body) == "stop" {
 			stop <- struct{}{}
 		}
@@ -83,11 +96,18 @@ countloop:
 		select {
 		case <-c:
 			count++
+			t.Logf("[%v] Received %d requests through load balancer", time.Now(), count)
 		case <-stop:
+			t.Logf("[%v] Received stop signal", time.Now())
+			break countloop
+		case <-tCtx.Done():
+			t.Logf("Test context expired before requests received by all backends")
 			break countloop
 		}
 	}
+	t.Logf("[%v] Received %d requests through load balancer, shutting down server", time.Now(), count)
 	srv.Shutdown(ctx)
+	t.Logf("[%v] Server shutdown complete", time.Now())
 	if count < 1 {
 		t.Errorf("Receieved zero requests through load balancer")
 	}
@@ -117,13 +137,16 @@ func checkBackendsInLoadBalancer(ctx context.Context, t *testing.T, lbip string)
 		time.Sleep(3 * time.Second) // Wait enough time for the health check and load balancer to update
 		r, err := getTargetWithTimeout(ctx, t, lbip, "stop")
 		if err != nil || r == "no healthy upstream" {
+			t.Logf("[%v] Response from load balancer: %q, err: %v", time.Now(), r, err)
 			continue
 		}
 		if resp1 == "" {
 			resp1 = r
+			t.Logf("[%v] Response from load balancer: %q", time.Now(), resp1)
 			continue
 		}
 		resp2 = r
+		t.Logf("[%v] Another response from load balancer: %q", time.Now(), resp2)
 		break
 	}
 	if err := ctx.Err(); err != nil {
@@ -137,24 +160,44 @@ func checkBackendsInLoadBalancer(ctx context.Context, t *testing.T, lbip string)
 func waitForBackends(ctx context.Context, t *testing.T, backend1 string, backend2 string) {
 	t.Cleanup(func() {
 		if t.Failed() {
-			// Stop backends on failure (in case we didn't make it that far
+			t.Logf("[%v] Stopping backends on test failure", time.Now())
+			// Stop backends on failure in case we didn't make it that far
 			getTargetWithTimeout(ctx, t, backend1, "stop")
 			getTargetWithTimeout(ctx, t, backend2, "stop")
 		}
 	})
+
+	wg := sync.WaitGroup{}
+
 	wait := func(backend string) {
 		for {
 			if err := ctx.Err(); err != nil {
 				t.Fatalf("test context expired before %s is serving: %v", backend, err)
 			}
+			// Wait for the backend to be ready to serve requests.
+			time.Sleep(10 * time.Second)
 			_, err := getTargetWithTimeout(ctx, t, backend, "")
 			if err == nil {
 				break
 			}
+			t.Logf("[%v] Waiting for %s to be serving, err: %v", time.Now(), backend, err)
 		}
 	}
-	wait(backend1)
-	wait(backend2)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wait(backend1)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wait(backend2)
+	}()
+
+	wg.Wait()
+	t.Logf("[%v] Backends %s and %s ready to serve requests", time.Now(), backend1, backend2)
 }
 
 func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, backend2, lbip string) {
@@ -488,15 +531,29 @@ func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, back
 func TestL3Client(t *testing.T) {
 	ctx := utils.Context(t)
 	setupFirewall(t)
-	waitForBackends(ctx, t, l3backendVM1IP4addr+":8080", l3backendVM2IP4addr+":8080")
+
+	tCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	t.Cleanup(cancel)
+	waitForBackends(tCtx, t, l3backendVM1IP4addr+":8080", l3backendVM2IP4addr+":8080")
+
 	setupLoadBalancer(ctx, t, "L3", "l3backend1", "l3backend2", l3IlbIP4Addr)
-	checkBackendsInLoadBalancer(ctx, t, l3IlbIP4Addr+":8080")
+
+	tCtx2, cancel2 := context.WithTimeout(ctx, 10*time.Minute)
+	t.Cleanup(cancel2)
+	checkBackendsInLoadBalancer(tCtx2, t, l3IlbIP4Addr+":8080")
 }
 
 func TestL7Client(t *testing.T) {
 	ctx := utils.Context(t)
 	setupFirewall(t)
-	waitForBackends(ctx, t, l7backendVM1IP4addr+":8080", l7backendVM2IP4addr+":8080")
+
+	tCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	t.Cleanup(cancel)
+	waitForBackends(tCtx, t, l7backendVM1IP4addr+":8080", l7backendVM2IP4addr+":8080")
+
 	setupLoadBalancer(ctx, t, "L7", "l7backend1", "l7backend2", l7IlbIP4Addr)
-	checkBackendsInLoadBalancer(ctx, t, l7IlbIP4Addr+":8080")
+
+	tCtx2, cancel2 := context.WithTimeout(ctx, 10*time.Minute)
+	t.Cleanup(cancel2)
+	checkBackendsInLoadBalancer(tCtx2, t, l7IlbIP4Addr+":8080")
 }
