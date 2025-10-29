@@ -22,11 +22,19 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func getDriverList(remove bool) []string {
+func getDriverList(t *testing.T, remove bool) []string {
 	drivers := []string{
-		"google-compute-engine-driver-pvpanic",
 		"google-compute-engine-driver-gga",
 		"google-compute-engine-driver-balloon",
+	}
+
+	isWin2012 := isWindowsServer2012Image(t)
+
+	// pvpanic is not typically installed or required on Windows Server 2012.
+	if !isWin2012 {
+		drivers = append(drivers, "google-compute-engine-driver-pvpanic")
+	} else {
+		t.Logf("Running on Windows Server 2012, skipping 'google-compute-engine-driver-pvpanic' check.")
 	}
 
 	// Do not remove Network or Disk
@@ -39,6 +47,16 @@ func getDriverList(remove bool) []string {
 		)
 	}
 	return drivers
+}
+
+func isWindowsServer2012Image(t *testing.T) bool {
+	imageName, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Logf("Warning: Could not retrieve image name from metadata: %v. Proceeding with all driver checks.", err)
+		return false
+	}
+
+	return strings.Contains(imageName, "windows-2012")
 }
 
 func getInstalledDrivers() ([]string, error) {
@@ -69,7 +87,7 @@ func TestVirtIONetworkDriverLoaded(t *testing.T) {
 
 func TestDriversInstalled(t *testing.T) {
 	utils.WindowsOnly(t)
-	driverList := getDriverList(false)
+	driverList := getDriverList(t, false)
 	installedDriverList, err := getInstalledDrivers()
 	if err != nil {
 		t.Fatalf("Cannot get installed drivers list: %v", err)
@@ -90,7 +108,7 @@ func TestDriversInstalled(t *testing.T) {
 
 func TestDriversRemoved(t *testing.T) {
 	utils.WindowsOnly(t)
-	driverList := getDriverList(true)
+	driverList := getDriverList(t, true)
 	for _, driver := range driverList {
 		command := fmt.Sprintf("%s -noconfirm remove %s", googet, driver)
 		output, err := utils.RunPowershellCmd(command)
