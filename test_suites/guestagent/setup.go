@@ -69,5 +69,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
 	}
 
+	if !utils.HasFeature(t.Image, "WINDOWS") {
+		clockNoUTCVM, err := t.CreateTestVM("clockNoUTC")
+		if err != nil {
+			return err
+		}
+
+		clockNoUTCVM.RunTests("TestAgentNoClockDrift")
+	}
+
 	return nil
 }
