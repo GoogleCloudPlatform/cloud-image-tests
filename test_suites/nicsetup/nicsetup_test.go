@@ -38,9 +38,9 @@ var (
 	supportsIpv6 bool
 )
 
-// getCurrentTime returns the current time in RFC3339 format.
+// getCurrentTime returns the current timestamp with milliseconds precision.
 func getCurrentTime() string {
-	return time.Now().Format(time.RFC3339)
+	return time.Now().Format("15:04:05.000")
 }
 
 // getNumInterfaces returns the number of interfaces set by the setup.

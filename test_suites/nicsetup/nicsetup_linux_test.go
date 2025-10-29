@@ -227,6 +227,7 @@ func connectionPing(t *testing.T, nic managers.EthernetInterface) {
 			for _, item := range metadata.Items {
 				if item.Key == ipv6AddrKey {
 					ipv6Addr = *item.Value
+					t.Logf("%s: Got IPv6 address %q from metadata after %v", getCurrentTime(), ipv6Addr, time.Duration(i)*metadataRetryDelay)
 					break
 				}
 			}
@@ -269,7 +270,7 @@ func connectionHost(t *testing.T, nic managers.EthernetInterface, host string) {
 	}
 
 	// Port 443 is for HTTPS.
-	t.Logf("Resolved host %q to IPv4 %q and IPv6 %q", host, ipv4Addr, ipv6Addr)
+	t.Logf("%s: Resolved host %q to IPv4 %q and IPv6 %q", getCurrentTime(), host, ipv4Addr, ipv6Addr)
 	createConnection(t, nic, ipv4Addr, ipv6Addr, "443")
 }
 
@@ -424,7 +425,8 @@ func testEmpty(t *testing.T) {
 			default:
 				c, err := ipv4Listener.AcceptTCP()
 				if err != nil {
-					if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
+					var opErr *net.OpError
+					if (!errors.As(err, &opErr) || !opErr.Timeout()) && !errors.Is(err, net.ErrClosed) {
 						t.Logf("%s: Failed to accept IPv4 connection: %v", getCurrentTime(), err)
 					}
 				} else {
@@ -467,7 +469,8 @@ func testEmpty(t *testing.T) {
 				default:
 					c, err := ipv6Listener.AcceptTCP()
 					if err != nil {
-						if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
+						var opErr *net.OpError
+						if (!errors.As(err, &opErr) || !opErr.Timeout()) && !errors.Is(err, net.ErrClosed) {
 							t.Logf("%s: Failed to accept IPv6 connection: %v", getCurrentTime(), err)
 						}
 					} else {
