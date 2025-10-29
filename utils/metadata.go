@@ -52,7 +52,7 @@ func GetMetadata(ctx context.Context, elem ...string) (string, error) {
 		return "", fmt.Errorf("failed to parse metadata url: %+s", err)
 	}
 
-	body, _, err := doHTTPGet(ctx, path)
+	body, _, err := doHTTPGet(ctx, path, false)
 	return body, err
 }
 
@@ -65,7 +65,19 @@ func GetMetadataWithHeaders(ctx context.Context, elem ...string) (string, http.H
 		return "", nil, fmt.Errorf("failed to parse metadata url: %+s", err)
 	}
 
-	return doHTTPGet(ctx, path)
+	return doHTTPGet(ctx, path, false)
+}
+
+// GetRecursiveMetadata is same as GetMetadata but returns recursive metadata
+// for the key.
+func GetRecursiveMetadata(ctx context.Context, elem ...string) (string, error) {
+	path, err := url.JoinPath(metadataURLPrefix, elem...)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse metadata url: %+s", err)
+	}
+
+	body, _, err := doHTTPGet(ctx, path, true)
+	return body, err
 }
 
 // PutMetadata does a HTTP Put request to the metadata server, the metadata entry of
@@ -108,8 +120,20 @@ func doHTTPRequest(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func doHTTPGet(ctx context.Context, path string) (string, http.Header, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+func doHTTPGet(ctx context.Context, path string, recursive bool) (string, http.Header, error) {
+	finalURL, err := url.Parse(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse url %q: %+v", path, err)
+	}
+
+	params := finalURL.Query()
+	if recursive {
+		params.Add("recursive", "true")
+	}
+
+	finalURL.RawQuery = params.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, finalURL.String(), nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create a http request with context: %+v", err)
 	}
