@@ -35,7 +35,7 @@ func getPackageList(image string) []string {
 		"certgen",
 	}
 
-	if !utils.Is32BitWindows(image) {
+	if !utils.Is32BitWindows(image) && !strings.Contains(image, "windows-server-2012-dc") {
 		installedPackages = append(
 			installedPackages,
 			"google-osconfig-agent",

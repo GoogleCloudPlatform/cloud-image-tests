@@ -17,6 +17,8 @@
 package packagevalidation
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -31,7 +33,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	vm1.RunTests("TestStandardPrograms|TestGuestPackages")
-
+	imageName := t.Image.Name
+	is2012 := strings.Contains(imageName, "windows-server-2012-dc")
 	// as part of the migration of the windows test suite, these vms
 	// are only used to run windows tests. The tests themselves
 	// have components which need to be run on different vms.
@@ -47,25 +50,27 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 		repomanagement.RunTests("TestRepoManagement")
-		drivers, err := t.CreateTestVM("drivers")
-		if err != nil {
-			return err
+		if !is2012 {
+			drivers, err := t.CreateTestVM("drivers")
+			if err != nil {
+				return err
+			}
+			drivers.RunTests("TestNetworkDriverLoaded|TestDriversInstalled|TestDriversRemoved")
+			// the former windows_image_validation test suite tests are run by this VM.
+			// It may make sense to move some of these tests to other suites in the future.
+			windowsImageValidation, err := t.CreateTestVM("windowsImageValidation")
+			if err != nil {
+				return err
+			}
+			windowsImageValidation.RunTests("TestAutoUpdateEnabled|TestNetworkConnecton|TestEmsEnabled" +
+				"|TestTimeZoneUTC|TestPowershellVersion|TestStartExe|TestDotNETVersion" +
+				"|TestServicesState|TestWindowsEdition|TestWindowsCore|TestServerGuiShell")
+			sysprepvm, err := t.CreateTestVM("gcesysprep")
+			if err != nil {
+				return err
+			}
+			sysprepvm.RunTests("TestGCESysprep")
 		}
-		drivers.RunTests("TestNetworkDriverLoaded|TestDriversInstalled|TestDriversRemoved")
-		// the former windows_image_validation test suite tests are run by this VM.
-		// It may make sense to move some of these tests to other suites in the future.
-		windowsImageValidation, err := t.CreateTestVM("windowsImageValidation")
-		if err != nil {
-			return err
-		}
-		windowsImageValidation.RunTests("TestAutoUpdateEnabled|TestNetworkConnecton|TestEmsEnabled" +
-			"|TestTimeZoneUTC|TestPowershellVersion|TestStartExe|TestDotNETVersion" +
-			"|TestServicesState|TestWindowsEdition|TestWindowsCore|TestServerGuiShell")
-		sysprepvm, err := t.CreateTestVM("gcesysprep")
-		if err != nil {
-			return err
-		}
-		sysprepvm.RunTests("TestGCESysprep")
 	}
 	return nil
 }
