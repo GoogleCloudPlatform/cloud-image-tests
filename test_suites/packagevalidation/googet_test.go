@@ -198,7 +198,7 @@ func TestPackagesSigned(t *testing.T) {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
 	// Derived images built by Concourse do not have signed packages.
-	if strings.Contains(image, "-guest-agent-") {
+	if strings.Contains(image, "-guest-agent-") || strings.Contains(image, "ciw") {
 		t.Skip("Skip for derived images as packages are not signed.")
 	}
 	execList := getExecutableList(image)
