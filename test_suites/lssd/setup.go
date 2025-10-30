@@ -16,8 +16,6 @@
 package lssd
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -36,11 +34,6 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	if strings.Contains(t.Image.Name, "opensuse") {
-		// TODO(b/434563751): Re-enable hotattach test for opensuse images once the bug is fixed.
-		t.Skip("Skipping hotattach test for opensuse images because of b/434563751")
-		return nil
-	}
 	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
 		lssdMountInst := &daisy.Instance{}
 		lssdMountInst.Zone = "us-central1-a"
