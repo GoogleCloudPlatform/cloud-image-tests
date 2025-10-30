@@ -99,12 +99,18 @@ func TestGooGetAvailable(t *testing.T) {
 func TestSigned(t *testing.T) {
 	utils.WindowsOnly(t)
 	utils.Skip32BitWindows(t, "Packages not signed on 32-bit client images.")
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Couldn't get image from metadata %v", err)
+	}
+	if strings.Contains(image, "ciw") {
+		t.Skip("Skip for derived images as packages are not signed.")
+	}
 	command := fmt.Sprintf("(Get-AuthenticodeSignature %s).Status", googet)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
 		t.Fatalf("Get-AuthenticodeSignature returned an error: %v", err)
 	}
-
 	if strings.TrimSpace(output.Stdout) != "Valid" {
 		t.Fatalf("GooGet package signature is not valid.")
 	}
