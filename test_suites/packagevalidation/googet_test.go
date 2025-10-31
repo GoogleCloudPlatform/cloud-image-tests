@@ -43,7 +43,7 @@ func getPackageList(image string) []string {
 		)
 	}
 
-	if !utils.IsWindowsClient(image) {
+	if !utils.IsWindowsClient(image) && !strings.Contains(image, "windows-server-2012-dc") {
 		installedPackages = append(
 			installedPackages,
 			"google-compute-engine-vss",
