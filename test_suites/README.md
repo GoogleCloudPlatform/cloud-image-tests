@@ -621,3 +621,10 @@ Tests for windows remote management.
 #### TestWinrmConnection TestWaitForWinrmConnection
 
 Test that a VM can remotely autheticate and run powershell commands on other once trusted as a winrm client.
+
+### Test suite: acceleratorrdmanetwork
+
+#### TestRDMANetworkClient TestRDMANetworkHost
+
+Test that Accelerator images can establish and send traffic through RDMA
+reliable connections across two nodes.
