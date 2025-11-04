@@ -628,3 +628,11 @@ Test that a VM can remotely autheticate and run powershell commands on other onc
 
 Test that Accelerator images can establish and send traffic through RDMA
 reliable connections across two nodes.
+
+### Test suite: acceleratorrdmawriteimmediate
+
+#### TestWriteWithImmediateClient TestWriteWithImmediateHost
+
+Test that Accelerator images can exercise the RDMA verb Write With Immediate
+across two nodes.
+

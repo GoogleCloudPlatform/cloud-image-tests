@@ -35,6 +35,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmanetwork"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmawriteimmediate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/compatmanager"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/cvm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/disk"
@@ -282,6 +283,10 @@ func main() {
 		{
 			acceleratorrdmanetwork.Name,
 			acceleratorrdmanetwork.TestSetup,
+		},
+		{
+			acceleratorrdmawriteimmediate.Name,
+			acceleratorrdmawriteimmediate.TestSetup,
 		},
 		{
 			cvm.Name,
