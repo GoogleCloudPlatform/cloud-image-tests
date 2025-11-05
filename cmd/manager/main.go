@@ -34,6 +34,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmabandwidth"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmanetwork"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmawriteimmediate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/compatmanager"
@@ -279,6 +280,10 @@ func main() {
 		{
 			acceleratorrdma.Name,
 			acceleratorrdma.TestSetup,
+		},
+		{
+			acceleratorrdmabandwidth.Name,
+			acceleratorrdmabandwidth.TestSetup,
 		},
 		{
 			acceleratorrdmanetwork.Name,

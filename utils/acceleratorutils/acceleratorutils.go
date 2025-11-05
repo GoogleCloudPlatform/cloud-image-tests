@@ -276,7 +276,7 @@ func installCudaRuntime(ctx context.Context, t *testing.T) {
 
 // RunRDMAClientCommand executes a RDMA test command targeting the host VM. The host VM must run the
 // same command. It retries on connection errors, as the client might be ready before the host.
-func RunRDMAClientCommand(ctx context.Context, t *testing.T, command string, args []string) {
+func RunRDMAClientCommand(ctx context.Context, t *testing.T, command string, args []string) string {
 	t.Helper()
 	target, err := utils.GetRealVMName(ctx, rdmaHostName)
 	if err != nil {
@@ -288,7 +288,7 @@ func RunRDMAClientCommand(ctx context.Context, t *testing.T, command string, arg
 		out, err := command.CombinedOutput()
 		if err == nil {
 			t.Logf("%s output:\n%s", command, out)
-			return
+			return string(out)
 		}
 		// Client may be ready before host, retry connection errors.
 		if strings.Contains(string(out), "Couldn't connect to "+target) {

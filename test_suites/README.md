@@ -636,3 +636,10 @@ reliable connections across two nodes.
 Test that Accelerator images can exercise the RDMA verb Write With Immediate
 across two nodes.
 
+### Test suite: acceleratorrdmabandwidth
+
+#### TestIBWriteBWClient TestIBWriteBWHost
+
+Test Accelerator Images RDMA bandwidth performance to verify that the RDMA NIC
+can approach its line rate.
+
