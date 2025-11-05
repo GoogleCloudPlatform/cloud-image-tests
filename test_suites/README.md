@@ -643,3 +643,8 @@ across two nodes.
 Test Accelerator Images RDMA bandwidth performance to verify that the RDMA NIC
 can approach its line rate.
 
+### Test suite: acceleratornccl
+
+#### TestNCCL
+
+Test Accelerator Images can run NCCL by running [nccl-tests](https://github.com/NVIDIA/nccl-tests).

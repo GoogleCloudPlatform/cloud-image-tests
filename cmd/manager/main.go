@@ -33,6 +33,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorconfig"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratornccl"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdma"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmabandwidth"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/acceleratorrdmanetwork"
@@ -276,6 +277,10 @@ func main() {
 		{
 			acceleratorconfig.Name,
 			acceleratorconfig.TestSetup,
+		},
+		{
+			acceleratornccl.Name,
+			acceleratornccl.TestSetup,
 		},
 		{
 			acceleratorrdma.Name,

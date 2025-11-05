@@ -126,7 +126,8 @@ func CreateNetwork(t *imagetest.TestWorkflow) ([]*computeBeta.NetworkInterface, 
 	return nicConfig, nil
 }
 
-func createVM(t *imagetest.TestWorkflow, name string, nics []*computeBeta.NetworkInterface) (*imagetest.TestVM, error) {
+// CreateVM creates a GCE Accelerator VM.
+func CreateVM(t *imagetest.TestWorkflow, name string, nics []*computeBeta.NetworkInterface) (*imagetest.TestVM, error) {
 	testZone := t.Zone.Name
 	accelConfig := []*computeBeta.AcceleratorConfig{
 		{
@@ -151,11 +152,11 @@ func createVM(t *imagetest.TestWorkflow, name string, nics []*computeBeta.Networ
 
 // CreateHostAndClientVMs creates a host and client VM for 2 node accelerator tests.
 func CreateHostAndClientVMs(t *imagetest.TestWorkflow, nics []*computeBeta.NetworkInterface) (*imagetest.TestVM, *imagetest.TestVM, error) {
-	hostVM, err := createVM(t, rdmaHostName, nics)
+	hostVM, err := CreateVM(t, rdmaHostName, nics)
 	if err != nil {
 		return nil, nil, err
 	}
-	clientVM, err := createVM(t, rdmaClientName, nics)
+	clientVM, err := CreateVM(t, rdmaClientName, nics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -207,18 +208,14 @@ func SetupRDMAPerftestLibrary(ctx context.Context, t *testing.T) {
 			t.Fatalf("exec.CommandContext(ctx, yum, install, -y, git, cuda-toolkit, perftest, libtool, automake, autoconf, make, libibverbs-devel, librdmacm-devel, libibumad-devel, pciutils-devel).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
 	case utils.CheckLinuxCmdExists("apt"):
-		out, err := exec.CommandContext(ctx, "add-nvidia-repositories", "-y").CombinedOutput()
-		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories, -y).CombinedOutput() = %v, want nil\noutput: %s", err, out)
-		}
-		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
+		out, err := exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, apt, install, -y, git, ibverbs-utils, cuda-toolkit, perftest, libtool, automake, autoconf, libibverbs-dev, librdmacm-dev, libibumad-dev, libpci-dev, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
 	default:
 		t.Fatalf("Unknown package manager, can't install build deps.")
 	}
-	installCudaRuntime(ctx, t)
+	InstallCudaRuntime(ctx, t)
 	out, err := exec.CommandContext(ctx, "git", "clone", "--depth=1", "https://github.com/linux-rdma/perftest").CombinedOutput()
 	if err != nil {
 		t.Fatalf("exec.CommandContext(ctx, git, clone, --depth=1, https://github.com/linux-rdma/perftest).CombinedOutput() = %v\noutput: %s", err, out)
@@ -243,9 +240,16 @@ func SetupRDMAPerftestLibrary(ctx context.Context, t *testing.T) {
 	}
 }
 
-// installCudaRuntime installs a CUDA runtime version compatible with the pre-installed CUDA driver.
-func installCudaRuntime(ctx context.Context, t *testing.T) {
+// InstallCudaRuntime installs a CUDA runtime version compatible with the pre-installed CUDA driver.
+func InstallCudaRuntime(ctx context.Context, t *testing.T) {
 	t.Helper()
+	if utils.CheckLinuxCmdExists("apt") {
+		out, err := exec.CommandContext(ctx, "add-nvidia-repositories", "-y").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories, -y).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
+	}
+
 	// `nvidia-smi --version` output contains a line with a compatible CUDA runtime version like:
 	// `CUDA Version : 12.8`
 	out, err := exec.CommandContext(ctx, "nvidia-smi", "--version").CombinedOutput()
