@@ -28,6 +28,7 @@ import (
 var imageSuffixRe = regexp.MustCompile(`-(arm|amd|x86_)64$`)
 var sqlWindowsVersionRe = regexp.MustCompile("windows-[0-9]{4}-dc")
 var sqlVersionRe = regexp.MustCompile("sql-[0-9]{4}-(express|enterprise|standard|web)")
+var slesSpSuffixRe = regexp.MustCompile("-sp[0-9]+$")
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "licensevalidation"
@@ -173,7 +174,8 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		project = "suse-cloud"
 		transform = func() {
 			for i := range requiredLicenses {
-				requiredLicenses[i] = strings.TrimSuffix(requiredLicenses[i], "-sp5")
+				// License are associated with the major distribution.
+				requiredLicenses[i] = slesSpSuffixRe.ReplaceAllString(requiredLicenses[i], "")
 			}
 		}
 	case strings.Contains(image.Name, "ubuntu") && strings.Contains(image.Name, "nvidia"):
