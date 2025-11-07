@@ -16,6 +16,7 @@
 package hotattach
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -25,6 +26,7 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "hotattach"
+var slesHotattachSkip = regexp.MustCompile("sles-15-sp5|sles-15-sp6")
 
 const (
 	// the path to write the file on linux
@@ -35,6 +37,11 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	if slesHotattachSkip.MatchString(t.Image.Name) {
+		// TODO(b/434563751): Re-enable hotattach test for opensuse images once the bug is fixed.
+		t.Skip("Skipping hotattach test for opensuse images because of b/434563751")
+		return nil
+	}
 	hotattachInst := &daisy.Instance{}
 	hotattachInst.Scopes = append(hotattachInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 
