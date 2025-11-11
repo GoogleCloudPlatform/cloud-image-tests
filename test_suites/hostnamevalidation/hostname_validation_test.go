@@ -155,7 +155,50 @@ func TestFQDN(t *testing.T) {
 	hostname := strings.TrimRight(string(out), " \n")
 
 	if hostname != metadataHostname {
+		printSuseDebugInfo(t)
 		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
+	}
+}
+
+func isSles(t *testing.T) bool {
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		t.Logf("Error reading /etc/os-release: %v, defaulting isSLES to false", err)
+		return false
+	}
+	return strings.Contains(string(content), "sles")
+}
+
+// printSuseDebugInfo prints the DHCP lease information as reported by wicked.
+// This is used to help diagnose test failures on SLES as they're not
+// reproducible outside testgrid runs.
+func printSuseDebugInfo(t *testing.T) {
+	if !isSles(t) {
+		t.Logf("Not SLES image, skipping SUSE debug info")
+		return
+	}
+
+	t.Logf("SUSE DHCP lease:")
+	targetDir := "/var/lib/wicked"
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		t.Logf("Error reading directory %q: %v", targetDir, err)
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "lease") {
+			fullPath := filepath.Join(targetDir, entry.Name())
+			t.Logf("--- Found: %s ---", fullPath)
+
+			content, err := os.ReadFile(fullPath)
+			if err != nil {
+				t.Logf("Could not read file %s: %v", fullPath, err)
+				continue
+			}
+
+			t.Log(string(content))
+		}
 	}
 }
 
