@@ -96,6 +96,10 @@ type TestWorkflowOpts struct {
 	ReservationURLs []string
 	// AcceleratorType is the accelerator type to be used for accelerator tests, which use GPUs.
 	AcceleratorType string
+	// ArgZoneOverride is whether to override the zone from the command line. If
+	// true, the zone from the command line will be enforced if the test suite
+	// does specify a zone. If false, the hardcoded zone will be used.
+	ArgZoneOverride bool
 }
 
 // TestWorkflow defines a test workflow which creates at least one test VM.
@@ -129,6 +133,10 @@ type TestWorkflow struct {
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
 	// AcceleratorType is the accelerator type to be used for accelerator tests which use GPUs.
 	AcceleratorType string
+	// argZoneOverride is whether to override the zone from the command line. If
+	// true, the zone from the command line will be enforced if the test suite
+	// does specify a zone. If false, the hardcoded zone will be used.
+	argZoneOverride bool
 }
 
 func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
@@ -681,7 +689,16 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, lo
 					vm.MachineType = twf.MachineType.Name
 				}
 				if vm.Zone != "" && vm.Zone != twf.wf.Zone {
-					log.Printf("VM %s zone is set to %s, differing from workflow zone %s for test %s, not overriding\n", vm.Name, vm.Zone, twf.wf.Zone, twf.Name)
+					// argZoneOverride means that the flag provided zone(s) will be used,
+					// and the vm zone (hardcoded in the test suite) will be ignored.
+					if twf.argZoneOverride {
+						log.Printf("-zone_override is set to true, VM %s zone is set to %s, differing from workflow zone %s for test %s, not overriding\n", vm.Name, vm.Zone, twf.wf.Zone, twf.Name)
+					} else {
+						// argZoneOverride is false, so the vm zone (hardcoded in the test
+						// suite) will be used.
+						twf.wf.Zone = vm.Zone
+						log.Printf("-zone_override is set to false, VM %s zone is set to %s, differing from workflow zone %s for test %s, overriding\n", vm.Name, vm.Zone, twf.wf.Zone, twf.Name)
+					}
 				}
 				if createDisksOk {
 					for _, attachedDisk := range vm.Disks {
@@ -782,6 +799,7 @@ func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
 	t.ImageURL = opts.Image
 	t.Client = opts.Client
 	t.testExcludeFilter = opts.ExcludeFilter
+	t.argZoneOverride = opts.ArgZoneOverride
 
 	if opts.UseReservations {
 		reservationType := "ANY_RESERVATION"

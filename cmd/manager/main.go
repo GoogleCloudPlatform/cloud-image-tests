@@ -84,6 +84,7 @@ var (
 	zone                    = flag.String("zone", "us-central1-a", "zone to be used for tests")
 	printwf                 = flag.Bool("print", false, "print out the parsed test workflows and exit")
 	validate                = flag.Bool("validate", false, "validate all the test workflows and exit")
+	argZoneOverride         = flag.Bool("zone_override", true, "argument provided zones (via -zone or -zones flags) will override tests hardcoded zones")
 	outPath                 = flag.String("out_path", "junit.xml", "junit xml path")
 	gcsPath                 = flag.String("gcs_path", "", "GCS Path for Daisy working directory")
 	writeLocalArtifacts     = flag.String("write_local_artifacts", "", "Local path to download test artifacts from gcs.")
@@ -513,6 +514,7 @@ func main() {
 				UseReservations:         *useReservations,
 				ReservationURLs:         reservationURLSlice,
 				AcceleratorType:         *acceleratorType,
+				ArgZoneOverride:         *argZoneOverride,
 			})
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)
