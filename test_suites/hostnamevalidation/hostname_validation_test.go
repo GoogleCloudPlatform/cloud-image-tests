@@ -154,8 +154,8 @@ func TestFQDN(t *testing.T) {
 	}
 	hostname := strings.TrimRight(string(out), " \n")
 
+	printSuseDebugInfo(t)
 	if hostname != metadataHostname {
-		printSuseDebugInfo(t)
 		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
 	}
 }
@@ -199,6 +199,14 @@ func printSuseDebugInfo(t *testing.T) {
 
 			t.Log(string(content))
 		}
+	}
+
+	etcResolv := "/etc/resolv.conf"
+	content, err := os.ReadFile(etcResolv)
+	if err != nil {
+		t.Logf("Could not read file %s: %v", etcResolv, err)
+	} else {
+		t.Logf("Contents of %s:\n\n%s\n\n", etcResolv, string(content))
 	}
 }
 
