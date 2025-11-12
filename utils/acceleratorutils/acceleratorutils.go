@@ -208,7 +208,11 @@ func SetupRDMAPerftestLibrary(ctx context.Context, t *testing.T) {
 			t.Fatalf("exec.CommandContext(ctx, yum, install, -y, git, cuda-toolkit, perftest, libtool, automake, autoconf, make, libibverbs-devel, librdmacm-devel, libibumad-devel, pciutils-devel).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
 	case utils.CheckLinuxCmdExists("apt"):
-		out, err := exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
+		out, err := exec.CommandContext(ctx, "apt", "update").CombinedOutput()
+		if err != nil {
+			t.Fatalf("exec.CommandContext(ctx, apt, update).CombinedOutput() = %v, want nil\noutput: %s", err, out)
+		}
+		out, err = exec.CommandContext(ctx, "apt", "install", "-y", "git", "ibverbs-utils", "perftest", "libtool", "automake", "autoconf", "libibverbs-dev", "librdmacm-dev", "libibumad-dev", "libpci-dev", "make").CombinedOutput()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(ctx, apt, install, -y, git, ibverbs-utils, cuda-toolkit, perftest, libtool, automake, autoconf, libibverbs-dev, librdmacm-dev, libibumad-dev, libpci-dev, make).CombinedOutput() = %v, want nil\noutput: %s", err, out)
 		}
