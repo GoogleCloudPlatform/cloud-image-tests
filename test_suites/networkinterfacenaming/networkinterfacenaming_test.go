@@ -27,6 +27,9 @@ var (
 	allowedEthNamesImages = []string{
 		"cos",
 		"debian-11",
+		// TODO(b/460860504): udev is taking too long to apply naming rules in
+		// debian-13, add it back once the issue is fixed.
+		"debian-13",
 		"suse",
 		"sles",
 		"rhel-8",

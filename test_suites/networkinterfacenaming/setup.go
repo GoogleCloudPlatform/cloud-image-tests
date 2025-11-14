@@ -33,7 +33,7 @@ var (
 	// the c3-metal machine type is available.
 	//
 	// Refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions for the list of zones.
-	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "us-central1-a", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
+	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "us-east1-c", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
 )
 
 // TestSetup sets up the test workflow.
