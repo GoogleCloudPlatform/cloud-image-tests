@@ -66,6 +66,12 @@ var ubuntuExceptions = []exceptions.Exception{
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	// TODO(b/460869613): Re-enable compat manager tests on Windows once the bug is fixed.
+	if utils.HasFeature(t.Image, "WINDOWS") {
+		t.Skip("Compat manager is temporarily disabled on Windows images.")
+		return nil
+	}
+
 	hasException := exceptions.HasMatch(t.Image.Name, ubuntuExceptions)
 
 	if hasException {
