@@ -29,11 +29,11 @@ var (
 	Name = "networkinterfacenaming"
 
 	// nicnamingMetalZone is the zone where the metal instance is created.
-	// By default, it is set to us-central1-a. The zone must be a zone in which
-	// the c3-metal machine type is available.
+	// By default, it is set to asia-southeast1-c. The zone must be a zone in
+	// which the c3-metal machine type is available.
 	//
 	// Refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions for the list of zones.
-	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "us-east1-c", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
+	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "asia-southeast1-c", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
 )
 
 // TestSetup sets up the test workflow.
