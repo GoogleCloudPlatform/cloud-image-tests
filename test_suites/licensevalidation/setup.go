@@ -35,10 +35,9 @@ var Name = "licensevalidation"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	// Skipping license check for preview 2025 image and Windows Client Images. TODO: Remove with official release.
+	// Skipping license check for Windows Client Images (We don't publish them) & openSUSE Leap Images
+	// (They don't have licenses).
 	switch {
-	case strings.Contains(t.Image.Name, "windows-server-2025"):
-		t.Skip("Windows Server 2025 is in preview; skipping GCE license check.")
 	case strings.Contains(t.Image.Name, "windows-11"):
 		t.Skip("Skipping license check for Windows 11 client images.")
 	case strings.Contains(t.Image.Name, "windows-10"):
@@ -108,6 +107,16 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 	var requiredLicenses []string
 	var project string
 	switch {
+	case strings.Contains(image.Name, "almalinux"):
+		project = "almalinux-cloud"
+	case strings.Contains(image.Name, "centos"):
+		project = "centos-cloud"
+		transform = func() {
+			if image.Family == "centos-stream-8" {
+				// centos-stream-8 doesn't include -8
+				requiredLicenses[len(requiredLicenses)-1] = requiredLicenses[len(requiredLicenses)-1][:len(requiredLicenses[len(requiredLicenses)-1])-2]
+			}
+		}
 	case strings.Contains(image.Name, "debian"):
 		project = "debian-cloud"
 		transform = func() {
@@ -124,6 +133,16 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				requiredLicenses[i] += "-" + codename
 			}
 		}
+	case strings.Contains(image.Name, "opensuse"):
+		project = "opensuse-cloud"
+	case strings.Contains(image.Name, "rhel"):
+		project = "rhel-cloud"
+		transform = func() {
+			if !strings.Contains(image.Name, "byos") {
+				requiredLicenses[len(requiredLicenses)-1] += "-server"
+			}
+			requiredLicenses[len(requiredLicenses)-1] = strings.ReplaceAll(requiredLicenses[len(requiredLicenses)-1], "-c3m", "")
+		}
 	case strings.Contains(image.Name, "rhel") && strings.Contains(image.Name, "sap"):
 		project = "rhel-sap-cloud"
 		transform = func() {
@@ -133,22 +152,6 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 			}
 			rhelSapVersionRe := regexp.MustCompile("-[0-9]+-sap-(ha|byos)$")
 			requiredLicenses[len(requiredLicenses)-1] = rhelSapVersionRe.ReplaceAllString(requiredLicenses[len(requiredLicenses)-1], newSuffix)
-		}
-	case strings.Contains(image.Name, "rhel"):
-		project = "rhel-cloud"
-		transform = func() {
-			if !strings.Contains(image.Name, "byos") {
-				requiredLicenses[len(requiredLicenses)-1] += "-server"
-			}
-			requiredLicenses[len(requiredLicenses)-1] = strings.ReplaceAll(requiredLicenses[len(requiredLicenses)-1], "-c3m", "")
-		}
-	case strings.Contains(image.Name, "centos"):
-		project = "centos-cloud"
-		transform = func() {
-			if image.Family == "centos-stream-8" {
-				// centos-stream-8 doesn't include -8
-				requiredLicenses[len(requiredLicenses)-1] = requiredLicenses[len(requiredLicenses)-1][:len(requiredLicenses[len(requiredLicenses)-1])-2]
-			}
 		}
 	case strings.Contains(image.Name, "rocky") && strings.Contains(image.Name, "nvidia"):
 		project = "rocky-linux-cloud"
@@ -163,10 +166,6 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "rocky-linux"):
 		project = "rocky-linux-cloud"
-	case strings.Contains(image.Name, "almalinux"):
-		project = "almalinux-cloud"
-	case strings.Contains(image.Name, "opensuse"):
-		project = "opensuse-cloud"
 		transform = func() { requiredLicenses[len(requiredLicenses)-1] += "-42" } // Quirk of opensuse licensing. This suffix will not need to be updated with version changes.
 	case strings.Contains(image.Name, "sles") && strings.Contains(image.Name, "sap"):
 		project = "suse-sap-cloud"
@@ -179,6 +178,8 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 			majorVersion := matches[1] // Captured group, e.g., "sles-16"
 			requiredLicenses[0] = fmt.Sprintf(licenseURLTmpl, project, majorVersion)
 		}
+	case strings.Contains(image.Name, "ubuntu"):
+		project = "ubuntu-os-cloud"
 	case strings.Contains(image.Name, "ubuntu") && strings.Contains(image.Name, "nvidia"):
 		project = "ubuntu-os-cloud"
 		ubuntuVersion := strings.TrimPrefix(regexp.MustCompile("ubuntu-accelerator-[0-9]{4}").FindString(image.Name), "ubuntu-accelerator-")
@@ -195,16 +196,6 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "ubuntu-pro") || strings.Contains(image.Name, "ubuntu-minimal-pro"):
 		project = "ubuntu-os-pro-cloud"
-	case strings.Contains(image.Name, "ubuntu"):
-		project = "ubuntu-os-cloud"
-	case strings.Contains(image.Name, "windows") && strings.Contains(image.Name, "sql"):
-		project = "windows-cloud"
-		transform = func() {
-			requiredLicenses = []string{
-				fmt.Sprintf(licenseURLTmpl, "windows-sql-cloud", strings.Replace(sqlVersionRe.FindString(image.Name), "sql-", "sql-server-", -1)),
-				fmt.Sprintf(licenseURLTmpl, project, strings.Replace(sqlWindowsVersionRe.FindString(image.Name), "windows-", "windows-server-", -1)),
-			}
-		}
 	case strings.Contains(image.Name, "windows"):
 		project = "windows-cloud"
 		transform = func() {
@@ -213,6 +204,14 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, "windows-server-core"))
 			} else if strings.Contains(image.Name, "bios") {
 				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, "google.com:windows-internal", "internal-windows"))
+			}
+		}
+	case strings.Contains(image.Name, "windows") && strings.Contains(image.Name, "sql"):
+		project = "windows-cloud"
+		transform = func() {
+			requiredLicenses = []string{
+				fmt.Sprintf(licenseURLTmpl, "windows-sql-cloud", strings.Replace(sqlVersionRe.FindString(image.Name), "sql-", "sql-server-", -1)),
+				fmt.Sprintf(licenseURLTmpl, project, strings.Replace(sqlWindowsVersionRe.FindString(image.Name), "windows-", "windows-server-", -1)),
 			}
 		}
 	default:
