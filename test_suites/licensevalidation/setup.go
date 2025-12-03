@@ -135,6 +135,8 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "opensuse"):
 		project = "opensuse-cloud"
+		// Quirk of opensuse licensing. This suffix will not need to be updated with version changes.
+		transform = func() { requiredLicenses[len(requiredLicenses)-1] += "-42" }
 	case strings.Contains(image.Name, "rhel") && strings.Contains(image.Name, "sap"):
 		project = "rhel-sap-cloud"
 		transform = func() {
@@ -166,7 +168,6 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		}
 	case strings.Contains(image.Name, "rocky-linux"):
 		project = "rocky-linux-cloud"
-		transform = func() { requiredLicenses[len(requiredLicenses)-1] += "-42" } // Quirk of opensuse licensing. This suffix will not need to be updated with version changes.
 	case strings.Contains(image.Name, "sles") && strings.Contains(image.Name, "sap"):
 		project = "suse-sap-cloud"
 	case strings.Contains(image.Name, "sles"):
