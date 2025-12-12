@@ -67,7 +67,7 @@ func TestSqlVersion(t *testing.T) {
 	sqlExpectedEdition := imageNameSplit[2]
 	serverExpectedVer := imageNameSplit[4]
 
-	command := fmt.Sprintf("Sqlcmd -Q \"select @@version\"")
+	command := fmt.Sprintf("Sqlcmd -C -Q \"select @@version\"")
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
 		t.Fatalf("Unable to query SQL Server version: %v %v %v", output.Stdout, output.Stderr, err)
@@ -105,28 +105,28 @@ func TestPowerPlan(t *testing.T) {
 		t.Fatalf("Active power plan is not %s: got %s", expectedPlan, activePlan)
 	}
 }
+
 func TestRemoteConnectivity(t *testing.T) {
 	utils.WindowsOnly(t)
 
 	connectionCmd := `$SQLServer = (Invoke-RestMethod -Headers @{'Metadata-Flavor' = 'Google'} -Uri 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/sqltarget')
 	$SQLDBName = 'master'
 	$DBUser = 'sa'
-	$DBPass = 'remoting@123'
-	
+	$DBPass = 'ReMoTiNg@369!TEST#^*'
+
 	$SqlConnection = New-Object System.Data.SqlClient.SqlConnection
-	$SqlConnection.ConnectionString = "Server = $SQLServer; Database = $SQLDBName; User ID = $DBUser; Password = $DBPass"
-	
+	$SqlConnection.ConnectionString = "Server = $SQLServer; Database = $SQLDBName; User ID = $DBUser; Password = $DBPass; TrustServerCertificate = True"
 	$SqlCmd = New-Object System.Data.SqlClient.SqlCommand
 	$SqlCmd.CommandText = 'SELECT * FROM information_schema.tables'
 	$SqlCmd.Connection = $SqlConnection
-	
+
 	$SqlAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
 	$SqlAdapter.SelectCommand = $SqlCmd
-	
+
 	$DataSet = New-Object System.Data.DataSet
 	$result = $SqlAdapter.Fill($DataSet)
 	$SqlConnection.Close()
-	
+
 	Write-Output $result`
 
 	output, err := utils.RunPowershellCmd(connectionCmd)
@@ -139,4 +139,62 @@ func TestRemoteConnectivity(t *testing.T) {
 	if 1 > result {
 		t.Fatalf("Test output returned invalid rows; got %d, expected > 0", result)
 	}
+}
+
+// TestSSMSVersion checks that the SSMS version is within the defined range to catch version updates
+// or incorrect installation path.
+func TestSSMSVersion(t *testing.T) {
+	utils.WindowsOnly(t)
+	minMajorVersion := 22
+	maxMajorVersion := 23
+	psCmd := `
+
+# Expected SSMS 22 installation directory
+ $ssms_path = "C:\Program Files\Microsoft SQL Server Management Studio*\Release\Common7\IDE\Ssms.exe"
+
+
+# SSMS version range
+$min_version = [Version]"22.0.0.0"
+$max_version = [Version]"23.0.0.0"
+
+$ssms_file = Get-ChildItem -Path $ssms_path -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($ssms_file) {
+    $ssms_file_path = $ssms_file.FullName
+    Write-Host "Found SSMS executable at: $ssms_file_path"
+}
+else {
+    Write-Error "Error 1: SSMS.exe is not found in $ssms_path. Check if it's correctly installed, or if it's an older version installed at a different path, such as C:\Program Files (x86)\Microsoft SQL Server Management Studio*\Common7\IDE\Ssms.exe"
+    exit 1
+}
+
+try {
+    $product_version_string = $ssms_file.VersionInfo.ProductVersion
+    $current_version = [Version]$product_version_string
+}
+catch {
+    Write-Error "Could not retrieve or parse the version information from SSMS.exe at $ssms_file_path."
+    exit 3 # Exit with a different error code for parsing failure
+}
+
+# Check if the version is within the defined range
+if (($current_version -lt $min_version) -or ($current_version -ge $max_version)) {
+    Write-Error "Error 2: SSMS version $current_version is not within the defined range ($min_version to < $max_version)."
+    exit 2
+}
+
+Write-Host "Success: SSMS version $current_version is within the major version range [22, 23)."
+exit 0
+`
+	output, err := utils.RunPowershellCmd(psCmd)
+	if err != nil {
+		switch output.Exitcode {
+		case 1:
+			t.Fatalf("SSMS version is not found: %v", output.Stderr)
+		case 2:
+			t.Fatalf("SSMS version is not within the defined range: %v", output.Stderr)
+		default:
+			t.Fatalf("Unable to query SSMS version: %v %v %v", output.Stdout, output.Stderr, err)
+		}
+	}
+	fmt.Printf("SSMS version is %v within the defined range [%v, %v)", output.Stdout, minMajorVersion, maxMajorVersion)
 }

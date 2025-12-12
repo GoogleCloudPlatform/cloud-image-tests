@@ -25,14 +25,34 @@ $user.SetInfo()
 $group = [ADSI]"WinNT://$env:COMPUTERNAME/Administrators"
 $group.Add($user.Path)
 
-$AUTH_SCRIPT = 'https://storage.googleapis.com/windows-utils/change_auth.sql'
-Invoke-WebRequest -Uri $AUTH_SCRIPT -OutFile c:\\change_auth.sql
+$ErrorActionPreference = 'Stop'
+
+# SQL commands embedded as a here-string
+$sqlCommands = @"
+USE [master];
+GO
+
+-- Set LoginMode to 2 (Mixed Mode) in the correct location
+  PRINT 'Writing to registry...';
+  EXEC xp_instance_regwrite N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer', N'LoginMode', REG_DWORD, 2;
+  PRINT 'Registry write command executed.';
+GO
+
+-- Configure 'sa' account
+PRINT 'Altering LOGIN sa WITH PASSWORD...';
+ALTER LOGIN sa WITH
+  PASSWORD = 'ReMoTiNg@369!TEST#^*';
+--  CHECK_POLICY = OFF;
+GO
+ALTER LOGIN sa ENABLE;
+GO
+"@
 
 try {
-    sqlcmd -S localhost -i c:\change_auth.sql
+    sqlcmd -C -S localhost -Q $sqlCommands -b
 } catch {
     Write-Host "Failed to set auth config: $_"
 } finally {
     Restart-Service MSSQLSERVER
-    Write-Host "auth config updated"
+    Write-Host "Server authentication config update process finished."
 }
