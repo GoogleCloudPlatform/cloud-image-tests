@@ -259,11 +259,12 @@ func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image stri
 	t.Helper()
 	essentialServices := []string{"google-guest-agent.service", "google-guest-agent-manager.service", "sshd.service"}
 	if strings.Contains(image, "windows") {
-		essentialServices = []string{"GCEAgent"}
+		essentialServices = []string{"GCEAgent", "GCEAgentManager"}
 	} else if strings.Contains(image, "ubuntu") {
 		essentialServices = []string{"google-guest-agent.service", "google-guest-agent-manager.service", "ssh.service"}
 	}
 	latestStartTime := time.Time{}
+	foundOneRunningService := false
 	for _, svc := range essentialServices {
 		svcStart := findServiceStartTime(ctx, t, svc)
 		// findServiceStartTime returns time.Unix(0, 0) if the service is disabled.
@@ -271,9 +272,13 @@ func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image stri
 			t.Logf("Service %s is disabled. Skipping.", svc)
 			continue
 		}
+		foundOneRunningService = true
 		if svcStart.After(latestStartTime) {
 			latestStartTime = svcStart
 		}
+	}
+	if !foundOneRunningService && len(essentialServices) > 0 {
+		t.Fatalf("Critical error: None of the essential services (%v) were found running for image %s.", essentialServices, image)
 	}
 	return latestStartTime
 }
@@ -283,7 +288,16 @@ func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image stri
 func findServiceStartTime(ctx context.Context, t *testing.T, service string) time.Time {
 	t.Helper()
 	if utils.IsWindows() {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 		for {
+			select {
+			case <-ctxWithTimeout.Done():
+				t.Logf("Timeout waiting for service %s to be started after 30 seconds: %v", service, ctxWithTimeout.Err())
+				return time.Unix(0, 0)
+			default:
+				// Continue
+			}
 			output, err := utils.RunPowershellCmd(fmt.Sprintf(`(Get-Service -Name "%s").Status`, service))
 			if err != nil {
 				t.Fatalf("utils.RunPowershellCmd((Get-Service -Name %q).Status) = stderr: %v err: %v want err: nil", service, output.Stderr, err)
