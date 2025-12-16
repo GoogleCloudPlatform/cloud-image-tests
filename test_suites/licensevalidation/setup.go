@@ -150,6 +150,19 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-%s-server-eus", rhelMajorVersion)),
 			}
 		}
+	case strings.Contains(image.Name, "rhel") && strings.Contains(image.Name, "lvm"):
+		project = "rhel-cloud"
+		transform = func() {
+			rhelMajorVersion := strings.TrimPrefix(regexp.MustCompile("rhel-[0-9]{1,2}").FindString(image.Name), "rhel-")
+			suffix := "server"
+			if strings.Contains(image.Name, "byos") {
+				suffix = "byos"
+			}
+			requiredLicenses = []string{
+				fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-%s-%s", rhelMajorVersion, suffix)),
+				fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-lvm")),
+			}
+		}
 	case strings.Contains(image.Name, "rhel") && strings.Contains(image.Name, "sap"):
 		project = "rhel-sap-cloud"
 		transform = func() {

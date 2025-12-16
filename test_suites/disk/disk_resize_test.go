@@ -44,6 +44,9 @@ func TestDiskResize(t *testing.T) {
 	if strings.Contains(image, "rhel-7-4-sap") {
 		t.Skip("disk expansion not supported on RHEL 7.4")
 	}
+	if strings.Contains(image, "lvm") {
+		t.Skip("disk expansion not supported on RHEL LVM images")
+	}
 
 	_, err = os.Stat(markerFile)
 

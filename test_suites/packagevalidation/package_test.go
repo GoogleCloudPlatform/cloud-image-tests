@@ -103,7 +103,6 @@ func TestStandardPrograms(t *testing.T) {
 func TestGuestPackages(t *testing.T) {
 	utils.LinuxOnly(t)
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-
 	if err != nil {
 		t.Fatalf("couldn't determine image from metadata")
 	}
@@ -190,7 +189,7 @@ func TestGuestPackages(t *testing.T) {
 		},
 		{
 			name:       "gce-disk-expand",
-			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu"), regexp.MustCompile("cos")},
+			imagesSkip: []*regexp.Regexp{regexp.MustCompile("sles"), regexp.MustCompile("suse"), regexp.MustCompile("ubuntu"), regexp.MustCompile("cos"), regexp.MustCompile("lvm")},
 		},
 		{
 			name:   "cloud-disk-resize",

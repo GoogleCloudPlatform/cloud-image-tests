@@ -61,6 +61,8 @@ const (
 	ImageRHEL = ".*rhel.*"
 	// ImageRHELEUS is the base image name for RHEL EUS.
 	ImageRHELEUS = ".*rhel.*eus.*"
+	// ImageRHELLVM is the base image name for RHEL LVM.
+	ImageRHELLVM = ".*rhel.*lvm.*"
 	// ImageRHELSAP is the base image name for RHEL SAP.
 	ImageRHELSAP = ".*rhel.*sap.*"
 	// ImageOracle is the base image name for Oracle Linux.
@@ -78,7 +80,7 @@ const (
 )
 
 var (
-	elImages      = []string{ImageRHEL, ImageRHELEUS, ImageRHELSAP, ImageRocky, ImageCentOS, ImageOracle, ImageAlmaLinux}
+	elImages      = []string{ImageRHEL, ImageRHELEUS, ImageRHELLVM, ImageRHELSAP, ImageRocky, ImageCentOS, ImageOracle, ImageAlmaLinux}
 	windowsImages = []string{ImageWindows, ImageSQL}
 
 	// ImageEL is the base image names for all EL images.
