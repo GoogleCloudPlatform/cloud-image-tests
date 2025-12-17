@@ -133,6 +133,8 @@ func TestAutomaticUpdates(t *testing.T) {
 		if err := verifyServiceEnabled(image); err != nil {
 			t.Fatal(err)
 		}
+	case strings.Contains(image, "oracle-linux"):
+		t.Skip("Not supported on Oracle Linux")
 	default:
 		t.Fatalf("image %s not support", image)
 	}
@@ -444,7 +446,7 @@ func TestSockets(t *testing.T) {
 		t.Fatalf("couldn't get image from metadata")
 	}
 
-	if strings.Contains(image, "-sap") {
+	if strings.Contains(image, "-sap") || strings.Contains(image, "oracle-linux") {
 		// All SAP Images are permitted to have 'rpcbind' listening on
 		// port 111
 		allowedTCP = append(allowedTCP, "111")

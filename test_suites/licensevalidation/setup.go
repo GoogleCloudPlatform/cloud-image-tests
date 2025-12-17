@@ -192,6 +192,8 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				fmt.Sprintf(licenseURLTmpl, "rocky-linux-cloud", fmt.Sprintf("rocky-linux-%s-optimized-gcp", rockyVersion)),
 			}
 		}
+	case strings.Contains(image.Name, "oracle-linux"):
+		project = "oracle-linux-cloud"
 	case strings.Contains(image.Name, "rocky-linux"):
 		project = "rocky-linux-cloud"
 	case strings.Contains(image.Name, "sles") && strings.Contains(image.Name, "sap"):
