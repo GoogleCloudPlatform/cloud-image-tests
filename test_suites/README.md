@@ -165,6 +165,22 @@ Test that the VM can reboot successfully from inside the guest, rather that the 
 TestStartTime is informational only, logging the time to test execution from VM creation.
 TestBootTime tests that the time from VM start to when guest-agent (and sshd on linux) is not more than the allowed maximum. See [image_boot_test.go](imageboot/image_boot_test.go) for allowed boot times, the default is 60 seconds.
 
+### Test suite: lvmvalidation ###
+
+A suite which tests RHEL images for logical volume manager install status and
+layout. It should skip on all other images.
+
+### TestLVMPackage
+
+Test that checks the lvm2 package install status.
+If the image is LVM, the lvm2 package should be installed.
+If the image is not LVM, the lvm2 package should not be installed.
+
+### TestLVMLayout
+
+Test that checks the LVM layout.
+It checks for the existence of the LVM PV, Volume Group, and specific LVs.
+
 ### Test suite: licensevalidation ###
 
 A suite which tests that linux licensing and windows activation are working successfully.
