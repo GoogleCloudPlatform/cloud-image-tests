@@ -49,6 +49,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/livemigrate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/loadbalancer"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/lssd"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/lvmvalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsmtls"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsroutes"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/metadata"
@@ -359,6 +360,10 @@ func main() {
 		{
 			lssd.Name,
 			lssd.TestSetup,
+		},
+		{
+			lvmvalidation.Name,
+			lvmvalidation.TestSetup,
 		},
 		{
 			disk.Name,
