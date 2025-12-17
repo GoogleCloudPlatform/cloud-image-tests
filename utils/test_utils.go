@@ -413,6 +413,11 @@ func IsCOS(image string) bool {
 	return strings.Contains(image, "cos")
 }
 
+// IsRHEL returns true if the image is RHEL.
+func IsRHEL(image string) bool {
+	return strings.Contains(image, "rhel")
+}
+
 // LinuxOnly skips tests not on Linux.
 func LinuxOnly(t *testing.T) {
 	if runtime.GOOS != "linux" {
