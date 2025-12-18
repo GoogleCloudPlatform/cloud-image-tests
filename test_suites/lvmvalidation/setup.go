@@ -28,7 +28,7 @@ var Name = "lvmvalidation"
 // For non-lvm it should ensure that LVM isn't installed and that the partitions are normal.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	// skip if not rhel image
-	if utils.IsRHEL(t.Image.Name) {
+	if !utils.IsRHEL(t.Image.Name) {
 		t.Skip("LVM validation test only supports Red Hat images.")
 	}
 
