@@ -447,6 +447,17 @@ Test the functionality of the [GCESysprep](https://cloud.google.com/compute/docs
 * The windows setup script SetupComplete.cmd was written.
 * google_osconfig_agent was disabled
 
+### Test suite: rhel
+Validate the RHEL images are set up properly
+
+#### TestVersionLock
+Check that the version lock for EUS & SAP RHEL image is set correctly & that
+the base RHEL image doesn't do version lock
+
+#### TestRhuiPackage
+Check that the RHUI Client Package is present for PAYG images but not in BYOS
+images
+
 ### Test suite: security
 
 #### TestKernelSecuritySettings

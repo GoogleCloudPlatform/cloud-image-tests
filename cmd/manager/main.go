@@ -62,6 +62,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packageupgrade"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/packagevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/pluginmanager"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/rhel"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/security"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/shapevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/sql"
@@ -428,6 +429,10 @@ func main() {
 		{
 			pluginmanager.Name,
 			pluginmanager.TestSetup,
+		},
+		{
+			rhel.Name,
+			rhel.TestSetup,
 		},
 		{
 			compatmanager.Name,
