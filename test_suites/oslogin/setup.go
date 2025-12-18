@@ -128,6 +128,12 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
+	// TODO(b/468323433): Remove this skip once the bug is fixed.
+	if strings.Contains(t.Image.Name, "sles-16") {
+		t.Skip("OSLogin is not working on sles-16 images, skipping the test until b/468323433 is fixed.")
+		return nil
+	}
+
 	testAgent, err := t.CreateTestVM("testagent")
 	if err != nil {
 		return err
