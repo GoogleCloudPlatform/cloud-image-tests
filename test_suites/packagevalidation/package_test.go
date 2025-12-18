@@ -69,19 +69,26 @@ func TestStandardPrograms(t *testing.T) {
 	}
 
 	cmd := exec.CommandContext(ctx, "gcloud", "-h")
-	cmd.Start()
-	if err := cmd.Wait(); err != nil {
-		t.Fatalf("gcloud not installed properly")
+	var gb strings.Builder
+	cmd.Stdout = &gb
+	cmd.Stderr = &gb
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("gcloud not installed properly: %v, output: %s", err, gb.String())
 	}
 	cmd = exec.CommandContext(ctx, "gsutil", "help")
-	cmd.Start()
-	err = cmd.Wait()
+	var ub strings.Builder
+	cmd.Stdout = &ub
+	cmd.Stderr = &ub
+	err = cmd.Run()
 	if err != nil {
-		t.Fatalf("gsutil not installed properly")
+		t.Fatalf("gsutil not installed properly: %v, output: %s", err, ub.String())
 	}
 
 	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
 		cmd := exec.CommandContext(ctx, "add-nvidia-repositories")
+		var b strings.Builder
+		cmd.Stdout = &b
+		cmd.Stderr = &b
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
 			t.Fatalf("cmd.StdinPipe() = %v, want nil", err)
@@ -95,7 +102,7 @@ func TestStandardPrograms(t *testing.T) {
 		}
 		err = cmd.Run()
 		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories).Run() = %v, want nil", err)
+			t.Fatalf("exec.CommandContext(ctx, add-nvidia-repositories).Run() = %v, want nil, output: %s", err, b.String())
 		}
 	}
 }
@@ -114,23 +121,29 @@ func TestGuestPackages(t *testing.T) {
 	switch {
 	case utils.CheckLinuxCmdExists("rpm"):
 		listPkgs = func() ([]string, error) {
-			o, err := exec.Command("rpm", "-qa", "--queryformat", "%{NAME}\n").Output()
-			return strings.Split(string(o), "\n"), err
+			cmd := exec.Command("rpm", "-qa", "--queryformat", "%{NAME}\n")
+			o, err := cmd.CombinedOutput()
+			if err != nil {
+				return nil, fmt.Errorf("rpm command failed: %v, output: %s", err, string(o))
+			}
+			return strings.Split(string(o), "\n"), nil
 		}
 	case utils.CheckLinuxCmdExists("dpkg-query") && utils.CheckLinuxCmdExists("snap"):
 		listPkgs = func() ([]string, error) {
 			var pkgs []string
-			dpkgout, err := exec.Command("dpkg-query", "-W", "--showformat", "${Package}\n").Output()
+			cmd := exec.Command("dpkg-query", "-W", "--showformat", "${Package}\n")
+			dpkgout, err := cmd.CombinedOutput()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("dpkg-query command failed: %v, output: %s", err, string(dpkgout))
 			}
 			pkgs = append(pkgs, strings.Split(string(dpkgout), "\n")...)
 			// Snap format name regexp source:
 			// https://snapcraft.io/docs/the-snap-format
 			snapname := regexp.MustCompile("[a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9]")
-			snapout, err := exec.Command("snap", "list").Output()
+			cmd = exec.Command("snap", "list")
+			snapout, err := cmd.CombinedOutput()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("snap list command failed: %v, output: %s", err, string(snapout))
 			}
 			for i, line := range strings.Split(string(snapout), "\n") {
 				if i == 0 {
@@ -144,8 +157,12 @@ func TestGuestPackages(t *testing.T) {
 		}
 	case utils.CheckLinuxCmdExists("dpkg-query"):
 		listPkgs = func() ([]string, error) {
-			o, err := exec.Command("dpkg-query", "-W", "--showformat", "${Package}\n").Output()
-			return strings.Split(string(o), "\n"), err
+			cmd := exec.Command("dpkg-query", "-W", "--showformat", "${Package}\n")
+			o, err := cmd.CombinedOutput()
+			if err != nil {
+				return nil, fmt.Errorf("dpkg-query command failed: %v, output: %s", err, string(o))
+			}
+			return strings.Split(string(o), "\n"), nil
 		}
 	}
 
