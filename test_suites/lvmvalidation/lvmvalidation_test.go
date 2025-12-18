@@ -38,6 +38,15 @@ func runCmd(t *testing.T, command string, args ...string) (string, string, error
 	return string(stdout), "", nil
 }
 
+// getSAPStatus checks if the image name indicates a RHEL for SAP image.
+func getSAPStatus(ctx context.Context) (bool, error) {
+	imageName, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		return false, fmt.Errorf("failed to get image name: %v", err)
+	}
+	return strings.Contains(imageName, "sap"), nil
+}
+
 // getLVMStatus returns true if the image is LVM, false otherwise.
 func getLVMStatus(ctx context.Context) (bool, error) {
 	imageName, err := utils.GetMetadata(ctx, "instance", "image")
@@ -47,15 +56,12 @@ func getLVMStatus(ctx context.Context) (bool, error) {
 	return strings.Contains(imageName, "lvm"), nil
 }
 
-// TestLVMPackage checks the lvm2 package status.
+// TestLVMPackage checks the lvm2 package install status.
 // If the image is LVM, the lvm2 package should be installed.
 // If the image is not LVM, the lvm2 package should not be installed.
 func TestLVMPackage(t *testing.T) {
-	if utils.IsWindows() {
-		t.Skip("LVM validation test only supports Linux images.")
-	}
-
 	isLVM, err := getLVMStatus(utils.Context(t))
+	isSAP, err := getSAPStatus(utils.Context(t))
 	if err != nil {
 		t.Fatalf("Failed to get LVM status: %v", err)
 	}
@@ -63,11 +69,11 @@ func TestLVMPackage(t *testing.T) {
 	// Check lvm2 package install status
 	_, _, err = runCmd(t, "rpm", "-q", "lvm2")
 	lvm2Installed := err == nil
-	if isLVM {
+	if isLVM || isSAP {
 		if !lvm2Installed {
-			t.Errorf("lvm2 package should be installed on LVM image, but it's not.")
+			t.Errorf("lvm2 package should be installed on LVM or SAP image, but it's not.")
 		} else {
-			t.Logf("lvm2 package is correctly installed on LVM image.")
+			t.Logf("lvm2 package is correctly installed on LVM or SAP image.")
 		}
 	} else { // Non-LVM expected
 		if lvm2Installed {
