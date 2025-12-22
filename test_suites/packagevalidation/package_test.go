@@ -85,6 +85,12 @@ func TestStandardPrograms(t *testing.T) {
 	}
 
 	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
+		// TODO(b/469342129): Remove this once the package is made available by nvidia.
+		if strings.Contains(image, "580") {
+			t.Logf("Skipping add-nvidia-repositories test for ubuntu accelerator images due to missing libnvsdm-580 package, see b/469342129")
+			return
+		}
+
 		cmd := exec.CommandContext(ctx, "add-nvidia-repositories")
 		var b strings.Builder
 		cmd.Stdout = &b
