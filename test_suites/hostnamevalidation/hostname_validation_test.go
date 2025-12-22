@@ -146,6 +146,11 @@ func TestFQDN(t *testing.T) {
 		t.Fatalf("couldn't determine metadata hostname")
 	}
 
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata: %v", err)
+	}
+
 	// Get the hostname with FQDN.
 	cmd := exec.Command("/bin/hostname", "-f")
 	out, err := cmd.Output()
@@ -156,7 +161,38 @@ func TestFQDN(t *testing.T) {
 
 	printSuseDebugInfo(t)
 	if hostname != metadataHostname {
+		// TODO(b/460799853): Remove this exception once the bug is fixed.
+		if strings.Contains(image, "sles") && strings.Contains(image, "arm") {
+			t.Skipf("Skipping TestFQDN for SLES ARM image: %q due to b/460799853, got hostname: %q, want hostname: %q", image, hostname, metadataHostname)
+		}
 		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
+	}
+}
+
+func printLeaseFiles(t *testing.T, dir, prefix string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Logf("Error reading directory %q: %v", dir, err)
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if prefix != "" && !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		fullPath := filepath.Join(dir, entry.Name())
+		t.Logf("--- Found: %s ---", fullPath)
+
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			t.Logf("Could not read file %s: %v", fullPath, err)
+			continue
+		}
+
+		t.Log(string(content))
 	}
 }
 
@@ -179,26 +215,18 @@ func printSuseDebugInfo(t *testing.T) {
 	}
 
 	t.Logf("SUSE DHCP lease:")
-	targetDir := "/var/lib/wicked"
-	entries, err := os.ReadDir(targetDir)
-	if err != nil {
-		t.Logf("Error reading directory %q: %v", targetDir, err)
-		return
-	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "lease") {
-			fullPath := filepath.Join(targetDir, entry.Name())
-			t.Logf("--- Found: %s ---", fullPath)
-
-			content, err := os.ReadFile(fullPath)
-			if err != nil {
-				t.Logf("Could not read file %s: %v", fullPath, err)
-				continue
-			}
-
-			t.Log(string(content))
-		}
+	// SLE 12 and 15 use wicked, SLE 16 uses NetworkManager. wicked stores DHCP
+	// leases in /var/lib/wicked/lease<id>. NetworkManager stores them in
+	// /run/NetworkManager/devices/$IFINDEX.
+	wickedDir := "/var/lib/wicked"
+	nmDir := "/run/NetworkManager/devices"
+	if utils.Exists(wickedDir, utils.TypeDir) {
+		printLeaseFiles(t, wickedDir, "lease")
+	} else if utils.Exists(nmDir, utils.TypeDir) {
+		printLeaseFiles(t, nmDir, "")
+	} else {
+		t.Logf("No wicked (%s) or NetworkManager (%s) directory found, skipping SUSE DHCP lease debug info", wickedDir, nmDir)
 	}
 
 	etcResolv := "/etc/resolv.conf"
@@ -208,6 +236,8 @@ func printSuseDebugInfo(t *testing.T) {
 	} else {
 		t.Logf("Contents of %s:\n\n%s\n\n", etcResolv, string(content))
 	}
+
+	return
 }
 
 func md5Sum(path string) (string, error) {

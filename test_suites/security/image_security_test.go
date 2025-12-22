@@ -453,6 +453,14 @@ func TestSockets(t *testing.T) {
 		allowedUDP = append(allowedUDP, "111")
 	}
 
+	if strings.Contains(image, "sles-16") {
+		// SLES 16 images have cockpit management interface which listens to
+		// port 9090.
+		// https://www.suse.com/c/cockpit-the-new-web-based-management-interface-for-sles-16/
+		allowedTCP = append(allowedTCP, "9090")
+		allowedUDP = append(allowedUDP, "9090")
+	}
+
 	if !(strings.Contains(image, "rhel-7") && strings.Contains(image, "-sap")) {
 		// Skip UDP check on RHEL-7-SAP images which have old rpcbind
 		// which listens to random UDP ports.

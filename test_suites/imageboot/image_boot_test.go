@@ -38,8 +38,8 @@ var imageBootTimeThresholds = []imageBootTimeThreshold{
 	{Image: "rhel", MaxTime: 30},
 	{Image: "rocky-linux", MaxTime: 30},
 	{Image: "opensuse", MaxTime: 40},
-	{Image: "sles-12", MaxTime: 40},
-	{Image: "sles-15", MaxTime: 40},
+	// Includes SLE 12, SLE 15 and SLE 16.
+	{Image: "sles", MaxTime: 40},
 	{Image: "ubuntu", MaxTime: 30},
 	{Image: "windows-11-", MaxTime: 300},
 	{Image: "windows-server-2025", MaxTime: 300},
