@@ -222,7 +222,7 @@ type FIOStatistics struct {
 
 // installFioWindows copies the fio.exe file onto the VM instance.
 func installFioWindows() error {
-	if procStatus, err := utils.RunPowershellCmd("gsutil cp " + fioWindowsGCS + " " + fioWindowsLocalPath); err != nil {
+	if procStatus, err := utils.RunPowershellCmd("gcloud storage cp " + fioWindowsGCS + " " + fioWindowsLocalPath); err != nil {
 		return fmt.Errorf("gsutil failed with error: %v %s %s", err, procStatus.Stdout, procStatus.Stderr)
 	}
 	return nil
