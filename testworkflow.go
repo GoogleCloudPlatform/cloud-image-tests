@@ -616,8 +616,8 @@ func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, g
 	return fmt.Sprintf("%s/%s", strings.TrimSuffix(gcsPath, "/"), time.Now().Format(time.RFC3339)), nil
 }
 
-func logGCSDirectoryURL(gsutilPath string) {
-	p := strings.TrimPrefix(gsutilPath, "gs://")
+func logGCSDirectoryURL(gsPath string) {
+	p := strings.TrimPrefix(gsPath, "gs://")
 	link := fmt.Sprintf("https://console.cloud.google.com/storage/browser/%s", p)
 	log.Printf("Logs and artifacts can be found at: %s", link)
 }

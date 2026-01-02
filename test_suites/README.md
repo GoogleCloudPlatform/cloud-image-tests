@@ -394,7 +394,7 @@ Test that the image can upgrade packages to the versions in the google-compute-e
 Validate that Google-provided programs are present.
 
 - <b>Background</b>: Google-provided Linux OS images come with certain Google utilities such as
-`gsutil` and `gcloud` preinstalled as a convenience.
+`gcloud` preinstalled as a convenience.
 
 - <b>Test logic</b>: Attempt to invoke the utilities, confirming they are present, found in the PATH,
 and executable.

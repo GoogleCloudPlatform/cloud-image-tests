@@ -75,14 +75,6 @@ func TestStandardPrograms(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("gcloud not installed properly: %v, output: %s", err, gb.String())
 	}
-	cmd = exec.CommandContext(ctx, "gsutil", "help")
-	var ub strings.Builder
-	cmd.Stdout = &ub
-	cmd.Stderr = &ub
-	err = cmd.Run()
-	if err != nil {
-		t.Fatalf("gsutil not installed properly: %v, output: %s", err, ub.String())
-	}
 
 	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
 		// TODO(b/469342129): Remove this once the package is made available by nvidia.
