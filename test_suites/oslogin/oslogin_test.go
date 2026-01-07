@@ -112,14 +112,14 @@ func TestGetentPasswdAllUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getent command failed %v", err)
 	}
-	if !strings.Contains(string(out), rootUserEntry(ctx, t)) {
-		t.Errorf("getent passwd output does not contain user root")
+	if rootEntry := rootUserEntry(ctx, t); !strings.Contains(string(out), rootEntry) {
+		t.Errorf("getent passwd output does not contain user root; got %q, want containing %q", string(out), rootEntry)
 	}
 	if !strings.Contains(string(out), "nobody:x:") {
-		t.Errorf("getent passwd output does not contain user nobody")
+		t.Errorf("getent passwd output does not contain user nobody; got %q, want containing %q", string(out), "nobody:x:")
 	}
 	if !strings.Contains(string(out), testUserEntry) {
-		t.Errorf("getent passwd output does not contain %s", testUserEntry)
+		t.Errorf("getent passwd output does not contain the test user; got %q, want %q", string(out), testUserEntry)
 	}
 }
 

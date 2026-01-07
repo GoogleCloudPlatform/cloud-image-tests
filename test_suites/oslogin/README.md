@@ -1,10 +1,21 @@
-# Overview
+# OS Login and SSH CIT test suites
+
+## Overview
 Having a separate test organization set up for this test suite is highly recommended.
 This is because having a separate test org:
-1. Provides a clean environment. You may have policies set in your current organization that
-could affect the test results.
-2. Allows for easy creation of the test users, the setup for which is specified later in this document.
-Otherwise, users would have to create their own by other means.
+
+1. Provides a clean environment. You may have policies set in your current
+   organization that could affect the test results.
+2. Allows for easy creation of the test users, the setup for which is specified
+   later in this document. Otherwise, users would have to create their own by
+   other means.
+3. Does not enforce [the `compute.requireOsLogin` org policy
+   constraint](https://docs.cloud.google.com/compute/docs/oslogin/manage-oslogin-in-an-org#set-org-policy)
+   (which *is* set in some folders of the Google org), preventing disablement of
+   OS Login, and thus causing our `ssh` test suite to fail.
+
+Internally, we have set up the `oslogin-cit` project for testing, which lives in
+its own test organization.
 
 ## Test Setup
 This test uses multiple secrets to store the test users that it uses in order to run the test.
