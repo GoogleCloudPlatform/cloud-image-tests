@@ -89,7 +89,7 @@ func rootUserEntry(ctx context.Context, t *testing.T) string {
 		t.Fatalf("failed to get image: %v", err)
 	}
 	// https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html-single/10.0_release_notes/index#:~:text=GECOS%20field%20for%20root%20user%20is%20changed%20to%20Super%20User
-	el10basedOSs := []string{"rhel-10", "centos-stream-10", "rocky-linux-10", "oracle-linux-10"}
+	el10basedOSs := []string{"rhel-10", "centos-stream-10", "rocky-linux-10", "oracle-linux-10", "almalinux-10"}
 	for _, os := range el10basedOSs {
 		if strings.Contains(image, os) {
 			t.Logf("EL-10 based image detected %q, using Super User as GECOS for root user", image)
