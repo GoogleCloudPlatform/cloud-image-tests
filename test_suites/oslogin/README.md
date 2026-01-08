@@ -14,9 +14,6 @@ This is because having a separate test org:
    (which *is* set in some folders of the Google org), preventing disablement of
    OS Login, and thus causing our `ssh` test suite to fail.
 
-Internally, we have set up the `oslogin-cit` project for testing, which lives in
-its own test organization.
-
 ## Test Setup
 This test uses multiple secrets to store the test users that it uses in order to run the test.
 These secrets are as follows:
