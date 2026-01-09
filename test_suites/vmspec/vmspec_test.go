@@ -105,7 +105,7 @@ func TestPing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		command = "toolbox"
 		baseArgs = append([]string{"ping"}, baseArgs...)
 	}

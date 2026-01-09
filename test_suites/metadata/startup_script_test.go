@@ -89,7 +89,7 @@ func TestStartupScripts(t *testing.T) {
 	}
 
 	// Only perform agent reinstall for non-COS images.
-	if !strings.Contains(image, "cos") {
+	if !utils.IsCOS(image) {
 		reinstallGuestAgent(ctx, t)
 		testScripts(t, "startup", false)
 	}

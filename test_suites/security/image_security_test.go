@@ -93,47 +93,47 @@ func TestAutomaticUpdates(t *testing.T) {
 	}
 
 	switch {
-	case strings.Contains(image, "debian"):
+	case utils.IsDebian(image):
 		if err := verifySecurityUpgrade(image); err != nil {
 			t.Fatal(err)
 		}
 		if err := verifyAutomaticUpdate(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "ubuntu"):
+	case utils.IsUbuntu(image):
 		if err := verifySecurityUpgrade(image); err != nil {
 			t.Fatal(err)
 		}
 		if err := verifyAutomaticUpdate(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "windows"):
+	case utils.IsWindowsImage(image):
 		if err := verifyAutomaticUpdate(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "suse"):
+	case utils.IsSUSE(image):
 		t.Skip("Not supported on SUSE")
-	case strings.Contains(image, "sles"):
+	case utils.IsSLES(image):
 		t.Skip("Not supported on SLES")
-	case strings.Contains(image, "fedora"):
+	case utils.IsFedora(image):
 		t.Skip("Not supported on Fedora")
-	case strings.Contains(image, "centos"):
+	case utils.IsCentOS(image):
 		if err := verifyServiceEnabled(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "rhel"):
+	case utils.IsRHEL(image):
 		if err := verifyServiceEnabled(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "almalinux"):
+	case utils.IsAlmaLinux(image):
 		if err := verifyServiceEnabled(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "rocky-linux"):
+	case utils.IsRocky(image):
 		if err := verifyServiceEnabled(image); err != nil {
 			t.Fatal(err)
 		}
-	case strings.Contains(image, "oracle-linux"):
+	case utils.IsOracle(image):
 		t.Skip("Not supported on Oracle Linux")
 	default:
 		t.Fatalf("image %s not support", image)
@@ -200,7 +200,7 @@ func verifyPassword(ctx context.Context) error {
 			}
 		} else {
 			// SUSE has bin user with login access
-			if !strings.Contains(image, "sles") && !strings.Contains(shell, "false") && !strings.Contains(shell, "nologin") {
+			if !utils.IsSLES(image) && !strings.Contains(shell, "false") && !strings.Contains(shell, "nologin") {
 				return fmt.Errorf("account %s has the login shell %s", loginname, shell)
 			}
 		}
@@ -235,7 +235,7 @@ func verifySSHConfig(t *testing.T, image string) error {
 	if passwordauthsetting != "passwordauthentication no" {
 		return fmt.Errorf("sshd passwordauthentication setting is %q, want %q", passwordauthsetting, "passwordauthencation no")
 	}
-	if strings.Contains(image, "sles") || strings.Contains(image, "suse") || utils.IsWindows() {
+	if utils.IsSLES(image) || utils.IsSUSE(image) || utils.IsWindows() {
 		// SLES ships with "PermitRootLogin yes" in SSHD config.
 		// This setting is meaningless on windows
 		return nil
@@ -254,10 +254,10 @@ func verifySSHConfig(t *testing.T, image string) error {
 func verifySecurityUpgrade(image string) error {
 	var expectedBlock, expectedLine string
 	switch {
-	case strings.Contains(image, "debian"):
+	case utils.IsDebian(image):
 		expectedBlock = unattendedUpgradeBlockDebian
 		expectedLine = expectedDebian
-	case strings.Contains(image, "ubuntu"):
+	case utils.IsUbuntu(image):
 		expectedBlock = unattendedUpgradeBlockUbuntu
 		expectedLine = expectedUbuntu
 	default:
@@ -307,7 +307,7 @@ func verifyServiceEnabled(image string) error {
 }
 
 func verifyAutomaticUpdate(image string) error {
-	if strings.Contains(image, "windows") {
+	if utils.IsWindowsImage(image) {
 		AUOptions, err := utils.RunPowershellCmd(`Get-ItemProperty -Path HKLM:\software\policies\microsoft\windows\windowsupdate\au | Format-List -Property AUOptions`)
 		if err != nil {
 			return err
@@ -327,7 +327,7 @@ func verifyAutomaticUpdate(image string) error {
 		if !strings.Contains(automaticUpdateConfig, `APT::Periodic::Enable "1";`) {
 			return fmt.Errorf(`"APT::Periodic::Enable" is not set to 1`)
 		}
-	case strings.Contains(image, "ubuntu"):
+	case utils.IsUbuntu(image):
 		// Ensure that we clean out obsolete debs within 7 days so that customer VMs
 		// don't leak disk space. The value below is in days, with 0 as
 		// disabled.
@@ -446,7 +446,7 @@ func TestSockets(t *testing.T) {
 		t.Fatalf("couldn't get image from metadata")
 	}
 
-	if strings.Contains(image, "-sap") || strings.Contains(image, "oracle-linux") {
+	if utils.IsSAP(image) || utils.IsOracle(image) {
 		// All SAP Images are permitted to have 'rpcbind' listening on
 		// port 111
 		allowedTCP = append(allowedTCP, "111")
@@ -461,7 +461,7 @@ func TestSockets(t *testing.T) {
 		allowedUDP = append(allowedUDP, "9090")
 	}
 
-	if !(strings.Contains(image, "rhel-7") && strings.Contains(image, "-sap")) {
+	if !(strings.Contains(image, "rhel-7") && utils.IsSAP(image)) {
 		// Skip UDP check on RHEL-7-SAP images which have old rpcbind
 		// which listens to random UDP ports.
 		if err := validateSockets(listenUDP, allowedUDP); err != nil {

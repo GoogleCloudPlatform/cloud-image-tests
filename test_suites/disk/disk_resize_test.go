@@ -67,7 +67,7 @@ func TestDiskResize(t *testing.T) {
 
 func getDiskSize(image string) (int64, error) {
 	diskPath := "/"
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		diskPath = "/mnt/stateful_partition"
 	}
 

@@ -186,7 +186,7 @@ func IsRockyLinux(ctx context.Context, t *testing.T) bool {
 		t.Logf("Could not read /etc/os-release: %v, defaulting IsRockyLinux to false", err)
 		return false
 	}
-	return strings.Contains(string(content), "rocky")
+	return utils.IsRocky(string(content))
 }
 
 // SetupRDMAPerftestLibrary clones and builds the perftest library from

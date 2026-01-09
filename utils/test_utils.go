@@ -408,14 +408,107 @@ func CheckLinuxCmdExists(cmd string) bool {
 	return false
 }
 
+// IsAccelerator returns true if the image is an accelerator image.
+func IsAccelerator(image string) bool {
+	return strings.Contains(image, "nvidia")
+}
+
+// IsAlmaLinux returns true if the image is AlmaLinux.
+func IsAlmaLinux(image string) bool {
+	return strings.Contains(image, "almalinux")
+}
+
+// IsBYOS returns true if the image is BYOS(Bring Your Own Service).
+func IsBYOS(image string) bool {
+	return strings.Contains(image, "byos")
+}
+
 // IsCOS returns true if the image is cos.
 func IsCOS(image string) bool {
 	return strings.Contains(image, "cos")
 }
 
+// IsCentOS returns true if the image is CentOS.
+func IsCentOS(image string) bool {
+	return strings.Contains(image, "centos")
+}
+
+// IsDebian returns true if the image is Debian.
+func IsDebian(image string) bool {
+	return strings.Contains(image, "debian")
+}
+
+// IsEL returns true if the image is an EL image.
+func IsEL(image string) bool {
+	if IsCentOS(image) || IsRHEL(image) || IsRocky(image) || IsAlmaLinux(image) || IsOracle(image) {
+		return true
+	}
+	return false
+}
+
+// IsFedora returns true if the image is Fedora Linux.
+func IsFedora(image string) bool {
+	return strings.Contains(image, "fedora")
+}
+
+// IsOpenSUSE returns true if the image is OpenSUSE.
+func IsOpenSUSE(image string) bool {
+	return strings.Contains(image, "opensuse")
+}
+
+// IsOracle returns true if the image is Oracle.
+func IsOracle(image string) bool {
+	return strings.Contains(image, "oracle")
+}
+
 // IsRHEL returns true if the image is RHEL.
 func IsRHEL(image string) bool {
 	return strings.Contains(image, "rhel")
+}
+
+// IsRHELEUS returns true if the image is RHEL EUS.
+func IsRHELEUS(image string) bool {
+	return strings.Contains(image, "eus")
+}
+
+// IsRHELLVM returns true if the image is RHEL LVM.
+func IsRHELLVM(image string) bool {
+	return strings.Contains(image, "lvm")
+}
+
+// IsRocky returns true if the image is Rocky.
+func IsRocky(image string) bool {
+	return strings.Contains(image, "rocky")
+}
+
+// IsSAP returns true if the image is SAP.
+func IsSAP(image string) bool {
+	return strings.Contains(image, "sap")
+}
+
+// IsSLES returns true if the image is SLES.
+func IsSLES(image string) bool {
+	return strings.Contains(image, "sles")
+}
+
+// IsSUSE returns true if the image is SUSE.
+func IsSUSE(image string) bool {
+	return strings.Contains(image, "suse")
+}
+
+// IsUbuntu returns true if the image is Ubuntu.
+func IsUbuntu(image string) bool {
+	return strings.Contains(image, "ubuntu")
+}
+
+// IsWindowsImage returns true if the image is Windows.
+func IsWindowsImage(image string) bool {
+	return strings.Contains(image, "windows")
+}
+
+// IsWindowsSQLImage returns true if the image is Windows SQL.
+func IsWindowsSQLImage(image string) bool {
+	return strings.Contains(image, "sql")
 }
 
 // LinuxOnly skips tests not on Linux.

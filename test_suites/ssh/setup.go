@@ -16,9 +16,8 @@
 package ssh
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -62,7 +61,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm.AddMetadata("enable-windows-ssh", "true")
 	vm.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
 	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes"
-	if !strings.Contains(t.Image.Name, "windows") {
+	if !utils.IsWindowsImage(t.Image.Name) {
 		// Windows does not remove the local users.
 		runTests += "|TestDeleteLocalUser|TestDeleteUserDefault"
 	}
@@ -85,7 +84,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm4.AddMetadata("enable-windows-ssh", "true")
 	vm4.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
 	server2Tests := "TestSSHChangeKey"
-	if !strings.Contains(t.Image.Name, "windows") {
+	if !utils.IsWindowsImage(t.Image.Name) {
 		// Windows does not remove the local users.
 		server2Tests += "|TestSwitchDefaultConfig"
 	}

@@ -118,17 +118,17 @@ func TestCustomHostname(t *testing.T) {
 	}
 
 	// guest-configs does not support wicked
-	if strings.Contains(image, "sles") {
+	if utils.IsSLES(image) {
 		t.Skip("SLES doesn't support custom hostnames.")
 	}
-	if strings.Contains(image, "suse") {
+	if utils.IsSUSE(image) {
 		t.Skip("SUSE doesn't support custom hostnames.")
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		// Does not have updated guest-configs with systemd-network support.
 		t.Skip("Not supported on cos")
 	}
-	if strings.Contains(image, "ubuntu") {
+	if utils.IsUbuntu(image) {
 		// Does not have updated guest-configs with systemd-network support.
 		t.Skip("Not supported on ubuntu")
 	}
@@ -162,7 +162,7 @@ func TestFQDN(t *testing.T) {
 	printSuseDebugInfo(t)
 	if hostname != metadataHostname {
 		// TODO(b/460799853): Remove this exception once the bug is fixed.
-		if strings.Contains(image, "sles") && strings.Contains(image, "arm") {
+		if utils.IsSLES(image) && strings.Contains(image, "arm") {
 			t.Skipf("Skipping TestFQDN for SLES ARM image: %q due to b/460799853, got hostname: %q, want hostname: %q", image, hostname, metadataHostname)
 		}
 		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", metadataHostname, hostname)
@@ -328,19 +328,19 @@ func TestHostsFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
-	if strings.Contains(image, "sles") {
+	if utils.IsSLES(image) {
 		// guest-configs does not support wicked
 		t.Skip("Not supported on SLES")
 	}
-	if strings.Contains(image, "suse") {
+	if utils.IsSUSE(image) {
 		// guest-configs does not support wicked
 		t.Skip("Not supported on SUSE")
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		// Does not have updated guest-configs with systemd-network support.
 		t.Skip("Not supported on cos")
 	}
-	if strings.Contains(image, "ubuntu") {
+	if utils.IsUbuntu(image) {
 		// Does not have updated guest-configs with systemd-network support.
 		t.Skip("Not supported on ubuntu")
 	}

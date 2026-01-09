@@ -524,7 +524,7 @@ func runFIOLinux(t *testing.T, mode string) ([]byte, error) {
 	if strings.Contains(image, "ubuntu-pro-1604") {
 		options = strings.Replace(options, "iodepth_batch_complete_max", "iodepth_batch_complete", 1)
 	}
-	if strings.Contains(image, "ubuntu") && (strings.Contains(image, "1804") || strings.Contains(image, "1604")) {
+	if utils.IsUbuntu(image) && (strings.Contains(image, "1804") || strings.Contains(image, "1604")) {
 		err := installPkgLinux("libnuma-dev")
 		if err != nil {
 			return nil, err

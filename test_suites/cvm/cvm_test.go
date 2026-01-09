@@ -226,7 +226,7 @@ func TestTDXAttestation(t *testing.T) {
 	}
 	ctx := utils.Context(t)
 	// For Ubuntu image, the tdx_guest module was moved to linux-modules-extra package in the 1016 and newer kernels.
-	if strings.Contains(image, "ubuntu") {
+	if utils.IsUbuntu(image) {
 		kernelVersionCmd := exec.CommandContext(ctx, "uname", "-r")
 		kernelVersionOut, err := kernelVersionCmd.CombinedOutput()
 		if err != nil {

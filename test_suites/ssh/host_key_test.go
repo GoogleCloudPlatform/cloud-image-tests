@@ -30,7 +30,7 @@ func TestMatchingKeysInGuestAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		// COS is not a supported OS.
 		t.Skip("COS is not a supported OS for storing hostkeys via guest attributes.")
 	}

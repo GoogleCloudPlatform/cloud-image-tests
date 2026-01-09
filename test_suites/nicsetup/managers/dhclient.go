@@ -91,7 +91,7 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 
 	// Older ubuntu versions only has dhclient running for IPv4 on primary NIC
 	// by default. So we assume the IPv6 process exists to let the test pass.
-	if strings.Contains(image, "ubuntu") && nic.Index == 0 && nic.StackType != Ipv4 && !isUbuntu1804 {
+	if utils.IsUbuntu(image) && nic.Index == 0 && nic.StackType != Ipv4 && !isUbuntu1804 {
 		ipv6Process = true
 	}
 

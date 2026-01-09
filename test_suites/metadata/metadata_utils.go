@@ -19,7 +19,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +38,7 @@ func isUbuntu(ctx context.Context, t *testing.T) bool {
 		t.Logf("Could not read os-release: %v, defaulting skip agent reinstall to false", err)
 		return false
 	}
-	return strings.Contains(string(content), "ubuntu")
+	return utils.IsUbuntu(string(content))
 }
 
 func isVersionMismatch(ctx context.Context, t *testing.T, pkg string) bool {
@@ -57,7 +56,7 @@ func isVersionMismatch(ctx context.Context, t *testing.T, pkg string) bool {
 	}
 
 	// Ubuntu built/installed packages includes "ubuntu" in the version string.
-	return !strings.Contains(string(out), "ubuntu")
+	return !utils.IsUbuntu(string(out))
 }
 
 func reinstallGuestAgent(ctx context.Context, t *testing.T) {

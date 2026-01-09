@@ -38,7 +38,7 @@ func shouldSkipSecondaryNICMDSCheck(ctx context.Context, t *testing.T) bool {
 	if err != nil {
 		t.Fatalf("Failed to get image from metadata: %v", err)
 	}
-	return utils.IsWindows() || strings.Contains(image, "sles") || strings.Contains(image, "debian-13")
+	return utils.IsWindows() || utils.IsSLES(image) || strings.Contains(image, "debian-13")
 }
 
 func TestMetadataPath(t *testing.T) {

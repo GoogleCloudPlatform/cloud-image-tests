@@ -19,7 +19,6 @@ package metadata
 import (
 	"fmt"
 	"path"
-	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -50,7 +49,7 @@ func testScripts(t *testing.T, stage string, success bool) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		return
 	}
 

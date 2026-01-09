@@ -17,7 +17,6 @@ package acceleratorconfig
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -71,7 +70,7 @@ func TestNICNaming(t *testing.T) {
 		if !rdmaNICNameRegex.MatchString(iface.Name) {
 			// Allow images that don't have intent-based names yet to match the predictable name scheme instead.
 			// TODO remove exceptions when predictable name scheme is incorporated in each image.
-			if strings.Contains(image, "ubuntu") || strings.Contains(image, "rocky") {
+			if utils.IsUbuntu(image) || utils.IsRocky(image) {
 				if !predictableNICNameRegex.MatchString(iface.Name) {
 					t.Errorf("NIC name %q does not match predictable name scheme %q", iface.Name, predictableNICNameRegex.String())
 				}

@@ -80,7 +80,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm1.RunTests("TestSendPing|TestDHCP|TestDefaultMTU|TestNTP")
 
 	multinictests := "TestStaticIP|TestWaitForPing"
-	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !strings.Contains(t.Image.Name, "cos") {
+	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !utils.IsCOS(t.Image.Name) {
 		multinictests += "|TestAlias|TestGgactlCommand|TestNetworkManagerRestart"
 	}
 

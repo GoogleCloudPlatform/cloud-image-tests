@@ -17,7 +17,6 @@ package sql
 
 import (
 	"embed"
-	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -45,7 +44,7 @@ const (
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	if utils.HasFeature(t.Image, "WINDOWS") && strings.Contains(t.Image.Name, "sql") {
+	if utils.HasFeature(t.Image, "WINDOWS") && utils.IsWindowsSQLImage(t.Image.Name) {
 		defaultNetwork, err := t.CreateNetwork("default-network", false)
 		if err != nil {
 			return err

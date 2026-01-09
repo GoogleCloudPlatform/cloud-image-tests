@@ -34,7 +34,7 @@ func TestVersionLock(t *testing.T) {
 		t.Fatalf("Failed to read image metadata: %v", err)
 	}
 
-	isEUSOrSAP := strings.Contains(image, "sap") || strings.Contains(image, "eus")
+	isEUSOrSAP := utils.IsSAP(image) || utils.IsRHELEUS(image)
 	data, err := os.ReadFile(releaseVerFile)
 	if err != nil {
 		t.Fatalf("Failed to read releasever file: %v", err)
@@ -76,9 +76,9 @@ func TestRhuiPackage(t *testing.T) {
 		t.Fatalf("Failed to read image metadata: %v", err)
 	}
 
-	isBYOS := strings.Contains(image, "byos")
-	isEUS := strings.Contains(image, "eus")
-	isSAP := strings.Contains(image, "sap")
+	isBYOS := utils.IsBYOS(image)
+	isEUS := utils.IsRHELEUS(image)
+	isSAP := utils.IsSAP(image)
 
 	expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
 	if err != nil {
@@ -112,7 +112,7 @@ func TestRhuiPackage(t *testing.T) {
 		}
 		// Since "-eus" and "-sap" are appended to the base rhui package name, if we are checking for
 		// the base RHEL image then make sure that the package name doesn't contain "-eus" or "-sap".
-		if strings.Contains(string(output), "-eus") || strings.Contains(string(output), "-sap") {
+		if utils.IsRHELEUS(string(output)) || utils.IsSAP(string(output)) {
 			t.Errorf("The rhui client package is not installed: %s", err)
 		}
 	}

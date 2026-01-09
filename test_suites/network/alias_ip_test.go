@@ -38,7 +38,7 @@ func TestAliases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		t.Skipf("COS does not support IP aliases")
 	}
 	if err := verifyIPAliases(t); err != nil {
@@ -52,7 +52,7 @@ func TestAliasAfterReboot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		t.Skipf("COS does not support IP aliases")
 	}
 	_, err = os.Stat(markerFile)
@@ -118,7 +118,7 @@ func skipIfUbuntu(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "ubuntu") {
+	if utils.IsUbuntu(image) {
 		t.Skipf("Skipping test for Ubuntu images due to b/434210587")
 	}
 }
@@ -209,7 +209,7 @@ func readNic(ctx context.Context, t *testing.T, id int) net.Interface {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		t.Skipf("COS does not support IP aliases")
 	}
 	iface, err := utils.GetInterface(ctx, id)

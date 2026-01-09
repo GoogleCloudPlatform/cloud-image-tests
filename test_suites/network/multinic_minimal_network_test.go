@@ -121,7 +121,7 @@ func TestWaitForPing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not determine image: %v", err)
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		allowTCPCmd := exec.CommandContext(ctx, "iptables", "-A", "INPUT", "-p", "tcp", "-j", "ACCEPT")
 		if out, err := allowTCPCmd.CombinedOutput(); err != nil {
 			t.Fatalf("iptables -A INPUT -p tcp -j ACCEPT failed: %s %v", out, err)

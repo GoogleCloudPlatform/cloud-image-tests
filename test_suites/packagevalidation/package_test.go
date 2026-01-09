@@ -59,11 +59,11 @@ func TestStandardPrograms(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't get image from metadata")
 	}
-	if strings.Contains(image, "sles") || strings.Contains(image, "suse") || strings.Contains(image, "oracle") {
+	if utils.IsSLES(image) || utils.IsSUSE(image) || utils.IsOracle(image) {
 		// SLES/SUSE/Oracle does not have the Google Cloud SDK installed.
 		t.Skip("Cloud SDK Not installed on SLES/SUSE/Oracle")
 	}
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		// COS does not have the Google Cloud SDK installed.
 		t.Skip("Cloud SDK Not supported on COS")
 	}
@@ -76,7 +76,7 @@ func TestStandardPrograms(t *testing.T) {
 		t.Fatalf("gcloud not installed properly: %v, output: %s", err, gb.String())
 	}
 
-	if strings.Contains(image, "ubuntu") && strings.Contains(image, "nvidia") {
+	if utils.IsUbuntu(image) && utils.IsAccelerator(image) {
 		// TODO(b/469342129): Remove this once the package is made available by nvidia.
 		if strings.Contains(image, "580") {
 			t.Logf("Skipping add-nvidia-repositories test for ubuntu accelerator images due to missing libnvsdm-580 package, see b/469342129")
@@ -164,7 +164,7 @@ func TestGuestPackages(t *testing.T) {
 		}
 	}
 
-	if strings.Contains(image, "cos") {
+	if utils.IsCOS(image) {
 		listPkgs = func() ([]string, error) {
 			o, err := os.ReadFile("/etc/cos-package-info.json")
 			var pkgs []string

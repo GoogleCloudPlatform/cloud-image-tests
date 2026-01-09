@@ -44,7 +44,7 @@ func getSAPStatus(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get image name: %v", err)
 	}
-	return strings.Contains(imageName, "sap"), nil
+	return utils.IsSAP(imageName), nil
 }
 
 // getLVMStatus returns true if the image is LVM, false otherwise.
@@ -53,7 +53,7 @@ func getLVMStatus(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get image name: %v", err)
 	}
-	return strings.Contains(imageName, "lvm"), nil
+	return utils.IsRHELLVM(imageName), nil
 }
 
 // TestLVMPackage checks the lvm2 package install status.

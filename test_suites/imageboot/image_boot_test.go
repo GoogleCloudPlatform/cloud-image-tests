@@ -259,9 +259,9 @@ func findInstanceStartTime(ctx context.Context, t *testing.T) time.Time {
 func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image string) time.Time {
 	t.Helper()
 	essentialServices := []string{"google-guest-agent.service", "google-guest-agent-manager.service", "sshd.service"}
-	if strings.Contains(image, "windows") {
+	if utils.IsWindowsImage(image) {
 		essentialServices = []string{"GCEAgent", "GCEAgentManager"}
-	} else if strings.Contains(image, "ubuntu") {
+	} else if utils.IsUbuntu(image) {
 		essentialServices = []string{"google-guest-agent.service", "google-guest-agent-manager.service", "ssh.service"}
 	}
 	latestStartTime := time.Time{}

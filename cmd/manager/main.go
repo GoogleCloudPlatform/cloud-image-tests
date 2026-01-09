@@ -73,6 +73,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/windowscontainers"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/winrm"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/wsfc"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -479,10 +480,10 @@ func main() {
 				// Find the project of the image.
 				project := ""
 				for _, k := range imageKeys {
-					if strings.Contains(k, "sap") {
+					if utils.IsSAP(k) {
 						// sap follows a slightly different naming convention.
 						imageName := strings.Split(k, "-")[0]
-						if strings.HasPrefix(image, imageName) && strings.Contains(image, "sap") {
+						if strings.HasPrefix(image, imageName) && utils.IsSAP(image) {
 							project = projectMap[k]
 							break
 						}
