@@ -17,6 +17,10 @@ package networkinterfacenaming
 
 import (
 	"flag"
+	"fmt"
+	"math/rand"
+	"sync"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -29,11 +33,16 @@ var (
 	Name = "networkinterfacenaming"
 
 	// nicnamingMetalZone is the zone where the metal instance is created.
-	// By default, it is set to asia-southeast1-c. The zone must be a zone in
-	// which the c3-metal machine type is available.
+	// By default, it will pick one of the supported zones randomly. The zone must
+	// be a zone in which the c3-metal machine type is available.
 	//
 	// Refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions for the list of zones.
-	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "asia-southeast1-c", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
+	nicnamingMetalZone = flag.String("networkinterfacenaming_metal_zone", "", "The zone where the metal instance is created. For zones with availability, refer to https://cloud.google.com/compute/docs/general-purpose-machines#c3_regions.")
+
+	usedZones      = map[string]bool{}
+	mu             sync.Mutex
+	r              = rand.New(rand.NewSource(time.Now().UnixNano()))
+	supportedZones = []string{"asia-southeast1-a", "asia-southeast1-c", "us-west1-a", "us-west1-b", "us-east1-c", "us-east1-d", "us-east4-a", "us-east4-c", "us-east5-a", "us-east5-b"}
 )
 
 // TestSetup sets up the test workflow.
@@ -85,12 +94,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	nicnameVM.RunTests("TestNICNamingScheme")
 
 	if t.Image.Architecture == "X86_64" && utils.HasFeature(t.Image, "IDPF") {
+		zone := c3metalZone()
+		fmt.Printf("Using zone %s for c3-standard-192-metal instance\n", zone)
 		c3metal := &daisy.Instance{}
 		c3metal.MachineType = "c3-standard-192-metal"
-		c3metal.Zone = *nicnamingMetalZone
+		c3metal.Zone = zone
 		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
 		c3MetalDiskType := imagetest.DiskTypeNeeded(c3metal.MachineType)
-		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: *nicnamingMetalZone}}, c3metal)
+		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: zone}}, c3metal)
 		if err != nil {
 			return err
 		}
@@ -98,4 +109,30 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	return nil
+}
+
+func c3metalZone() string {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if *nicnamingMetalZone != "" {
+		return *nicnamingMetalZone
+	}
+
+	var unusedZones []string
+	for _, zone := range supportedZones {
+		if !usedZones[zone] {
+			unusedZones = append(unusedZones, zone)
+		}
+	}
+
+	if len(unusedZones) == 0 {
+		usedZones = map[string]bool{}
+		for _, zone := range supportedZones {
+			unusedZones = append(unusedZones, zone)
+		}
+	}
+	zone := unusedZones[r.Intn(len(unusedZones))]
+	usedZones[zone] = true
+	return zone
 }
