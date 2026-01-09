@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -97,8 +98,64 @@ func rootUserEntry(ctx context.Context, t *testing.T) string {
 	return "root:x:0:0:root:/root:"
 }
 
+// PreTestCacheCheck checks if the OS Login cache is empty and refreshes it if necessary.
+func PreTestCacheCheck(t *testing.T) {
+	t.Helper()
+	cacheFile := "/etc/oslogin_passwd.cache"
+
+	fileInfo, err := os.Stat(cacheFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Logf("OS Login cache file %s does not exist. Refreshing cache.", cacheFile)
+		} else {
+			t.Logf("Error stating OS Login cache file %s: %v. Attempting refresh anyway.", cacheFile, err)
+		}
+		// Refresh if not exists or other stat error
+		cmd := exec.Command("sudo", "/usr/bin/google_oslogin_nss_cache")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("Failed to run OS Login cache refresh: %v\nOutput: %s", err, out)
+		}
+		t.Logf("OS Login cache refresh command output:\n%s", out)
+		// Give a moment for the cache file to be written
+		time.Sleep(2 * time.Second)
+		return
+	}
+	ctx := utils.Context(t)
+	_, _, testUserEntry, err := getTestUserEntry(ctx)
+	if err != nil {
+		t.Fatalf("failed to get test user entry: %v", err)
+	}
+	cmd := exec.Command("getent", "passwd")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("getent command failed %v", err)
+	}
+	if fileInfo.Size() == 0 {
+		t.Logf("OS Login cache file %s is empty. Refreshing cache.", cacheFile)
+		// Check if the test user is in the cache before refreshing
+		if !strings.Contains(string(out), testUserEntry) {
+			t.Logf("getent passwd output does not contain the test user; got %q, want %q", string(out), testUserEntry)
+		}
+		cmd := exec.Command("sudo", "/usr/bin/google_oslogin_nss_cache")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("Failed to run OS Login cache refresh: %v\nOutput: %s", err, out)
+		}
+		t.Logf("OS Login cache refresh command output:\n%s", out)
+		// Give a moment for the cache file to be written
+		time.Sleep(2 * time.Second)
+	} else {
+		t.Logf("OS Login cache file %s is not empty. Size: %d bytes.", cacheFile, fileInfo.Size())
+	}
+}
+
 func TestGetentPasswdAllUsers(t *testing.T) {
 	ctx := utils.Context(t)
+
+	// Check and refresh cache if empty
+	PreTestCacheCheck(t)
+
 	_, _, testUserEntry, err := getTestUserEntry(ctx)
 	if err != nil {
 		t.Fatalf("failed to get test user entry: %v", err)
@@ -117,6 +174,8 @@ func TestGetentPasswdAllUsers(t *testing.T) {
 	}
 	if !strings.Contains(string(out), testUserEntry) {
 		t.Errorf("getent passwd output does not contain the test user; got %q, want %q", string(out), testUserEntry)
+	} else {
+		t.Logf("Test user entry found in getent passwd output: %q", testUserEntry)
 	}
 }
 
