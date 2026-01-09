@@ -62,7 +62,7 @@ func VerifyInstallReturn(t *testing.T, pkg string, input string) {
 	if matchedInstall || matchedNoaction {
 		return
 	}
-	t.Fatalf("Installation of '%s' returned unexpected result: %s", pkg, input)
+	t.Fatalf("Installation of %q returned unexpected result: %s", pkg, input)
 }
 
 func TestPvpanicDriverInstallFromTesting(t *testing.T) {
@@ -73,7 +73,7 @@ func TestPvpanicDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -86,7 +86,7 @@ func TestGgaDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -99,7 +99,7 @@ func TestBalloonDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -112,7 +112,7 @@ func TestGvnicDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -125,7 +125,7 @@ func TestNetkvmDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -138,7 +138,7 @@ func TestVioscsiDriverInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, driver)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", driver, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", driver, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, driver, output.Stdout)
 }
@@ -151,7 +151,7 @@ func TestCertgenPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -164,7 +164,7 @@ func TestGoogetPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -177,7 +177,7 @@ func TestGceDiagnosticsPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -190,7 +190,7 @@ func TestGceMetadataScriptsPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -203,7 +203,7 @@ func TestGcePowershellPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -216,7 +216,7 @@ func TestGceSysprepPackageInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -229,7 +229,7 @@ func TestWindowsGuestAgentInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
@@ -242,7 +242,7 @@ func TestOSConfigAgentInstallFromTesting(t *testing.T) {
 	command := fmt.Sprintf("%s -noconfirm install %s", googet, pkg)
 	output, err := utils.RunPowershellCmd(command)
 	if err != nil {
-		t.Fatalf("Error installing '%s': %v", pkg, output.Stdout)
+		t.Fatalf("Error installing %q: stdout: %s, stderr: %s", pkg, output.Stdout, output.Stderr)
 	}
 	VerifyInstallReturn(t, pkg, output.Stdout)
 }
