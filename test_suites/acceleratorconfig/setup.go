@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
 	computeBeta "google.golang.org/api/compute/v0.beta"
 	"google.golang.org/api/compute/v1"
@@ -38,6 +39,11 @@ var (
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	t.LockProject()
+
+	image := t.Image
+	if !utils.IsAccelerator(image.Name) {
+		t.Skip("Skipping AcceleratorConfig tests for non-Accelerator/non-Nvidia images. The image name suggests that this is not an Accelerator image. We currently support Rocky and Ubuntu Accelerator images.")
+	}
 
 	testZone := t.Zone.Name
 	// For example, region should be us-central1 for zone us-central1-a.
