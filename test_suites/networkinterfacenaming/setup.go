@@ -42,7 +42,7 @@ var (
 	usedZones      = map[string]bool{}
 	mu             sync.Mutex
 	r              = rand.New(rand.NewSource(time.Now().UnixNano()))
-	supportedZones = []string{"asia-southeast1-a", "asia-southeast1-c", "us-west1-a", "us-west1-b", "us-east1-c", "us-east1-d", "us-east4-a", "us-east4-c", "us-east5-a", "us-east5-b"}
+	supportedZones = []string{"asia-southeast1-a", "asia-southeast1-c", "us-west1-a", "us-west1-b", "us-east1-c", "us-east1-d", "us-east4-a", "us-east4-c", "europe-west1-b", "europe-west1-c"}
 )
 
 // TestSetup sets up the test workflow.
