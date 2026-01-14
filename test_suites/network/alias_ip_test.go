@@ -271,6 +271,8 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Logf("Routes before restart: %v", beforeRestart)
+
 	// Swap the IP forwarding configuration from true to false.
 	swapIPForwardingConfiguration(t, "ip_forwarding = true")
 
@@ -280,11 +282,11 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 
 	afterRestart, err := getGoogleRoutes(iface.Name)
 	if err == nil {
-		t.Fatal("Routes exists after restart, but should not exist")
+		t.Fatalf("Routes [%s] exists after restart, but should not exist", afterRestart)
 	}
 
 	if compare(beforeRestart, afterRestart) {
-		t.Fatalf("Routes are consistent after restart, but should not be")
+		t.Fatalf("Routes are consistent after restart, but should not be. Before\n: %v, \nAfter\n: %v", beforeRestart, afterRestart)
 	}
 }
 
@@ -306,7 +308,13 @@ func swapIPForwardingConfiguration(t *testing.T, currentConfig string) {
 	from := currentConfig
 	to := toggle[currentConfig]
 
-	changedConfig := strings.ReplaceAll(string(data), from, to)
+	var changedConfig string
+
+	if !strings.Contains(string(data), from) {
+		changedConfig = fmt.Sprintf("%s\n[NetworkInterfaces]\n%s\n", string(data), to)
+	} else {
+		changedConfig = strings.ReplaceAll(string(data), from, to)
+	}
 
 	if err := os.WriteFile(configFile, []byte(changedConfig), 0644); err != nil {
 		t.Fatal(err)
