@@ -103,14 +103,15 @@ func reinstallGuestAgent(ctx context.Context, t *testing.T) {
 		cmdTokens := []string{"yum", "-y", "reinstall", pkg}
 		cmdTokens = append(cmdTokens, repoArgs...)
 		cmd = exec.CommandContext(ctx, cmdTokens[0], cmdTokens[1:]...)
-
 		cmdTokens = []string{"yum", "-y", "upgrade", pkg}
 		cmdTokens = append(cmdTokens, repoArgs...)
 		fallback = exec.CommandContext(ctx, cmdTokens[0], cmdTokens[1:]...)
 	case utils.CheckLinuxCmdExists("zypper"):
 		cmd = exec.CommandContext(ctx, "zypper", "--non-interactive", "install", "--force", pkg)
 		fallback = exec.CommandContext(ctx, "zypper", "--non-interactive", "install", "--force", pkg)
-		fallback.Env = append(fallback.Env, "ZYPP_LOCK_TIMEOUT=5184000") // A negative value is supposed to wait forever but older versions of libzypp are bugged. This will wait for 24 hours.
+		// If zypp is locked by another process wait this number of seconds for the
+		// lock becoming available.
+		fallback.Env = append(fallback.Env, "ZYPP_LOCK_TIMEOUT=120")
 	default:
 		t.Fatalf("could not find a package manager to reinstall %s with", pkg)
 		return
