@@ -236,7 +236,7 @@ func ParseHostKey(bytes []byte) (map[string]string, error) {
 	if len(hostkeyLines) == 0 {
 		return nil, fmt.Errorf("hostkey does not exist")
 	}
-	var hostkeyMap = make(map[string]string)
+	hostkeyMap := make(map[string]string)
 	for _, hostkey := range hostkeyLines {
 		hostkey = strings.TrimSuffix(hostkey, "\r")
 		splits := strings.Split(hostkey, " ")
@@ -670,7 +670,7 @@ func GetMountDiskPartition(diskExpectedSizeGB int) (string, error) {
 				continue
 			}
 			// we should have a slice of length 3, with fields name, size, type. Search for the line with the partition of the correct size.
-			var blkname, blksize, blktype = linetokens[0], linetokens[1], linetokens[2]
+			blkname, blksize, blktype := linetokens[0], linetokens[1], linetokens[2]
 			blksizeInt, err := strconv.ParseInt(blksize, 10, 64)
 			if err != nil {
 				continue
