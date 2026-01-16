@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,7 +112,7 @@ func reinstallGuestAgent(ctx context.Context, t *testing.T) {
 		fallback = exec.CommandContext(ctx, "zypper", "--non-interactive", "install", "--force", pkg)
 		// If zypp is locked by another process wait this number of seconds for the
 		// lock becoming available.
-		fallback.Env = append(fallback.Env, "ZYPP_LOCK_TIMEOUT=120")
+		fallback.Env = append(fallback.Env, "ZYPP_LOCK_TIMEOUT=300")
 	default:
 		t.Fatalf("could not find a package manager to reinstall %s with", pkg)
 		return
@@ -127,6 +128,11 @@ func reinstallGuestAgent(ctx context.Context, t *testing.T) {
 		if fallback != nil {
 			fallbackOutput, err := fallback.CombinedOutput()
 			if err != nil {
+				if strings.Contains(string(fallbackOutput), "System management is locked by the application") {
+					// Zypper lock is not released even after 5 minutes, give up and
+					// skip the test.
+					t.Skipf("Skipping agent reinstall as system management is locked by the application, error: %v, output: %s", err, string(fallbackOutput))
+				}
 				t.Fatalf("could not reinstall %s with fallback: %s, output: %s",
 					pkg, err, string(fallbackOutput))
 			}
