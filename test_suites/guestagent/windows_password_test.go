@@ -32,7 +32,20 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-const user = "windowsuser5"
+const (
+	// passwordResetUser is the user for the password reset test.
+	passwordResetUser = "windowsuser5"
+	// differentLocaleUser is the user for the password reset test with a different locale.
+	// This is currently just the Romaji spelling of "Administrators" in Japanese, with
+	// "user" appended to the end.
+	differentLocaleUser = "kanrininuser"
+	// This is the well-known SID for the local admin group.
+	// https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers#well-known-sids
+	localAdminSID = "S-1-5-32-544"
+	// This is the name of the admin group that the normal Administrators group is renamed to.
+	// This is currently just the romaji spelling of "Administrators" in Japanese.
+	newAdminGroupName = "kanrinin"
+)
 
 type windowsKeyJSON struct {
 	ExpireOn string
@@ -51,7 +64,7 @@ func getInstanceMetadata(client daisyCompute.Client, instance, zone, project str
 	return ins.Metadata, nil
 }
 
-func generateKey(priv *rsa.PublicKey) (*windowsKeyJSON, error) {
+func generateKey(priv *rsa.PublicKey, user string) (*windowsKeyJSON, error) {
 	bs := make([]byte, 4)
 	binary.BigEndian.PutUint32(bs, uint32(priv.E))
 
@@ -104,7 +117,7 @@ func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
 	return string(pwd), nil
 }
 
-func resetPassword(client daisyCompute.Client, t *testing.T) (string, error) {
+func resetPassword(client daisyCompute.Client, t *testing.T, user string) (string, error) {
 	ctx := utils.Context(t)
 	instanceName, err := utils.GetInstanceName(ctx)
 	if err != nil {
@@ -124,7 +137,7 @@ func resetPassword(client daisyCompute.Client, t *testing.T) (string, error) {
 		return "", err
 	}
 
-	winKey, err := generateKey(&key.PublicKey)
+	winKey, err := generateKey(&key.PublicKey, user)
 	if err != nil {
 		return "", err
 	}
@@ -191,10 +204,15 @@ func verifyPowershellCmd(t *testing.T, cmd string) string {
 	return stdout
 }
 
+// TestWindowsPasswordReset tests that the guest agent can reset the password of a user.
+// This test creates a user, then sends a request via MDS to the guest agent to reset the password.
+// Since the user already exists, the guest agent should just reset the password.
+// There are no expectations for the user to be added to the admin group, if it's
+// not already there.
 func TestWindowsPasswordReset(t *testing.T) {
 	utils.WindowsOnly(t)
 	initpwd := "gyug3q445m0!"
-	createUserCmd := fmt.Sprintf("net user %s %s /add", user, initpwd)
+	createUserCmd := fmt.Sprintf("net user %s %s /add", passwordResetUser, initpwd)
 	verifyPowershellCmd(t, createUserCmd)
 	ctx := utils.Context(t)
 	client, err := utils.GetDaisyClient(ctx)
@@ -202,21 +220,84 @@ func TestWindowsPasswordReset(t *testing.T) {
 		t.Fatalf("Error creating compute service: %v", err)
 	}
 
-	t.Logf("Resetting password on current instance for user %q\n", user)
-	decryptedPassword, err := resetPassword(client, t)
+	t.Logf("Resetting password on current instance for user %q\n", passwordResetUser)
+	decryptedPassword, err := resetPassword(client, t, passwordResetUser)
 	if err != nil {
 		t.Fatalf("reset password failed: error %v", err)
 	}
-	t.Logf("- Username: %s\n- Password: %s\n", user, decryptedPassword)
+	t.Logf("- Username: %s\n- Password: %s\n", passwordResetUser, decryptedPassword)
 	// wait for guest agent to update, since it can take up to a minute
 	time.Sleep(time.Minute)
 	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
 	userList := verifyPowershellCmd(t, getUsersCmd)
-	t.Logf("expected user %s in userlist %s", user, userList)
-	if !strings.Contains(userList, user) {
-		t.Fatalf("user %s not found in userlist: %s", user, userList)
+	t.Logf("expected user %s in userlist %s", passwordResetUser, userList)
+	if !strings.Contains(userList, passwordResetUser) {
+		t.Fatalf("user %s not found in userlist: %s", passwordResetUser, userList)
 	}
-	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", user, decryptedPassword)
+	// Verify that the user can log in with the new password.
+	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", passwordResetUser, decryptedPassword)
 	// The process "Credential" in powershell does not print anything on success
 	verifyPowershellCmd(t, verificationCmd)
+}
+
+// TestWindowsPasswordResetDifferentLocale tests that the guest agent can create
+// a user and add it to the local admin group, where the local admin group is
+// renamed. The renaming of the group simply mocks a different locale, but
+// the guest agent should still be expected to be able to add the user to that
+// group.
+func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
+	utils.WindowsOnly(t)
+	if utils.IsCoreDisabled() {
+		// This feature is only implemented in the core plugin.
+		t.Skip("Skipping test as core plugin is disabled")
+	}
+	ctx := utils.Context(t)
+	client, err := utils.GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("Error creating compute service: %v", err)
+	}
+
+	// Change the name of the admin group to something else.
+	changeAdminGroupCmd := fmt.Sprintf("Rename-LocalGroup -Name Administrators -NewName %s", newAdminGroupName)
+	t.Cleanup(func() {
+		utils.RunPowershellCmd(fmt.Sprintf("Rename-LocalGroup -Name %s -NewName Administrators", newAdminGroupName))
+	})
+	verifyPowershellCmd(t, changeAdminGroupCmd)
+
+	// Reset the password for the user.
+	t.Logf("Resetting password on current instance for user %q\n", differentLocaleUser)
+	decryptedPassword, err := resetPassword(client, t, differentLocaleUser)
+	if err != nil {
+		t.Fatalf("reset password failed: error %v", err)
+	}
+	t.Logf("- Username: %s\n- Password: %s\n", differentLocaleUser, decryptedPassword)
+	// wait for guest agent to update, since it can take up to a minute
+	time.Sleep(time.Minute)
+	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
+	userList := verifyPowershellCmd(t, getUsersCmd)
+	t.Logf("expected user %s in userlist %s", differentLocaleUser, strings.Join(strings.Fields(userList), ", "))
+	if !strings.Contains(userList, differentLocaleUser) {
+		t.Fatalf("user %s not found in userlist: %s", differentLocaleUser, userList)
+	}
+	// Double check that the user is in the admin group.
+	verifyAdminGroup(t, differentLocaleUser)
+	// Verify that the user can log in with the new password.
+	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", differentLocaleUser, decryptedPassword)
+	// The process "Credential" in powershell does not print anything on success
+	verifyPowershellCmd(t, verificationCmd)
+}
+
+// verifyAdminGroup verifies that a user is a member of the local admin group.
+func verifyAdminGroup(t *testing.T, user string) {
+	t.Helper()
+
+	out := verifyPowershellCmd(t, fmt.Sprintf("Get-LocalGroupMember -SID '%s' | ForEach-Object { Write-Output $_.Name}", localAdminSID))
+	members := strings.Fields(out)
+	t.Logf("Members of admin group: %v", members)
+	for _, member := range members {
+		if strings.Contains(member, user) {
+			return
+		}
+	}
+	t.Errorf("User %s not a member of the admin group (SID %s)", user, localAdminSID)
 }
