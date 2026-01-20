@@ -17,7 +17,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/jstemmer/go-junit-report/v2 v2.1.0
 	github.com/xlzd/gotp v0.1.0
-	golang.org/x/crypto v0.42.0
+	golang.org/x/crypto v0.45.0
 	google.golang.org/api v0.251.0
 	google.golang.org/genproto v0.0.0-20250929231259-57b25ae835d4
 	google.golang.org/grpc v1.75.1
@@ -63,11 +63,11 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.13.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250929231259-57b25ae835d4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4 // indirect
