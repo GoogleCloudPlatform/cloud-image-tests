@@ -13,6 +13,7 @@ package guestagent
 
 import (
 	"encoding/json"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -71,5 +72,40 @@ func TestDiagnostic(t *testing.T) {
 	}
 	if !strings.Contains(processStatus.Stdout, "Diagnostics") {
 		t.Errorf("Failed to find diagnostic entries in registry, out: %+v", processStatus)
+	}
+}
+
+func TestServiceConfig(t *testing.T) {
+	utils.WindowsOnly(t)
+	services := []string{"GCEAgentManager"}
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Failed to get image: %v", err)
+	}
+	if strings.Contains(image, "guest-agent-stable") {
+		// Service is enabled only on stable images.
+		services = append(services, "GCEAgent")
+	} else {
+		// Service is disabled on stable images.
+		services = append(services, "GCEWindowsCompatManager")
+	}
+
+	for _, service := range services {
+		cmd := exec.Command("sc", "qc", service)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("Failed to get service status: %v, output: %+v", err, string(out))
+		}
+		lines := strings.Split(string(out), "\r\n")
+		found := false
+		for _, line := range lines {
+			if strings.Contains(line, "AUTO_START") && strings.Contains(line, "DELAYED") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Service %s is not in AUTO_START (DELAYED) state, output: %s", service, string(out))
+		}
 	}
 }
