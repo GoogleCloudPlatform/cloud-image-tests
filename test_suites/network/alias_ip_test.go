@@ -78,7 +78,7 @@ func verifyIPAliases(t *testing.T) error {
 		return fmt.Errorf("couldn't get interface: %v", err)
 	}
 
-	actualIPs, err := getGoogleRoutes(iface.Name)
+	actualIPs, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		return err
 	}
@@ -86,30 +86,6 @@ func verifyIPAliases(t *testing.T) error {
 		return err
 	}
 	return nil
-}
-
-func getGoogleRoutes(networkInterface string) ([]string, error) {
-	// First, we probably need to wait so the guest agent can add the
-	// routes. If this is insufficient, we might need to add retries.
-	time.Sleep(30 * time.Second)
-
-	arguments := strings.Split(fmt.Sprintf("route list table local type local scope host dev %s proto 66", networkInterface), " ")
-	cmd := exec.Command("ip", arguments...)
-	b, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("error listing Google routes: %s", b)
-	}
-	if len(b) == 0 {
-		return nil, fmt.Errorf("No Google routes found")
-	}
-	var res []string
-	for _, line := range strings.Split(string(b), "\n") {
-		ip := strings.Split(line, " ")
-		if len(ip) >= 2 {
-			res = append(res, ip[1])
-		}
-	}
-	return res, nil
 }
 
 func skipIfUbuntu(t *testing.T) {
@@ -129,7 +105,7 @@ func TestNetworkManagerRestart(t *testing.T) {
 	skipIfUbuntu(t)
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
-	beforeRestart, err := getGoogleRoutes(iface.Name)
+	beforeRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +114,7 @@ func TestNetworkManagerRestart(t *testing.T) {
 	// This is how long the guest agent can take to re-apply the routes, plus a
 	// bit of padding to give time for the agent to re-add the routes.
 	time.Sleep(65 * time.Second)
-	afterRestart, err := getGoogleRoutes(iface.Name)
+	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +131,7 @@ func TestGgactlCommand(t *testing.T) {
 	}
 
 	iface := readNic(ctx, t, 0)
-	beforeTrigger, err := getGoogleRoutes(iface.Name)
+	beforeTrigger, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatalf("Failed to get Google routes before ggactl trigger: %v", err)
 	}
@@ -177,7 +153,7 @@ func TestGgactlCommand(t *testing.T) {
 		t.Fatalf("Failed to run ggactl_plugin routes setup: %v, output:\n %s", err, string(out))
 	}
 
-	afterTrigger, err := getGoogleRoutes(iface.Name)
+	afterTrigger, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatalf("Failed to get Google routes after ggactl trigger: %v", err)
 	}
@@ -222,14 +198,14 @@ func readNic(ctx context.Context, t *testing.T, id int) net.Interface {
 func TestAliasAgentRestart(t *testing.T) {
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
-	beforeRestart, err := getGoogleRoutes(iface.Name)
+	beforeRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := utils.RestartAgent(ctx); err != nil {
 		t.Fatal(err)
 	}
-	afterRestart, err := getGoogleRoutes(iface.Name)
+	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +242,7 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 		}
 	})
 
-	beforeRestart, err := getGoogleRoutes(iface.Name)
+	beforeRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +256,7 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	afterRestart, err := getGoogleRoutes(iface.Name)
+	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err == nil {
 		t.Fatalf("Routes [%s] exists after restart, but should not exist", afterRestart)
 	}

@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -34,8 +36,16 @@ import (
 
 var client = http.Client{Timeout: 5 * time.Second}
 
-// These functions only exist to make test result names less ambiguous
-func TestL3Backend(t *testing.T) { runBackend(t, false) }
+// These functions only exist to make test result names less ambiguous. L3 LBs
+// create a route for the health check, so we check that here.
+func TestL3Backend(t *testing.T) {
+	runBackend(t, false)
+
+	checkGuestAgentRoutes(utils.Context(t), t)
+}
+
+// L7 LBs do not create routes for the health check, so we don't need to check
+// them here.
 func TestL7Backend(t *testing.T) { runBackend(t, true) }
 
 func setupFirewall(t *testing.T) {
@@ -583,6 +593,52 @@ func setupLoadBalancer(ctx context.Context, t *testing.T, lbType, backend1, back
 			ForwardingRuleResource: forwardingRule,
 		}
 		waitFor(forwardingRuleClient.Insert(ctx, forwardingRuleReq))
+	}
+}
+
+func checkGuestAgentRoutes(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	iface, err := utils.GetInterface(ctx, 0)
+	if err != nil {
+		t.Fatalf("Failed to get interface: %v", err)
+	}
+	routes, err := utils.GetGoogleRoutes(ctx, t, iface)
+	if err != nil {
+		t.Fatalf("Failed to get routes from guest agent: %v", err)
+	}
+	t.Logf("Routes from guest agent: %v", routes)
+
+	if len(routes) == 0 {
+		t.Fatalf("No routes found from guest agent")
+	}
+
+	var foundRoute bool
+	for _, route := range routes {
+		if !strings.Contains(route, l3IlbIP4Addr) {
+			continue
+		}
+		if foundRoute {
+			break
+		}
+		foundRoute = true
+		prefix, err := netip.ParsePrefix(route)
+		if err != nil {
+			// Without the prefix, we can safely assume it's /32 on Linux.
+			if runtime.GOOS == "linux" {
+				t.Logf("Linux defaults to /32 prefix for routes if missing.")
+				break
+			}
+			t.Errorf("Failed to parse route %q: %v", route, err)
+		}
+		if prefix.Addr().Is4() && prefix.Bits() != 32 {
+			t.Errorf("IPv4 route prefix length is %d, want 32", prefix.Bits())
+		} else if prefix.Addr().Is6() && prefix.Bits() != 128 {
+			t.Errorf("IPv6 route prefix length is %d, want 128", prefix.Bits())
+		}
+	}
+	if !foundRoute {
+		t.Errorf("No route found for ILB IP %q in guest agent routes %v", l3IlbIP4Addr, routes)
 	}
 }
 
