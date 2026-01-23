@@ -76,12 +76,47 @@ func TestDiagnostic(t *testing.T) {
 }
 
 func TestServiceConfig(t *testing.T) {
-	utils.WindowsOnly(t)
-	services := []string{"GCEAgentManager"}
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
 	if err != nil {
 		t.Fatalf("Failed to get image: %v", err)
 	}
+
+	if utils.IsWindows() {
+		testServiceConfigWindows(t, image)
+	} else {
+		testServiceConfigLinux(t, image)
+	}
+}
+
+func testServiceConfigLinux(t *testing.T, image string) {
+	afterDependencies := []string{"network-online.target", "NetworkManager.service", "systemd-networkd.service"}
+	services := []string{"google-guest-agent-manager", "google-guest-agent", "google-guest-compat-manager"}
+
+	for _, service := range services {
+		cmd := exec.Command("systemctl", "show", service, "-p", "After", "--value", "--no-pager")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("Failed to get service %s status: %v, output: %v", service, err, string(out))
+		}
+
+		foundDependencies := strings.TrimSpace(string(out))
+		var notfound []string
+
+		for _, afterDependency := range afterDependencies {
+			if !strings.Contains(foundDependencies, afterDependency) {
+				notfound = append(notfound, afterDependency)
+			}
+		}
+
+		if len(notfound) > 0 {
+			t.Errorf("Service %q is missing dependencies: %v, output: %s", service, notfound, string(out))
+		}
+	}
+}
+
+func testServiceConfigWindows(t *testing.T, image string) {
+	t.Helper()
+	services := []string{"GCEAgentManager"}
 	if strings.Contains(image, "guest-agent-stable") {
 		// Service is enabled only on stable images.
 		services = append(services, "GCEAgent")

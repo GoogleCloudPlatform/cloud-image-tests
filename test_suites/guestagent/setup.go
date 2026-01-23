@@ -44,7 +44,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	telemetryenabledvm.AddMetadata("disable-guest-telemetry", "false")
-	telemetryenabledvm.RunTests("TestTelemetryEnabled")
+	telemetryenabledvm.RunTests("TestTelemetryEnabled|TestServiceConfig")
 
 	if !utils.IsWindowsClient(t.Image.Name) {
 		snapshotinst := &daisy.Instance{}
@@ -66,7 +66,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
 		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
-		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic|TestServiceConfig")
+		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
 	}
 
 	return nil
