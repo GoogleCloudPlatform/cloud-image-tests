@@ -31,128 +31,200 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "networkperf"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name = "networkperf"
 
-var testFilter = flag.String("networkperf_test_filter", ".*", "regexp filter for networkperf test cases, only cases with a matching name will be run")
+	testFilter       = flag.String("networkperf_test_filter", ".*", "regexp filter for networkperf test cases, only cases with a matching name will be run")
+	useSpotInstances = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
 
+	networkPrefix = "192.168.0.0/24"
+	clientAddress = "192.168.0.2"
+	serverAddress = "192.168.0.3"
+)
+
+type networkTier string
+
+const (
+	defaultTier networkTier = "DEFAULT"
+	tier1Tier   networkTier = "TIER_1"
+
+	x86_64 string = "X86_64"
+	arm64  string = "ARM64"
+)
+
+// networkPerfConfig is a collection of related test configuration data
+// which expands into individual networkPerfTest test cases.
+type networkPerfConfig struct {
+	machineType string        // Machine Type used for test
+	arch        string        // CPU architecture for the machine type.
+	networks    []networkTier // Network tiers to test.
+	diskType    string        // (optional) disk type required for machine type.
+	zone        string        // (optional) zone required for machine type.
+	quotaMetric string        // Metric used to derive quota for the machine under test.
+	cpuCount    int           // Number of vCPUs on the machine under test, used to derive quota for the test.
+}
+
+// networkPerfTest is a single test case measuring network performance for
+// particular configurations.
 type networkPerfTest struct {
 	name        string
-	machineType string   // Machinetype used for test
-	zone        string   // (optional) zone required for machinetype
-	diskType    string   // (optional) diskType required for machinetype
-	arch        string   // arch required for machinetype
-	networks    []string // Networks to test (TIER_1 and/or DEFAULT)
+	machineType string
+	zone        string
+	diskType    string
+	arch        string
+	network     networkTier
+	mtu         int
 	quota       *daisy.QuotaAvailable
 }
 
-var networkPerfTestConfig = []networkPerfTest{
+var networkPerfTestConfigs = []networkPerfConfig{
 	{
-		name:        "n1-2",
 		machineType: "n1-standard-2",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 8},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "CPUS",
+		cpuCount:    2,
 	},
 	{
-		name:        "n2-2",
 		machineType: "n2-standard-2",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "N2_CPUS", Units: 8},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "N2_CPUS",
+		cpuCount:    2,
 	},
 	{
-		name:        "n2d-2",
 		machineType: "n2d-standard-2",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "N2D_CPUS", Units: 8},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "N2D_CPUS",
+		cpuCount:    2,
 	},
 	{
-		name:        "e2-2",
 		machineType: "e2-standard-2",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "E2_CPUS", Units: 8},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "E2_CPUS",
+		cpuCount:    2,
 	},
 	{
-		name:        "t2d-1",
 		machineType: "t2d-standard-1",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "T2D_CPUS", Units: 4},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "T2D_CPUS",
+		cpuCount:    1,
 	},
 	{
-		name:        "t2a-1",
 		machineType: "t2a-standard-1",
-		arch:        "ARM64",
-		networks:    []string{"DEFAULT"},
+		arch:        arm64,
+		networks:    []networkTier{defaultTier},
 		zone:        "us-central1-a",
-		quota:       &daisy.QuotaAvailable{Metric: "T2A_CPUS", Units: 4, Region: "us-central1"},
+		quotaMetric: "T2A_CPUS",
+		cpuCount:    1,
 	},
 	{
-		name:        "n2-32",
 		machineType: "n2-standard-32",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT", "TIER_1"},
-		quota:       &daisy.QuotaAvailable{Metric: "N2_CPUS", Units: 192}, // 32 cpus x 2 vms per tier 1 test + 32 x 4 vms per default test
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier, tier1Tier},
+		quotaMetric: "N2_CPUS",
+		cpuCount:    32,
 	},
 	{
-		name:        "n2d-48",
 		machineType: "n2d-standard-48",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT", "TIER_1"},
-		quota:       &daisy.QuotaAvailable{Metric: "N2D_CPUS", Units: 288},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier, tier1Tier},
+		quotaMetric: "N2D_CPUS",
+		cpuCount:    48,
 	},
 	{
-		name:        "n4-16",
 		machineType: "n4-standard-16",
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 64, Region: "us-east4"},
-		zone:        "us-east4-b",
+		arch:        x86_64,
+		diskType:    imagetest.HyperdiskBalanced,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "CPUS",
+		cpuCount:    16,
+		zone:        "us-central1-b",
 	},
 	{
-		name:        "n4-80",
 		machineType: "n4-standard-80",
 		diskType:    imagetest.HyperdiskBalanced,
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 320, Region: "us-east4"},
-		zone:        "us-east4-b",
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "CPUS",
+		cpuCount:    80,
+		zone:        "us-central1-b",
 	},
 	{
-		name:        "c4-2",
-		zone:        "us-east4-b",
 		machineType: "c4-standard-2",
 		diskType:    imagetest.HyperdiskBalanced,
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 8, Region: "us-east4"},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier},
+		quotaMetric: "CPUS",
+		cpuCount:    2,
+		zone:        "us-east4-b",
 	},
 	{
-		name:        "c4-192",
-		zone:        "us-east4-b",
 		machineType: "c4-standard-192",
 		diskType:    imagetest.HyperdiskBalanced,
-		arch:        "X86_64",
-		networks:    []string{"DEFAULT", "TIER_1"},
-		quota:       &daisy.QuotaAvailable{Metric: "CPUS", Units: 1152, Region: "us-east4"},
+		arch:        x86_64,
+		networks:    []networkTier{defaultTier, tier1Tier},
+		quotaMetric: "CPUS",
+		cpuCount:    192,
+		zone:        "us-east4-b",
 	},
 }
 
-// InstanceConfig for setting up test VMs.
-type InstanceConfig struct {
-	name string
-	ip   string
+func expandNetworkTestConfigs(configs []networkPerfConfig) []networkPerfTest {
+	var tests []networkPerfTest
+	for _, config := range configs {
+		for _, mtu := range []int{imagetest.DefaultMTU, imagetest.JumboFramesMTU} {
+			for _, network := range config.networks {
+				region := ""
+				if config.zone != "" {
+					parts := strings.Split(config.zone, "-")
+					region = strings.Join(parts[:2], "-")
+				}
+				quota := &daisy.QuotaAvailable{
+					Metric: config.quotaMetric,
+					Units:  float64(config.cpuCount * 2),
+					Region: region,
+				}
+
+				test := networkPerfTest{
+					name:        fmt.Sprintf("%s_%d_%s", config.machineType, mtu, network),
+					machineType: config.machineType,
+					zone:        config.zone,
+					diskType:    config.diskType,
+					arch:        config.arch,
+					network:     network,
+					quota:       quota,
+					mtu:         mtu,
+				}
+				tests = append(tests, test)
+			}
+		}
+	}
+	return tests
 }
 
-var serverConfig = InstanceConfig{name: "server-vm", ip: "192.168.0.4"}
-var clientConfig = InstanceConfig{name: "client-vm", ip: "192.168.0.5"}
-var jfServerConfig = InstanceConfig{name: "jf-server-vm", ip: "192.168.1.4"}
-var jfClientConfig = InstanceConfig{name: "jf-client-vm", ip: "192.168.1.5"}
-var tier1ServerConfig = InstanceConfig{name: "tier1-server-vm", ip: "192.168.0.6"}
-var tier1ClientConfig = InstanceConfig{name: "tier1-client-vm", ip: "192.168.0.7"}
+func filterNetworkTestConfigs(
+	tests []networkPerfTest,
+	filter *regexp.Regexp,
+	imageArch string,
+) []networkPerfTest {
+	var filtered []networkPerfTest
+	for _, test := range tests {
+		if !filter.MatchString(test.name) {
+			continue
+		}
+		if test.arch != imageArch {
+			continue
+		}
+
+		filtered = append(filtered, test)
+	}
+	return filtered
+}
 
 //go:embed startupscripts/*
 var scripts embed.FS
@@ -161,14 +233,16 @@ var scripts embed.FS
 var targets embed.FS
 
 const (
-	linuxInstallStartupScriptURI   = "startupscripts/linux_common.sh"
-	linuxServerStartupScriptURI    = "startupscripts/linux_serverstartup.sh"
-	linuxClientStartupScriptURI    = "startupscripts/linux_clientstartup.sh"
+	linuxInstallStartupScriptURI = "startupscripts/linux_common.sh"
+	linuxServerStartupScriptURI  = "startupscripts/linux_serverstartup.sh"
+	linuxClientStartupScriptURI  = "startupscripts/linux_clientstartup.sh"
+
 	windowsInstallStartupScriptURI = "startupscripts/windows_common.ps1"
 	windowsServerStartupScriptURI  = "startupscripts/windows_serverstartup.ps1"
 	windowsClientStartupScriptURI  = "startupscripts/windows_clientstartup.ps1"
-	targetsURL                     = "targets/default_targets.txt"
-	tier1TargetsURL                = "targets/tier1_targets.txt"
+
+	targetsURL      = "targets/default_targets.txt"
+	tier1TargetsURL = "targets/tier1_targets.txt"
 )
 
 // getExpectedPerf gets the expected performance of the given machine type. Since the targets map only contains breakpoints in vCPUs at which
@@ -194,23 +268,152 @@ func getExpectedPerf(targetMap map[string]int, machineType *compute.MachineType)
 	return perf, nil
 }
 
+func perfTarget(machineType *compute.MachineType, networkTier networkTier) (int, error) {
+	var targetsFile string
+	switch networkTier {
+	case defaultTier:
+		targetsFile = targetsURL
+	case tier1Tier:
+		targetsFile = tier1TargetsURL
+	default:
+		return 0, fmt.Errorf("unknown network tier: %s", networkTier)
+	}
+
+	var perfTargets map[string]int
+	perfTargetsString, err := targets.ReadFile(targetsFile)
+	if err != nil {
+		return 0, err
+	}
+	if err := json.Unmarshal(perfTargetsString, &perfTargets); err != nil {
+		return 0, err
+	}
+	perfTarget, err := getExpectedPerf(perfTargets, machineType)
+	if err != nil {
+		return 0, fmt.Errorf("could not get default perf target: %v", err)
+	}
+
+	return perfTarget, nil
+}
+
+func startupScripts(image *compute.Image) (string, string, error) {
+	var startupURIs struct {
+		common string
+		client string
+		server string
+	}
+	if utils.HasFeature(image, "WINDOWS") {
+		startupURIs.common = windowsInstallStartupScriptURI
+		startupURIs.client = windowsClientStartupScriptURI
+		startupURIs.server = windowsServerStartupScriptURI
+	} else {
+		startupURIs.common = linuxInstallStartupScriptURI
+		startupURIs.client = linuxClientStartupScriptURI
+		startupURIs.server = linuxServerStartupScriptURI
+	}
+
+	commonStartupBytes, err := scripts.ReadFile(startupURIs.common)
+	if err != nil {
+		return "", "", err
+	}
+	serverStartupBytes, err := scripts.ReadFile(startupURIs.server)
+	if err != nil {
+		return "", "", err
+	}
+	clientStartupBytes, err := scripts.ReadFile(startupURIs.client)
+	if err != nil {
+		return "", "", err
+	}
+
+	serverStartup := string(commonStartupBytes) + string(serverStartupBytes)
+	clientStartup := string(commonStartupBytes) + string(clientStartupBytes)
+
+	return serverStartup, clientStartup, nil
+}
+
+func sanitizeResourceName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, "_", "")
+	name = strings.ReplaceAll(name, "-", "")
+	return name
+}
+
+func createNetwork(t *imagetest.TestWorkflow, testName string, machineType string, region string, mtu int) (*imagetest.Network, *imagetest.Subnetwork, error) {
+	safeName := sanitizeResourceName(testName)
+	network, err := t.CreateNetwork(safeName, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	subnetwork, err := network.CreateSubnetwork(safeName, networkPrefix)
+	if err != nil {
+		return nil, nil, err
+	}
+	subnetwork.SetRegion(region)
+	if err := network.CreateFirewallRule("allow-iperf-"+safeName, "tcp", []string{"5001-5010"}, []string{networkPrefix}); err != nil {
+		return nil, nil, err
+	}
+	if mtu == imagetest.JumboFramesMTU {
+		network.SetMTU(imagetest.JumboFramesMTU)
+	}
+
+	return network, subnetwork, nil
+}
+
+func createMachine(
+	t *imagetest.TestWorkflow,
+	testName string,
+	machinePrefix string,
+	network *imagetest.Network,
+	subnetwork *imagetest.Subnetwork,
+	machineType string,
+	zone string,
+	diskType string,
+	networkAddress string,
+) (*imagetest.TestVM, error) {
+
+	// "Dashes are disallowed in testworkflow vm names".
+	// And GCE doesn't allow underscores. So get rid of both.
+	name := fmt.Sprintf("%s%s", machinePrefix, sanitizeResourceName(testName))
+	disk := compute.Disk{Name: name, Type: diskType, Zone: zone}
+
+	instance := &daisy.Instance{}
+	instance.Scheduling = &compute.Scheduling{
+		Preemptible: true,
+	}
+
+	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&disk}, instance)
+	if err != nil {
+		return nil, fmt.Errorf("creating machine: %w", err)
+	}
+	vm.ForceMachineType(machineType)
+	vm.ForceZone(zone)
+	if err := vm.AddCustomNetwork(network, subnetwork); err != nil {
+		return nil, fmt.Errorf("adding network: %w", err)
+	}
+	if err := vm.SetPrivateIP(network, networkAddress); err != nil {
+		return nil, fmt.Errorf("setting private IP: %w", err)
+	}
+
+	return vm, nil
+}
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	filter, err := regexp.Compile(*testFilter)
 	if err != nil {
-		return fmt.Errorf("invalid storageperf test filter: %v", err)
+		return fmt.Errorf("invalid networkperf test filter: %v", err)
 	}
 	if !utils.HasFeature(t.Image, "GVNIC") {
 		t.Skip(fmt.Sprintf("%s does not support GVNIC", t.Image.Name))
 	}
-	for _, tc := range networkPerfTestConfig {
-		if tc.arch != t.Image.Architecture || !filter.MatchString(tc.name) {
-			continue
-		}
 
+	networkPerfTests := expandNetworkTestConfigs(networkPerfTestConfigs)
+	networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+
+	for _, tc := range networkPerfTests {
 		if tc.quota != nil {
 			t.WaitForVMQuota(tc.quota)
 		}
+
 		var region string
 		var zone string
 		if tc.zone == "" {
@@ -233,247 +436,68 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			diskType = imagetest.PdBalanced
 		}
 
-		// Create network containing everything
-		defaultNetwork, err := t.CreateNetwork("default-network-"+tc.machineType, false)
+		network, subnetwork, err := createNetwork(t, tc.name, tc.machineType, region, tc.mtu)
 		if err != nil {
-			return err
+			return fmt.Errorf("creating networks: %w", err)
 		}
-		defaultSubnetwork, err := defaultNetwork.CreateSubnetwork("default-subnetwork-"+tc.machineType, "192.168.0.0/24")
-		if err != nil {
-			return err
-		}
-		defaultSubnetwork.SetRegion(region)
-		if err := defaultNetwork.CreateFirewallRule("default-allow-tcp-"+tc.machineType, "tcp", []string{"5001"}, []string{"192.168.0.0/24"}); err != nil {
-			return err
-		}
-		// Jumbo frames network.
-		jfNetwork, err := t.CreateNetwork("jf-network-"+tc.machineType, false)
-		if err != nil {
-			return err
-		}
-		jfSubnetwork, err := jfNetwork.CreateSubnetwork("jf-subnetwork-"+tc.machineType, "192.168.1.0/24")
-		if err != nil {
-			return err
-		}
-		jfSubnetwork.SetRegion(region)
-		if err := jfNetwork.CreateFirewallRule("jf-allow-tcp-"+tc.machineType, "tcp", []string{"5001"}, []string{"192.168.1.0/24"}); err != nil {
-			return err
-		}
-		jfNetwork.SetMTU(imagetest.JumboFramesMTU)
 
-		// Read startup scripts
-		var serverStartup string
-		var clientStartup string
+		serverStartup, clientStartup, err := startupScripts(t.Image)
+		if err != nil {
+			return fmt.Errorf("loading startup scripts: %w", err)
+		}
+
+		serverVM, err := createMachine(
+			t,
+			tc.name,
+			"server",
+			network,
+			subnetwork,
+			tc.machineType,
+			zone,
+			diskType,
+			serverAddress,
+		)
+		if err != nil {
+			return fmt.Errorf("creating server machine: %w", err)
+		}
+		clientVM, err := createMachine(
+			t,
+			tc.name,
+			"client",
+			network,
+			subnetwork,
+			tc.machineType,
+			zone,
+			diskType,
+			clientAddress,
+		)
+		if err != nil {
+			return fmt.Errorf("creating client machine: %w", err)
+		}
+
 		if utils.HasFeature(t.Image, "WINDOWS") {
-			windowsStartup, err := scripts.ReadFile(windowsInstallStartupScriptURI)
-			if err != nil {
-				return err
-			}
-			serverStartupByteArr, err := scripts.ReadFile(windowsServerStartupScriptURI)
-			if err != nil {
-				return err
-			}
-			clientStartupByteArr, err := scripts.ReadFile(windowsClientStartupScriptURI)
-			if err != nil {
-				return err
-			}
-			serverStartup = string(windowsStartup) + string(serverStartupByteArr)
-			clientStartup = string(windowsStartup) + string(clientStartupByteArr)
+			serverVM.SetWindowsStartupScript(serverStartup)
+			clientVM.SetWindowsStartupScript(clientStartup)
 		} else {
-			linuxStartup, err := scripts.ReadFile(linuxInstallStartupScriptURI)
-			if err != nil {
-				return err
-			}
-
-			serverStartupByteArr, err := scripts.ReadFile(linuxServerStartupScriptURI)
-			if err != nil {
-				return err
-			}
-			clientStartupByteArr, err := scripts.ReadFile(linuxClientStartupScriptURI)
-			if err != nil {
-				return err
-			}
-			serverStartup = string(linuxStartup) + string(serverStartupByteArr)
-			clientStartup = string(linuxStartup) + string(clientStartupByteArr)
+			serverVM.SetStartupScript(serverStartup)
+			clientVM.SetStartupScript(clientStartup)
 		}
-		for _, net := range tc.networks {
-			switch net {
-			case "DEFAULT":
-				// Get the targets.
-				var defaultPerfTargets map[string]int
-				defaultPerfTargetsString, err := targets.ReadFile(targetsURL)
-				if err != nil {
-					return err
-				}
-				if err := json.Unmarshal(defaultPerfTargetsString, &defaultPerfTargets); err != nil {
-					return err
-				}
-				defaultPerfTargetInt, err := getExpectedPerf(defaultPerfTargets, machine)
-				if err != nil {
-					return fmt.Errorf("could not get default perf target: %v", err)
-				}
-				defaultPerfTarget := fmt.Sprint(defaultPerfTargetInt)
 
-				// Default VMs.
-				serverDisk := compute.Disk{Name: strings.ReplaceAll(serverConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				serverVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&serverDisk}, nil)
-				if err != nil {
-					return err
-				}
-				serverVM.ForceMachineType(tc.machineType)
-				serverVM.ForceZone(zone)
-				if err := serverVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-					return err
-				}
-				if err := serverVM.SetPrivateIP(defaultNetwork, serverConfig.ip); err != nil {
-					return err
-				}
-
-				clientDisk := compute.Disk{Name: strings.ReplaceAll(clientConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				clientVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&clientDisk}, nil)
-				if err != nil {
-					return err
-				}
-				clientVM.ForceMachineType(tc.machineType)
-				clientVM.ForceZone(zone)
-				if err := clientVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-					return err
-				}
-				if err := clientVM.SetPrivateIP(defaultNetwork, clientConfig.ip); err != nil {
-					return err
-				}
-				clientVM.AddMetadata("enable-guest-attributes", "TRUE")
-				clientVM.AddMetadata("iperftarget", serverConfig.ip)
-				clientVM.AddMetadata("expectedperf", defaultPerfTarget)
-				clientVM.AddMetadata("network-tier", net)
-
-				// Jumbo frames VMs.
-				jfServerDisk := compute.Disk{Name: strings.ReplaceAll(jfServerConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				jfServerVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&jfServerDisk}, nil)
-				if err != nil {
-					return err
-				}
-				jfServerVM.ForceMachineType(tc.machineType)
-				jfServerVM.ForceZone(zone)
-				if err := jfServerVM.AddCustomNetwork(jfNetwork, jfSubnetwork); err != nil {
-					return err
-				}
-				if err := jfServerVM.SetPrivateIP(jfNetwork, jfServerConfig.ip); err != nil {
-					return err
-				}
-
-				jfClientDisk := compute.Disk{Name: strings.ReplaceAll(jfClientConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				jfClientVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&jfClientDisk}, nil)
-				jfClientVM.ForceMachineType(tc.machineType)
-				jfClientVM.ForceZone(zone)
-				if err != nil {
-					return err
-				}
-				if err := jfClientVM.AddCustomNetwork(jfNetwork, jfSubnetwork); err != nil {
-					return err
-				}
-				if err := jfClientVM.SetPrivateIP(jfNetwork, jfClientConfig.ip); err != nil {
-					return err
-				}
-				jfClientVM.AddMetadata("enable-guest-attributes", "TRUE")
-				jfClientVM.AddMetadata("iperftarget", jfServerConfig.ip)
-				jfClientVM.AddMetadata("expectedperf", defaultPerfTarget)
-				jfClientVM.AddMetadata("network-tier", net)
-
-				// Set startup scripts.
-				if utils.HasFeature(t.Image, "WINDOWS") {
-					serverVM.SetWindowsStartupScript(serverStartup)
-					clientVM.SetWindowsStartupScript(clientStartup)
-					jfServerVM.SetWindowsStartupScript(serverStartup)
-					jfClientVM.SetWindowsStartupScript(clientStartup)
-				} else {
-					serverVM.SetStartupScript(serverStartup)
-					clientVM.SetStartupScript(clientStartup)
-					jfServerVM.SetStartupScript(serverStartup)
-					jfClientVM.SetStartupScript(clientStartup)
-				}
-				clientVM.UseGVNIC()
-				serverVM.UseGVNIC()
-				jfClientVM.UseGVNIC()
-				jfServerVM.UseGVNIC()
-
-				// Run default tests.
-				serverVM.RunTests("TestGVNICExists")
-				clientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
-				jfServerVM.RunTests("TestGVNICExists")
-				jfClientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
-			case "TIER_1":
-				if machine.GuestCpus < 30 {
-					// Must have at least 30 vCPUs.
-					fmt.Printf("%v: Skipping tier1 tests - not enough vCPUs (need at least 30, have %v)\n", t.Image.Name, machine.GuestCpus)
-					continue
-				}
-
-				// Get Tier1 targets.
-				var tier1PerfTargets map[string]int
-				tier1PerfTargetsString, err := targets.ReadFile(tier1TargetsURL)
-				if err != nil {
-					return err
-				}
-				if err := json.Unmarshal(tier1PerfTargetsString, &tier1PerfTargets); err != nil {
-					return err
-				}
-				tier1PerfTargetInt, err := getExpectedPerf(tier1PerfTargets, machine)
-				if err != nil {
-					return fmt.Errorf("could not get tier 1 perf target: %v", err)
-				}
-				tier1PerfTarget := fmt.Sprint(tier1PerfTargetInt)
-
-				// Tier 1 VMs.
-				t1ServerDisk := compute.Disk{Name: strings.ReplaceAll(tier1ServerConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				tier1ServerVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&t1ServerDisk}, nil)
-				if err != nil {
-					return err
-				}
-				tier1ServerVM.ForceMachineType(tc.machineType)
-				tier1ServerVM.ForceZone(zone)
-				if err := tier1ServerVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-					return err
-				}
-				if err := tier1ServerVM.SetPrivateIP(defaultNetwork, tier1ServerConfig.ip); err != nil {
-					return err
-				}
-				tier1ServerVM.SetNetworkPerformanceTier("TIER_1")
-
-				t1ClientDisk := compute.Disk{Name: strings.ReplaceAll(tier1ClientConfig.name+"-"+tc.machineType, "-", ""), Type: diskType, Zone: zone}
-				tier1ClientVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&t1ClientDisk}, nil)
-				if err != nil {
-					return err
-				}
-				tier1ClientVM.ForceMachineType(tc.machineType)
-				tier1ClientVM.ForceZone(zone)
-				if err := tier1ClientVM.AddCustomNetwork(defaultNetwork, defaultSubnetwork); err != nil {
-					return err
-				}
-				if err := tier1ClientVM.SetPrivateIP(defaultNetwork, tier1ClientConfig.ip); err != nil {
-					return err
-				}
-				tier1ClientVM.SetNetworkPerformanceTier("TIER_1")
-				tier1ClientVM.AddMetadata("enable-guest-attributes", "TRUE")
-				tier1ClientVM.AddMetadata("iperftarget", tier1ServerConfig.ip)
-				tier1ClientVM.AddMetadata("expectedperf", tier1PerfTarget)
-				tier1ClientVM.AddMetadata("network-tier", net)
-
-				// Set startup scripts.
-				if utils.HasFeature(t.Image, "WINDOWS") {
-					tier1ServerVM.SetWindowsStartupScript(serverStartup)
-					tier1ClientVM.SetWindowsStartupScript(clientStartup)
-				} else {
-					tier1ServerVM.SetStartupScript(serverStartup)
-					tier1ClientVM.SetStartupScript(clientStartup)
-				}
-				tier1ClientVM.UseGVNIC()
-				tier1ServerVM.UseGVNIC()
-
-				tier1ServerVM.RunTests("TestGVNICExists")
-				tier1ClientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
-			}
+		perfTarget, err := perfTarget(machine, tc.network)
+		if err != nil {
+			return fmt.Errorf("getting perf target: %w", err)
 		}
+
+		clientVM.AddMetadata("enable-guest-attributes", "TRUE")
+		clientVM.AddMetadata("iperftarget", serverAddress)
+		clientVM.AddMetadata("expectedperf", fmt.Sprint(perfTarget))
+		clientVM.AddMetadata("network-tier", string(tc.network))
+
+		clientVM.UseGVNIC()
+		serverVM.UseGVNIC()
+
+		serverVM.RunTests("TestGVNICExists")
+		clientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
 	}
 	return nil
 }
