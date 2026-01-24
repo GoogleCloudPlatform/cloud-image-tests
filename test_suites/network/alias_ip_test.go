@@ -257,8 +257,11 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 	}
 
 	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
-	if err == nil {
-		t.Fatalf("Routes [%s] exists after restart, but should not exist", afterRestart)
+	if err != nil {
+		t.Fatalf("Error getting routes after restart: %v", err)
+	}
+	if len(afterRestart) != 0 {
+		t.Fatalf("Routes [%s] exists after restart, but should not exist", strings.Join(afterRestart, ", "))
 	}
 
 	if compare(beforeRestart, afterRestart) {

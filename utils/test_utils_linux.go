@@ -31,7 +31,7 @@ func GetGoogleRoutes(ctx context.Context, t *testing.T, networkInterface net.Int
 	cmd := exec.Command("ip", arguments...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("error listing Google routes: %s", b)
+		return nil, fmt.Errorf("error listing Google routes (%s), err: %v", b, err)
 	}
 
 	var res []string
