@@ -92,11 +92,19 @@ func testServiceConfigLinux(t *testing.T, image string) {
 	afterDependencies := []string{"network-online.target", "NetworkManager.service", "systemd-networkd.service"}
 	services := []string{"google-guest-agent-manager", "google-guest-agent", "google-guest-compat-manager"}
 
+	// TODO(b/478951370): Remove this exception once the bug is fixed.
+	if !strings.Contains(image, "guest-agent") && (utils.IsCOS(image) || utils.IsUbuntu(image) || utils.IsSLES(image)) {
+		// Old agent package installed on COS, SLES and Ubuntu images only has google-guest-agent service.
+		services = []string{"google-guest-agent"}
+	}
+
+	t.Logf("Testing service config for image: %s, services: %v", image, services)
+
 	for _, service := range services {
 		cmd := exec.Command("systemctl", "show", service, "-p", "After", "--value", "--no-pager")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			t.Errorf("Failed to get service %s status: %v, output: %v", service, err, string(out))
+			t.Errorf("Failed to get service %q status: %v, output: %q", service, err, string(out))
 		}
 
 		foundDependencies := strings.TrimSpace(string(out))
@@ -117,13 +125,17 @@ func testServiceConfigLinux(t *testing.T, image string) {
 func testServiceConfigWindows(t *testing.T, image string) {
 	t.Helper()
 	services := []string{"GCEAgentManager"}
-	if strings.Contains(image, "guest-agent-stable") {
-		// Service is enabled only on stable images.
+	// TODO(b/478951370): Remove this exception once the bug is fixed.
+	if strings.Contains(image, "guest-agent-stable") || strings.Contains(image, "gce-staging-images") {
+		// Service is enabled only on stable images. Some staging images still have
+		// the old agent.
 		services = append(services, "GCEAgent")
 	} else {
 		// Service is disabled on stable images.
 		services = append(services, "GCEWindowsCompatManager")
 	}
+
+	t.Logf("Testing service config for image: %s, services: %v", image, services)
 
 	for _, service := range services {
 		cmd := exec.Command("sc", "qc", service)
