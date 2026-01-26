@@ -247,8 +247,18 @@ func TestWindowsPasswordReset(t *testing.T) {
 // group.
 func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 	utils.WindowsOnly(t)
+
+	// TODO(b/478892615): Remove this skip once the fix is released.
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if !strings.Contains(image, "guest-agent") {
+		t.Skip("Skipping test as it tests a feature that is not currently generally available in the guest agent.")
+	}
+
+	// This feature is only implemented in the core plugin.
 	if utils.IsCoreDisabled() {
-		// This feature is only implemented in the core plugin.
 		t.Skip("Skipping test as core plugin is disabled")
 	}
 	ctx := utils.Context(t)
