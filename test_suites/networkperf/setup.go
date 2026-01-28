@@ -35,8 +35,10 @@ var (
 	// Name is the name of the test package. It must match the directory name.
 	Name = "networkperf"
 
-	testFilter       = flag.String("networkperf_test_filter", ".*", "regexp filter for networkperf test cases, only cases with a matching name will be run")
-	useSpotInstances = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
+	testFilter              = flag.String("networkperf_test_filter", ".*", "regexp filter for networkperf test cases, only cases with a matching name will be run")
+	useSpotInstances        = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
+	useMachineParamsFromCLI = flag.Bool("networkperf_machine_params_from_cli", false, "use the machine parameters (machine type, zone) provided by the CIT wrapper instead of the default machine parameters built into the test")
+	networkTiers            = flag.String("networkperf_network_tiers", "", "comma separated list of network tiers to test (DEFAULT|TIER_1)")
 
 	networkPrefix = "192.168.0.0/24"
 	clientAddress = "192.168.0.2"
@@ -59,10 +61,7 @@ type networkPerfConfig struct {
 	machineType string        // Machine Type used for test
 	arch        string        // CPU architecture for the machine type.
 	networks    []networkTier // Network tiers to test.
-	diskType    string        // (optional) disk type required for machine type.
 	zone        string        // (optional) zone required for machine type.
-	quotaMetric string        // Metric used to derive quota for the machine under test.
-	cpuCount    int           // Number of vCPUs on the machine under test, used to derive quota for the test.
 }
 
 // networkPerfTest is a single test case measuring network performance for
@@ -71,105 +70,75 @@ type networkPerfTest struct {
 	name        string
 	machineType string
 	zone        string
-	diskType    string
 	arch        string
 	network     networkTier
 	mtu         int
-	quota       *daisy.QuotaAvailable
 }
 
-var networkPerfTestConfigs = []networkPerfConfig{
+var defaultNetworkPerfTestConfigs = []networkPerfConfig{
 	{
 		machineType: "n1-standard-2",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "CPUS",
-		cpuCount:    2,
 	},
 	{
 		machineType: "n2-standard-2",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "N2_CPUS",
-		cpuCount:    2,
 	},
 	{
 		machineType: "n2d-standard-2",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "N2D_CPUS",
-		cpuCount:    2,
 	},
 	{
 		machineType: "e2-standard-2",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "E2_CPUS",
-		cpuCount:    2,
 	},
 	{
 		machineType: "t2d-standard-1",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "T2D_CPUS",
-		cpuCount:    1,
 	},
 	{
 		machineType: "t2a-standard-1",
 		arch:        arm64,
 		networks:    []networkTier{defaultTier},
 		zone:        "us-central1-a",
-		quotaMetric: "T2A_CPUS",
-		cpuCount:    1,
 	},
 	{
 		machineType: "n2-standard-32",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier, tier1Tier},
-		quotaMetric: "N2_CPUS",
-		cpuCount:    32,
 	},
 	{
 		machineType: "n2d-standard-48",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier, tier1Tier},
-		quotaMetric: "N2D_CPUS",
-		cpuCount:    48,
 	},
 	{
 		machineType: "n4-standard-16",
 		arch:        x86_64,
-		diskType:    imagetest.HyperdiskBalanced,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "CPUS",
-		cpuCount:    16,
 		zone:        "us-central1-b",
 	},
 	{
 		machineType: "n4-standard-80",
-		diskType:    imagetest.HyperdiskBalanced,
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "CPUS",
-		cpuCount:    80,
 		zone:        "us-central1-b",
 	},
 	{
 		machineType: "c4-standard-2",
-		diskType:    imagetest.HyperdiskBalanced,
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		quotaMetric: "CPUS",
-		cpuCount:    2,
 		zone:        "us-east4-b",
 	},
 	{
 		machineType: "c4-standard-192",
-		diskType:    imagetest.HyperdiskBalanced,
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier, tier1Tier},
-		quotaMetric: "CPUS",
-		cpuCount:    192,
 		zone:        "us-east4-b",
 	},
 }
@@ -179,25 +148,13 @@ func expandNetworkTestConfigs(configs []networkPerfConfig) []networkPerfTest {
 	for _, config := range configs {
 		for _, mtu := range []int{imagetest.DefaultMTU, imagetest.JumboFramesMTU} {
 			for _, network := range config.networks {
-				region := ""
-				if config.zone != "" {
-					parts := strings.Split(config.zone, "-")
-					region = strings.Join(parts[:2], "-")
-				}
-				quota := &daisy.QuotaAvailable{
-					Metric: config.quotaMetric,
-					Units:  float64(config.cpuCount * 2),
-					Region: region,
-				}
 
 				test := networkPerfTest{
 					name:        fmt.Sprintf("%s_%d_%s", config.machineType, mtu, network),
 					machineType: config.machineType,
 					zone:        config.zone,
-					diskType:    config.diskType,
 					arch:        config.arch,
 					network:     network,
-					quota:       quota,
 					mtu:         mtu,
 				}
 				tests = append(tests, test)
@@ -366,14 +323,17 @@ func createMachine(
 	subnetwork *imagetest.Subnetwork,
 	machineType string,
 	zone string,
-	diskType string,
 	networkAddress string,
 ) (*imagetest.TestVM, error) {
 
 	// "Dashes are disallowed in testworkflow vm names".
 	// And GCE doesn't allow underscores. So get rid of both.
 	name := fmt.Sprintf("%s%s", machinePrefix, sanitizeResourceName(testName))
-	disk := compute.Disk{Name: name, Type: diskType, Zone: zone}
+	disk := compute.Disk{
+		Name: name,
+		Type: imagetest.DiskTypeNeeded(machineType),
+		Zone: zone,
+	}
 
 	instance := &daisy.Instance{}
 	instance.Scheduling = &compute.Scheduling{
@@ -396,6 +356,27 @@ func createMachine(
 	return vm, nil
 }
 
+func testConfigs(t *imagetest.TestWorkflow, filter *regexp.Regexp) []networkPerfTest {
+	var networkPerfTests []networkPerfTest
+
+	if *useMachineParamsFromCLI {
+		// Flag-driven workflow for running a specific machine only.
+		citNetworkPerfTestConfig := networkPerfConfig{
+			machineType: t.MachineType.Name,
+			zone:        t.Zone.Name,
+			arch:        x86_64,
+			networks:    []networkTier{defaultTier},
+		}
+		networkPerfTests = expandNetworkTestConfigs([]networkPerfConfig{citNetworkPerfTestConfig})
+	} else {
+		// Default workflow for running all configured machine types.
+		networkPerfTests = expandNetworkTestConfigs(defaultNetworkPerfTestConfigs)
+		networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+	}
+
+	return networkPerfTests
+}
+
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	filter, err := regexp.Compile(*testFilter)
@@ -406,14 +387,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		t.Skip(fmt.Sprintf("%s does not support GVNIC", t.Image.Name))
 	}
 
-	networkPerfTests := expandNetworkTestConfigs(networkPerfTestConfigs)
-	networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+	networkPerfTests := testConfigs(t, filter)
 
 	for _, tc := range networkPerfTests {
-		if tc.quota != nil {
-			t.WaitForVMQuota(tc.quota)
-		}
-
 		var region string
 		var zone string
 		if tc.zone == "" {
@@ -430,10 +406,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		machine, err := t.Client.GetMachineType(t.Project.Name, zone, tc.machineType)
 		if err != nil {
 			return err
-		}
-		diskType := tc.diskType
-		if diskType == "" {
-			diskType = imagetest.PdBalanced
 		}
 
 		network, subnetwork, err := createNetwork(t, tc.name, tc.machineType, region, tc.mtu)
@@ -454,7 +426,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			subnetwork,
 			tc.machineType,
 			zone,
-			diskType,
 			serverAddress,
 		)
 		if err != nil {
@@ -468,7 +439,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			subnetwork,
 			tc.machineType,
 			zone,
-			diskType,
 			clientAddress,
 		)
 		if err != nil {
