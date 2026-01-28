@@ -238,7 +238,7 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 		swapIPForwardingConfiguration(t, "ip_forwarding = false")
 
 		if err := utils.RestartAgent(ctx); err != nil {
-			t.Fatal(err)
+			t.Fatalf("Failed to restart agent after setting IP forwarding to true: %v", err)
 		}
 	})
 
@@ -253,7 +253,7 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 	swapIPForwardingConfiguration(t, "ip_forwarding = true")
 
 	if err := utils.RestartAgent(ctx); err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to restart agent after setting IP forwarding to false: %v", err)
 	}
 
 	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
