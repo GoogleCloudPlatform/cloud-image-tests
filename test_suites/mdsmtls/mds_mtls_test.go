@@ -267,7 +267,7 @@ func splitClientKeyFile(t *testing.T, clientKeyFile string) (certPath string, ke
 	return certPath, keyPath
 }
 
-func TestDefaultBehavior(t *testing.T) {
+func TestDisabled(t *testing.T) {
 	if utils.IsWindows() {
 		checkCredsPresentWindows(t, false)
 		checkCredsPresentInOSTrustStoreWindows(t, false)
