@@ -66,4 +66,25 @@ elif [[ -f /usr/bin/zypper ]]; then
     sudo zypper --no-gpg-checks --non-interactive install https://iperf.fr/download/opensuse/iperf-2.0.5-14.1.2.x86_64.rpm
   fi
   parallelcount=4
+elif grep CHROMEOS /etc/lsb-release > /dev/null 2>&1; then
+  echo "COS detected. Installing iperf."
+  curl -L "https://sourceforge.net/projects/iperf2/files/iperf-2.1.9.tar.gz/download" > /tmp/iperf.tar.gz
+  cd /run
+  tar -xvf /tmp/iperf.tar.gz
+  cd iperf-2.1.9
+
+  # Need to use musl libc instead of glibc for iperf to work with static linking.
+  # Need to use static linking to work reliably on COS.
+  docker run --rm -v /run/iperf-2.1.9:/build alpine:latest sh -c "
+    cd /build
+    apk add --no-cache build-base
+    LDFLAGS=-static ./configure
+    make
+  "
+
+  mkdir /run/iperf
+  cp src/iperf /run/iperf
+  export PATH="/run/iperf:$PATH"
+
+  iptables -A INPUT -p tcp -m tcp --dport 5001:5010 -j ACCEPT
 fi

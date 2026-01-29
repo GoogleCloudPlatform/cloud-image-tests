@@ -30,7 +30,12 @@ for i in $(seq 0 $((numtests-1))); do
   port=$((5001+i))
   iperftarget=$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/iperftarget-$i -H "Metadata-Flavor: Google")
   timeout 2 nc -v -w 1 "$iperftarget" "$port" &> /tmp/nc_iperf
-  until [[ $(< /tmp/nc_iperf) == *"succeeded"* || $(< /tmp/nc_iperf) == *"Connected"* || "$timeout" -ge "$maxtimeout" ]]; do
+  until [[
+    $(< /tmp/nc_iperf) == *"Connected"* ||
+    $(< /tmp/nc_iperf) == *"open"* ||
+    $(< /tmp/nc_iperf) == *"succeeded"* ||
+    "$timeout" -ge "$maxtimeout"
+  ]]; do
     cat /tmp/nc_iperf
     echo Failed to connect to server. Trying again in 5s
     sleep "$sleepduration"
