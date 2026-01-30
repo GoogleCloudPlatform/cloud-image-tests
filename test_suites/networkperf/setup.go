@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -39,10 +40,9 @@ var (
 	useSpotInstances        = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
 	useMachineParamsFromCLI = flag.Bool("networkperf_machine_params_from_cli", false, "use the machine parameters (machine type, zone) provided by the CIT wrapper instead of the default machine parameters built into the test")
 	networkTiers            = flag.String("networkperf_network_tiers", "", "comma separated list of network tiers to test (DEFAULT|TIER_1)")
+	nicTypes                = flag.String("networkperf_nic_types", "", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
 
-	networkPrefix = "192.168.0.0/24"
-	clientAddress = "192.168.0.2"
-	serverAddress = "192.168.0.3"
+	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
 )
 
 type networkTier string
@@ -53,6 +53,8 @@ const (
 
 	x86_64 string = "X86_64"
 	arm64  string = "ARM64"
+
+	nicTypeGVNIC string = "GVNIC"
 )
 
 // networkPerfConfig is a collection of related test configuration data
@@ -62,6 +64,7 @@ type networkPerfConfig struct {
 	arch        string        // CPU architecture for the machine type.
 	networks    []networkTier // Network tiers to test.
 	zone        string        // (optional) zone required for machine type.
+	nicTypes    string        // (optional) NIC types for the machine. Defaults to a single GVNIC if unspecified. Follows the format of the flag --networkperf_nic_types.
 }
 
 // networkPerfTest is a single test case measuring network performance for
@@ -73,6 +76,7 @@ type networkPerfTest struct {
 	arch        string
 	network     networkTier
 	mtu         int
+	nicTypes    []string
 }
 
 var defaultNetworkPerfTestConfigs = []networkPerfConfig{
@@ -133,21 +137,25 @@ var defaultNetworkPerfTestConfigs = []networkPerfConfig{
 		machineType: "c4-standard-2",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier},
-		zone:        "us-east4-b",
+		zone:        "us-central1-a",
 	},
 	{
 		machineType: "c4-standard-192",
 		arch:        x86_64,
 		networks:    []networkTier{defaultTier, tier1Tier},
-		zone:        "us-east4-b",
+		zone:        "us-central1-a",
 	},
 }
 
-func expandNetworkTestConfigs(configs []networkPerfConfig) []networkPerfTest {
+func expandNetworkTestConfigs(configs []networkPerfConfig) ([]networkPerfTest, error) {
 	var tests []networkPerfTest
 	for _, config := range configs {
 		for _, mtu := range []int{imagetest.DefaultMTU, imagetest.JumboFramesMTU} {
 			for _, network := range config.networks {
+				nicTypes, err := expandNICTypes(config.nicTypes)
+				if err != nil {
+					return nil, err
+				}
 
 				test := networkPerfTest{
 					name:        fmt.Sprintf("%s_%d_%s", config.machineType, mtu, network),
@@ -156,12 +164,13 @@ func expandNetworkTestConfigs(configs []networkPerfConfig) []networkPerfTest {
 					arch:        config.arch,
 					network:     network,
 					mtu:         mtu,
+					nicTypes:    nicTypes,
 				}
 				tests = append(tests, test)
 			}
 		}
 	}
-	return tests
+	return tests, nil
 }
 
 func filterNetworkTestConfigs(
@@ -233,7 +242,7 @@ func perfTarget(machineType *compute.MachineType, networkTier networkTier) (int,
 	case tier1Tier:
 		targetsFile = tier1TargetsURL
 	default:
-		return 0, fmt.Errorf("unknown network tier: %s", networkTier)
+		return 0, fmt.Errorf("unknown network tier: %q", networkTier)
 	}
 
 	var perfTargets map[string]int
@@ -294,36 +303,60 @@ func sanitizeResourceName(name string) string {
 	return name
 }
 
-func createNetwork(t *imagetest.TestWorkflow, testName string, machineType string, region string, mtu int) (*imagetest.Network, *imagetest.Subnetwork, error) {
-	safeName := sanitizeResourceName(testName)
-	network, err := t.CreateNetwork(safeName, false)
-	if err != nil {
-		return nil, nil, err
-	}
-	subnetwork, err := network.CreateSubnetwork(safeName, networkPrefix)
-	if err != nil {
-		return nil, nil, err
-	}
-	subnetwork.SetRegion(region)
-	if err := network.CreateFirewallRule("allow-iperf-"+safeName, "tcp", []string{"5001-5010"}, []string{networkPrefix}); err != nil {
-		return nil, nil, err
-	}
-	if mtu == imagetest.JumboFramesMTU {
-		network.SetMTU(imagetest.JumboFramesMTU)
+type createNetworkOptions struct {
+	namePrefix string
+	region     string
+	mtu        int
+	nicTypes   []string
+}
+
+func createNetworks(t *imagetest.TestWorkflow, opts *createNetworkOptions) ([]*networkConfig, error) {
+	var networkConfigs []*networkConfig
+
+	for ifaceIndex, nicType := range opts.nicTypes {
+		if nicType != "GVNIC" {
+			return nil, fmt.Errorf("unsupported nic type: %q", nicType)
+		}
+
+		network, err := t.CreateNetwork(opts.namePrefix, false)
+		if err != nil {
+			return nil, err
+		}
+		subnetwork, err := network.CreateSubnetwork(opts.namePrefix, networkPrefix(ifaceIndex))
+		if err != nil {
+			return nil, err
+		}
+		subnetwork.SetRegion(opts.region)
+		if err := network.CreateFirewallRule("allow-iperf-"+opts.namePrefix, "tcp", []string{"5001-5010"}, []string{networkPrefix(ifaceIndex)}); err != nil {
+			return nil, err
+		}
+		if opts.mtu == imagetest.JumboFramesMTU {
+			network.SetMTU(imagetest.JumboFramesMTU)
+		}
+
+		networkConfigs = append(networkConfigs, &networkConfig{
+			network:    network,
+			subnetwork: subnetwork,
+			nicType:    nicType,
+		})
 	}
 
-	return network, subnetwork, nil
+	return networkConfigs, nil
+}
+
+type networkConfig struct {
+	network    *imagetest.Network
+	subnetwork *imagetest.Subnetwork
+	nicType    string
 }
 
 func createMachine(
 	t *imagetest.TestWorkflow,
 	testName string,
 	machinePrefix string,
-	network *imagetest.Network,
-	subnetwork *imagetest.Subnetwork,
+	networkConfigs []*networkConfig,
 	machineType string,
 	zone string,
-	networkAddress string,
 ) (*imagetest.TestVM, error) {
 
 	// "Dashes are disallowed in testworkflow vm names".
@@ -336,8 +369,10 @@ func createMachine(
 	}
 
 	instance := &daisy.Instance{}
-	instance.Scheduling = &compute.Scheduling{
-		Preemptible: true,
+	if *useSpotInstances {
+		instance.Scheduling = &compute.Scheduling{
+			Preemptible: true,
+		}
 	}
 
 	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&disk}, instance)
@@ -346,35 +381,77 @@ func createMachine(
 	}
 	vm.ForceMachineType(machineType)
 	vm.ForceZone(zone)
-	if err := vm.AddCustomNetwork(network, subnetwork); err != nil {
-		return nil, fmt.Errorf("adding network: %w", err)
-	}
-	if err := vm.SetPrivateIP(network, networkAddress); err != nil {
-		return nil, fmt.Errorf("setting private IP: %w", err)
+	for ifaceIndex, networkConfig := range networkConfigs {
+		var address string
+		if machinePrefix == "client" {
+			address = clientAddress(ifaceIndex)
+		} else if machinePrefix == "server" {
+			address = serverAddress(ifaceIndex)
+		} else {
+			return nil, fmt.Errorf("unknown machine prefix: %q", machinePrefix)
+		}
+
+		if err := vm.AddCustomNetwork(networkConfig.network, networkConfig.subnetwork); err != nil {
+			return nil, fmt.Errorf("adding network: %w", err)
+		}
+		if err := vm.SetPrivateIP(networkConfig.network, address); err != nil {
+			return nil, fmt.Errorf("setting private IP: %w", err)
+		}
 	}
 
 	return vm, nil
 }
 
-func testConfigs(t *imagetest.TestWorkflow, filter *regexp.Regexp) []networkPerfTest {
+func parseNetworkTiers(networkTiersStr string) ([]networkTier, error) {
+	parts := strings.Split(networkTiersStr, ",")
+	var tiers []networkTier
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		switch part {
+		case string(defaultTier):
+			tiers = append(tiers, defaultTier)
+		case string(tier1Tier):
+			tiers = append(tiers, tier1Tier)
+		default:
+			return nil, fmt.Errorf("invalid network tier: %q", part)
+		}
+	}
+	return tiers, nil
+}
+
+func testConfigs(t *imagetest.TestWorkflow, filter *regexp.Regexp) ([]networkPerfTest, error) {
 	var networkPerfTests []networkPerfTest
+	var err error
 
 	if *useMachineParamsFromCLI {
 		// Flag-driven workflow for running a specific machine only.
+
+		networkTiers, err := parseNetworkTiers(*networkTiers)
+		if err != nil {
+			return nil, fmt.Errorf("parsing network tiers: %w", err)
+		}
 		citNetworkPerfTestConfig := networkPerfConfig{
 			machineType: t.MachineType.Name,
 			zone:        t.Zone.Name,
 			arch:        x86_64,
-			networks:    []networkTier{defaultTier},
+			networks:    networkTiers,
+			nicTypes:    *nicTypes,
 		}
-		networkPerfTests = expandNetworkTestConfigs([]networkPerfConfig{citNetworkPerfTestConfig})
-	} else {
-		// Default workflow for running all configured machine types.
-		networkPerfTests = expandNetworkTestConfigs(defaultNetworkPerfTestConfigs)
-		networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+		networkPerfTests, err = expandNetworkTestConfigs([]networkPerfConfig{citNetworkPerfTestConfig})
+		if err != nil {
+			return nil, fmt.Errorf("expanding network test configs: %w", err)
+		}
+		return networkPerfTests, nil
 	}
 
-	return networkPerfTests
+	// Default workflow for running all configured machine types.
+	networkPerfTests, err = expandNetworkTestConfigs(defaultNetworkPerfTestConfigs)
+	if err != nil {
+		return nil, fmt.Errorf("expanding network test configs: %w", err)
+	}
+	networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+
+	return networkPerfTests, nil
 }
 
 // TestSetup sets up the test workflow.
@@ -384,10 +461,13 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return fmt.Errorf("invalid networkperf test filter: %v", err)
 	}
 	if !utils.HasFeature(t.Image, "GVNIC") {
-		t.Skip(fmt.Sprintf("%s does not support GVNIC", t.Image.Name))
+		t.Skip(fmt.Sprintf("%q does not support GVNIC", t.Image.Name))
 	}
 
-	networkPerfTests := testConfigs(t, filter)
+	networkPerfTests, err := testConfigs(t, filter)
+	if err != nil {
+		return fmt.Errorf("getting test configs: %w", err)
+	}
 
 	for _, tc := range networkPerfTests {
 		var region string
@@ -408,7 +488,13 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 
-		network, subnetwork, err := createNetwork(t, tc.name, tc.machineType, region, tc.mtu)
+		networkOpts := &createNetworkOptions{
+			namePrefix: sanitizeResourceName(tc.name),
+			region:     region,
+			mtu:        tc.mtu,
+			nicTypes:   tc.nicTypes,
+		}
+		networkConfigs, err := createNetworks(t, networkOpts)
 		if err != nil {
 			return fmt.Errorf("creating networks: %w", err)
 		}
@@ -422,11 +508,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			t,
 			tc.name,
 			"server",
-			network,
-			subnetwork,
+			networkConfigs,
 			tc.machineType,
 			zone,
-			serverAddress,
 		)
 		if err != nil {
 			return fmt.Errorf("creating server machine: %w", err)
@@ -435,11 +519,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			t,
 			tc.name,
 			"client",
-			network,
-			subnetwork,
+			networkConfigs,
 			tc.machineType,
 			zone,
-			clientAddress,
 		)
 		if err != nil {
 			return fmt.Errorf("creating client machine: %w", err)
@@ -459,7 +541,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 
 		clientVM.AddMetadata("enable-guest-attributes", "TRUE")
-		clientVM.AddMetadata("iperftarget", serverAddress)
+		clientVM.AddMetadata("iperftarget", serverAddress(0))
 		clientVM.AddMetadata("expectedperf", fmt.Sprint(perfTarget))
 		clientVM.AddMetadata("network-tier", string(tc.network))
 
@@ -470,4 +552,48 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		clientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
 	}
 	return nil
+}
+
+// expandNICTypes expands a comma separated list of <NIC_TYPE>:<COUNT> into a list of NIC types.
+// e.g. "GVNIC:2,MRDMA:1" -> ["GVNIC", "GVNIC", "MRDMA"]
+// If no NIC types are specified, defaults to a single GVNIC.
+func expandNICTypes(condensedNicTypes string) ([]string, error) {
+	nicTypeCounts := strings.Split(condensedNicTypes, ",")
+	var nicTypes []string
+	for _, nicTypeCount := range nicTypeCounts {
+		nicTypeCount = strings.TrimSpace(nicTypeCount)
+		if nicTypeCount == "" {
+			continue
+		}
+		matches := nicTypeRegex.FindStringSubmatch(nicTypeCount)
+		if len(matches) != 3 {
+			return nil, fmt.Errorf("invalid nic type count: %q", nicTypeCount)
+		}
+		nicType := matches[1]
+		count, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return nil, fmt.Errorf("invalid count: %v", err)
+		}
+		for i := 0; i < count; i++ {
+			nicTypes = append(nicTypes, nicType)
+		}
+	}
+
+	if len(nicTypes) == 0 {
+		nicTypes = append(nicTypes, nicTypeGVNIC)
+	}
+
+	return nicTypes, nil
+}
+
+func networkPrefix(ifaceIndex int) string {
+	return fmt.Sprintf("192.168.%d.0/24", ifaceIndex)
+}
+
+func clientAddress(ifaceIndex int) string {
+	return fmt.Sprintf("192.168.%d.2", ifaceIndex)
+}
+
+func serverAddress(ifaceIndex int) string {
+	return fmt.Sprintf("192.168.%d.3", ifaceIndex)
 }

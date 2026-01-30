@@ -92,5 +92,7 @@
 
         "t2a-standard-1":  10,
         "t2a-standard-8":  16,
-        "t2a-standard-16": 32
+        "t2a-standard-16": 32,
+
+        "a3-ultragpu-8g": 200
 }
