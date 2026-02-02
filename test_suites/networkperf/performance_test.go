@@ -84,10 +84,10 @@ func waitForIperfResults(ctx context.Context, numInterfaces int) ([]string, erro
 }
 
 type testAttributes struct {
-	numInterfaces  int
-	machineType    string
-	networkTier    string
-	wantThroughput float64
+	numInterfaces      int
+	machineType        string
+	networkTier        string
+	expectedThroughput float64
 }
 
 func queryTestAttributes(ctx context.Context) (*testAttributes, error) {
@@ -124,10 +124,10 @@ func queryTestAttributes(ctx context.Context) (*testAttributes, error) {
 	}
 
 	return &testAttributes{
-		numInterfaces:  numInterfaces,
-		machineType:    machineType,
-		networkTier:    networkTier,
-		wantThroughput: expectedPerf,
+		numInterfaces:      numInterfaces,
+		machineType:        machineType,
+		networkTier:        networkTier,
+		expectedThroughput: expectedPerf,
 	}, nil
 }
 
@@ -150,17 +150,16 @@ func TestNetworkPerformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to extract iperf result for %q: %v", rawResultsPerIface[i], err)
 		}
-		if resultPerf < attrs.wantThroughput {
+		if resultPerf < attrs.expectedThroughput {
 			t.Errorf(
-				"Did not meet performance expectation for %q with network tier %q on interface %d. got: %v Gbps, want: %v Gbps",
+				"Did not meet performance expectation for %q with network tier %q on interface %d. expected: %v Gbps, actual: %v Gbps",
 				attrs.machineType,
 				attrs.networkTier,
 				i,
+				attrs.expectedThroughput,
 				resultPerf,
-				attrs.wantThroughput,
 			)
-		} else {
-			t.Logf("Machine type: %v, got: %v Gbps, want: %v Gbps", attrs.machineType, resultPerf, attrs.wantThroughput)
 		}
+		t.Logf("Machine type: %v, Expected: %v Gbits/s, Actual: %v Gbits/s", attrs.machineType, attrs.expectedThroughput, resultPerf)
 	}
 }
