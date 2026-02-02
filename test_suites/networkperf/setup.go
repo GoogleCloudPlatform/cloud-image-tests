@@ -318,16 +318,18 @@ func createNetworks(t *imagetest.TestWorkflow, opts *createNetworkOptions) ([]*n
 			return nil, fmt.Errorf("unsupported nic type: %q", nicType)
 		}
 
-		network, err := t.CreateNetwork(opts.namePrefix, false)
+		ifNameprefix := fmt.Sprintf("%s%d", opts.namePrefix, ifaceIndex)
+
+		network, err := t.CreateNetwork(ifNameprefix, false)
 		if err != nil {
 			return nil, err
 		}
-		subnetwork, err := network.CreateSubnetwork(opts.namePrefix, networkPrefix(ifaceIndex))
+		subnetwork, err := network.CreateSubnetwork(ifNameprefix, networkPrefix(ifaceIndex))
 		if err != nil {
 			return nil, err
 		}
 		subnetwork.SetRegion(opts.region)
-		if err := network.CreateFirewallRule("allow-iperf-"+opts.namePrefix, "tcp", []string{"5001-5010"}, []string{networkPrefix(ifaceIndex)}); err != nil {
+		if err := network.CreateFirewallRule("allow-iperf-"+ifNameprefix, "tcp", []string{"5001-5010"}, []string{networkPrefix(ifaceIndex)}); err != nil {
 			return nil, err
 		}
 		if opts.mtu == imagetest.JumboFramesMTU {
@@ -541,7 +543,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 
 		clientVM.AddMetadata("enable-guest-attributes", "TRUE")
-		clientVM.AddMetadata("iperftarget", serverAddress(0))
+		clientVM.AddMetadata("num-parallel-tests", fmt.Sprint(len(networkConfigs)))
+		serverVM.AddMetadata("num-parallel-tests", fmt.Sprint(len(networkConfigs)))
+		for i := range networkConfigs {
+			clientVM.AddMetadata("iperftarget-"+fmt.Sprint(i), serverAddress(i))
+		}
 		clientVM.AddMetadata("expectedperf", fmt.Sprint(perfTarget))
 		clientVM.AddMetadata("network-tier", string(tc.network))
 

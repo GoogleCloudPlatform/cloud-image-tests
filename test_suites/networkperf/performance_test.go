@@ -15,69 +15,152 @@
 package networkperf
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
+
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"golang.org/x/sync/errgroup"
 )
 
-func TestNetworkPerformance(t *testing.T) {
-	// Check performance of the driver.
-	var results string
-	var err error
-	for i := 0; i < 3; i++ {
-		time.Sleep(time.Duration(i) * time.Second)
-		results, err = utils.GetMetadata(utils.Context(t), "instance", "guest-attributes", "testing", "results")
-		if err == nil {
-			break
-		}
-		if i == 2 {
-			t.Fatalf("Error : Test results not found. %v", err)
-		}
+const (
+	iperfResultTimeout = 4 * time.Minute
+)
+
+func extractIperfResult(t *testing.T, machineTypeName string, rawResult string) (float64, error) {
+	t.Helper()
+
+	resultsArray := strings.Split(rawResult, " ")
+	if len(resultsArray) < 6 {
+		return 0, fmt.Errorf("invalid result format: %q", rawResult)
 	}
 
-	// Get the performance target.
-	expectedPerfString, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "expectedperf")
+	numericResult, err := strconv.ParseFloat(resultsArray[5], 64)
 	if err != nil {
-		t.Fatalf("Error: %v", err)
-	}
-	expectedPerf, err := strconv.Atoi(expectedPerfString)
-	if err != nil {
-		t.Fatalf("Error: %v", err)
-	}
-	expected := 0.85 * float64(expectedPerf)
-
-	// Get machine type and network name for logging.
-	machineType, err := utils.GetMetadata(utils.Context(t), "instance", "machine-type")
-	if err != nil {
-		t.Fatalf("Error: %v", err)
-	}
-	machineTypeSplit := strings.Split(machineType, "/")
-	machineTypeName := machineTypeSplit[len(machineTypeSplit)-1]
-
-	network, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "network-tier")
-	if err != nil {
-		t.Fatal(err)
+		return 0, err
 	}
 
-	// Find actual performance.
-	resultsArray := strings.Split(results, " ")
-	resultPerf, err := strconv.ParseFloat(resultsArray[5], 64)
-	if err != nil {
-		t.Fatalf("Error: %v", err)
-	}
-
-	// Check the units.
 	units := resultsArray[6]
 	if !strings.HasPrefix(units, "G") { // If the units aren't in Gbits/s, we automatically fail.
-		t.Fatalf("Error: Wrong unit of measurement on machine type %s with network %s. Expected: %v Gbits/s, Actual: %v %s", machineTypeName, network, expected, resultPerf, units)
+		return 0, fmt.Errorf("unknown unit of measurement %q", units)
+	}
+	return numericResult, nil
+}
+
+func waitForIperfResults(ctx context.Context, numInterfaces int) ([]string, error) {
+	rawResultsPerIface := make([]string, numInterfaces)
+	var wg errgroup.Group
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, iperfResultTimeout)
+	defer cancel()
+
+	for i := 0; i < numInterfaces; i++ {
+		index := i
+		wg.Go(func() error {
+			for {
+				// GetMetadata internally retries for about 15 seconds.
+				result, err := utils.GetMetadata(timeoutCtx, "instance", "guest-attributes", "testing", fmt.Sprintf("results-%d", index))
+				if err == nil {
+					rawResultsPerIface[index] = result
+					return nil
+				}
+
+				if timeoutCtx.Err() != nil {
+					return fmt.Errorf("timeout waiting for iperf results on interface %d: %v", index, timeoutCtx.Err())
+				}
+				time.Sleep(5 * time.Second)
+			}
+		})
+	}
+	if err := wg.Wait(); err != nil {
+		return nil, err
 	}
 
-	// Check if it matches the target.
-	if resultPerf < expected {
-		t.Fatalf("Error: Did not meet performance expectation on machine type %s with network %s. Expected: %v Gbits/s, Actual: %v Gbits/s", machineTypeName, network, expected, resultPerf)
+	return rawResultsPerIface, nil
+}
+
+type testAttributes struct {
+	numInterfaces  int
+	machineType    string
+	networkTier    string
+	wantThroughput float64
+}
+
+func queryTestAttributes(ctx context.Context) (*testAttributes, error) {
+	numInterfacesStr, err := utils.GetMetadata(ctx, "instance", "attributes", "num-parallel-tests")
+	if err != nil {
+		return nil, fmt.Errorf("getting num-parallel-tests: %w", err)
 	}
-	t.Logf("Machine type: %v, Expected: %v Gbits/s, Actual: %v Gbits/s", machineTypeName, expected, resultPerf)
+	numInterfaces, err := strconv.Atoi(numInterfacesStr)
+	if err != nil {
+		return nil, fmt.Errorf("converting num-parallel-tests to int: %w", err)
+	}
+
+	expectedPerfString, err := utils.GetMetadata(ctx, "instance", "attributes", "expectedperf")
+	if err != nil {
+		return nil, fmt.Errorf("getting expectedperf: %w", err)
+	}
+	expectedPerfBase, err := strconv.ParseFloat(expectedPerfString, 64)
+	if err != nil {
+		return nil, fmt.Errorf("converting expectedperf to float: %w", err)
+	}
+	// Relax the expected performance target to 85% of line rate, since this is more
+	// practically achievable.
+	expectedPerf := 0.85 * expectedPerfBase
+
+	machineTypePath, err := utils.GetMetadata(ctx, "instance", "machine-type")
+	if err != nil {
+		return nil, fmt.Errorf("getting machine-type: %w", err)
+	}
+	machineTypeSplit := strings.Split(machineTypePath, "/")
+	machineType := machineTypeSplit[len(machineTypeSplit)-1]
+	networkTier, err := utils.GetMetadata(ctx, "instance", "attributes", "network-tier")
+	if err != nil {
+		return nil, fmt.Errorf("getting network-tier: %w", err)
+	}
+
+	return &testAttributes{
+		numInterfaces:  numInterfaces,
+		machineType:    machineType,
+		networkTier:    networkTier,
+		wantThroughput: expectedPerf,
+	}, nil
+}
+
+// TestNetworkPerformance doesn't actually run network performance tests, but rather checks that
+// the iperf results are above the expected performance target.
+func TestNetworkPerformance(t *testing.T) {
+	attrs, err := queryTestAttributes(utils.Context(t))
+	if err != nil {
+		t.Fatalf("Querying test attributes: %v", err)
+	}
+
+	rawResultsPerIface, err := waitForIperfResults(utils.Context(t), attrs.numInterfaces)
+	if err != nil {
+		t.Fatalf("Waiting for iperf results: %v", err)
+	}
+
+	// Check if it matches the target for each interface.
+	for i := 0; i < attrs.numInterfaces; i++ {
+		resultPerf, err := extractIperfResult(t, attrs.machineType, rawResultsPerIface[i])
+		if err != nil {
+			t.Fatalf("Failed to extract iperf result for %q: %v", rawResultsPerIface[i], err)
+		}
+		if resultPerf < attrs.wantThroughput {
+			t.Errorf(
+				"Did not meet performance expectation for %q with network tier %q on interface %d. got: %v Gbps, want: %v Gbps",
+				attrs.machineType,
+				attrs.networkTier,
+				i,
+				resultPerf,
+				attrs.wantThroughput,
+			)
+		} else {
+			t.Logf("Machine type: %v, got: %v Gbps, want: %v Gbps", attrs.machineType, resultPerf, attrs.wantThroughput)
+		}
+	}
 }

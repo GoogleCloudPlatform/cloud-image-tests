@@ -12,5 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./iperf -s -P 1 -t $maxtimeout
-./iperf -s -P 16 -t $maxtimeout
+Write-Host 'Starting iperf server'
+try {
+  $numtests = Invoke-RestMethod -Headers @{'Metadata-Flavor'='Google'} -Uri http://metadata.google.internal/computeMetadata/v1/instance/attributes/num-parallel-tests
+}
+catch {
+  Write-Host "Failed to get num-parallel-tests from metadata: $_"
+  exit 1
+}
+
+for ($i = 0; $i -lt $numtests; $i++) {
+  $port = 5001 + $i
+  Start-Process .\iperf.exe -ArgumentList "-s -p $port" -WindowStyle hidden
+}

@@ -16,5 +16,8 @@
 # to test the network bandwidth between the two VMs.
 
 echo "Starting iperf server"
-timeout $maxtimeout iperf -s -P 1
-timeout $maxtimeout iperf -s -P $parallelcount
+numtests=$(curl http://metadata.google.internal/computeMetadata/v1/instance/attributes/num-parallel-tests -H "Metadata-Flavor: Google")
+for i in $(seq 0 $((numtests-1))); do
+  port=$((5001+i))
+  iperf -s -P $parallelcount -p $port &
+done
