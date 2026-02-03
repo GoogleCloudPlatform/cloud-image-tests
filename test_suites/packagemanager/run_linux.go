@@ -66,7 +66,7 @@ func validateAgentRemoved(t *testing.T) {
 			t.Fatalf("Install file %q still exists", file)
 		}
 	}
-	utils.ProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
+	utils.VerifyProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
 	t.Logf("Successfully validated google-guest-agent has been removed.")
 }
 

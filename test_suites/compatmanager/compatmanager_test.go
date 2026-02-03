@@ -62,9 +62,9 @@ func checkAgentManagerIsRunning(t *testing.T) {
 	t.Helper()
 	// Manager process should always be running.
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, true, "GCEWindowsAgentManager")
+		utils.VerifyProcessExistsWindows(t, true, "GCEWindowsAgentManager")
 	} else {
-		utils.ProcessExistsLinux(t, true, "/usr/bin/google_guest_agent_manager")
+		utils.VerifyProcessExistsLinux(t, true, "/usr/bin/google_guest_agent_manager")
 	}
 }
 
@@ -72,9 +72,9 @@ func checkGuestAgentIsRunning(t *testing.T, wantRunning bool) {
 	t.Helper()
 
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, wantRunning, "GCEWindowsAgent")
+		utils.VerifyProcessExistsWindows(t, wantRunning, "GCEWindowsAgent")
 	} else {
-		utils.ProcessExistsLinux(t, wantRunning, "/usr/bin/google_guest_agent")
+		utils.VerifyProcessExistsLinux(t, wantRunning, "/usr/bin/google_guest_agent")
 	}
 }
 
@@ -118,9 +118,9 @@ func checkCorePluginProcessExists(t *testing.T, exists bool) {
 	t.Helper()
 
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, exists, "CorePlugin")
+		utils.VerifyProcessExistsWindows(t, exists, "CorePlugin")
 	} else {
-		utils.ProcessExistsLinux(t, exists, "/usr/lib/google/guest_agent/core_plugin")
+		utils.VerifyProcessExistsLinux(t, exists, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
 

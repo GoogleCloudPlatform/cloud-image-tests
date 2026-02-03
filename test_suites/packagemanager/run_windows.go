@@ -70,7 +70,7 @@ func validateAgentRemoved(t *testing.T) {
 			t.Fatalf("Install file %q still exists", agentFile)
 		}
 	}
-	utils.ProcessExistsWindows(t, false, "CorePlugin")
+	utils.VerifyProcessExistsWindows(t, false, "CorePlugin")
 	t.Logf("Successfully validated google-compute-engine-windows has been removed.")
 }
 

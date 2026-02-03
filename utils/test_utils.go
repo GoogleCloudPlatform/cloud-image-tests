@@ -56,6 +56,9 @@ const (
 	GuestAttributeTestKey = "test-complete"
 	// FirstBootGAKey is the key for guest attribute in the daisy "wait for instance" step in the case where it is the first boot, and we still want to wait for results from a subsequent reboot.
 	FirstBootGAKey = "first-boot-key"
+	// corePluginWaitTimeSeconds is the time in seconds to wait for the core plugin
+	// to restart.
+	corePluginWaitTimeSeconds = 15
 )
 
 var (
@@ -916,8 +919,23 @@ func RestartAgent(ctx context.Context) error {
 	}
 
 	if wait {
-		// Wait for the core plugin to be restarted by plugin manager.
-		time.Sleep(time.Second * 10)
+		// Wait for the core plugin to be restarted by plugin manager up until the
+		// timeout.
+		for i := 0; i < corePluginWaitTimeSeconds; i++ {
+			time.Sleep(time.Second)
+			if runtime.GOOS == "windows" {
+				_, found, err := ProcessExistsWindows("CorePlugin")
+				if err == nil && found {
+					break
+				}
+			} else {
+				_, found, err := ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
+				if err == nil && found {
+					break
+				}
+			}
+		}
+		time.Sleep(time.Second) // Wait an extra second to make sure it's actually started.
 	}
 	return nil
 }
@@ -959,25 +977,46 @@ func InstallPackage(packages ...string) error {
 	return ErrPackageManagersNotFound
 }
 
-// ProcessExistsWindows checks if the process exists on Windows.
-func ProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
+// VerifyProcessExistsWindows checks if the process exists on Windows.
+func VerifyProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
 
-	status, err := RunPowershellCmd(fmt.Sprintf("Get-Process -Name %s", processName))
+	status, _, err := ProcessExistsWindows(processName)
 	if (err != nil) != !shouldExist {
 		t.Fatalf("Failed to run Get-Process powershell command: %v, process status: %+v, shouldExist: %t", err, status, shouldExist)
 	}
 }
 
-// ProcessExistsLinux checks if the process exists on Linux.
-func ProcessExistsLinux(t *testing.T, shouldExist bool, processName string) {
+// ProcessExistsWindows checks if the process exists on Windows.
+func ProcessExistsWindows(processName string) (ProcessStatus, bool, error) {
+	status, err := RunPowershellCmd(fmt.Sprintf("Get-Process -Name %s", processName))
+	if err != nil {
+		return status, false, err
+	}
+	return status, true, nil
+}
+
+// VerifyProcessExistsLinux checks if the process exists on Linux.
+func VerifyProcessExistsLinux(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
 
+	output, found, err := ProcessExistsLinux(processName)
+	if err != nil {
+		t.Fatalf("Failed check if process %q exists: %v", processName, err)
+	}
+
+	if found != shouldExist {
+		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, found, output)
+	}
+}
+
+// ProcessExistsLinux checks if the process exists on Linux.
+func ProcessExistsLinux(processName string) (string, bool, error) {
 	cmd := exec.Command("ps", "-e", "-o", "command")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Failed to run ps command: %v", err)
+		return "", false, fmt.Errorf("Failed to run ps command: %v", err)
 	}
 
 	output := string(out)
@@ -990,10 +1029,7 @@ func ProcessExistsLinux(t *testing.T, shouldExist bool, processName string) {
 			break
 		}
 	}
-
-	if found != shouldExist {
-		t.Fatalf("Process %q expected to exist: %t, got: %t\nOutput:\n %s", processName, shouldExist, found, output)
-	}
+	return output, found, nil
 }
 
 // ParseStderr returns the stderr output from an exec.ExitError, or the error

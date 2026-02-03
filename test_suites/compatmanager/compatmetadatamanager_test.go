@@ -60,9 +60,9 @@ func getProcessLists(corePluginEnabled bool) (wantProcesses, dontWantProcess []s
 
 func processExists(t *testing.T, shouldExist bool, processName string) {
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, shouldExist, processName)
+		utils.VerifyProcessExistsWindows(t, shouldExist, processName)
 	} else {
-		utils.ProcessExistsLinux(t, shouldExist, processName)
+		utils.VerifyProcessExistsLinux(t, shouldExist, processName)
 	}
 }
 

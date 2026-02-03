@@ -251,9 +251,9 @@ func TestCorePluginStop(t *testing.T) {
 	command := exec.Command(path, "coreplugin", "stop")
 	// Core plugin should be running even after the manager is stopped.
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, true, "CorePlugin")
+		utils.VerifyProcessExistsWindows(t, true, "CorePlugin")
 	} else {
-		utils.ProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
+		utils.VerifyProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
 	}
 
 	// ggactl command to stop the core plugin.
@@ -264,9 +264,9 @@ func TestCorePluginStop(t *testing.T) {
 
 	// Core plugin should be stopped.
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, false, "CorePlugin")
+		utils.VerifyProcessExistsWindows(t, false, "CorePlugin")
 	} else {
-		utils.ProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
+		utils.VerifyProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
 
@@ -376,9 +376,9 @@ func TestACSDisabled(t *testing.T) {
 	// Core plugin should be running regardless of ACS being enabled or disabled.
 	shouldExist := !utils.IsCoreDisabled()
 	if utils.IsWindows() {
-		utils.ProcessExistsWindows(t, shouldExist, "CorePlugin")
+		utils.VerifyProcessExistsWindows(t, shouldExist, "CorePlugin")
 	} else {
-		utils.ProcessExistsLinux(t, shouldExist, "/usr/lib/google/guest_agent/core_plugin")
+		utils.VerifyProcessExistsLinux(t, shouldExist, "/usr/lib/google/guest_agent/core_plugin")
 	}
 }
 

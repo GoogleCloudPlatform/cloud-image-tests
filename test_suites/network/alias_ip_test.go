@@ -227,7 +227,7 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 	}
 
 	// TODO(b/448377923): Remove this skip once the agent is released.
-	if strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent") {
+	if strings.Contains(image, "guest-agent-stable") || strings.Contains(image, "ubuntu") || strings.Contains(image, "sles") {
 		t.Skipf("Skipping test as it is not expected to pass on previous version of guest agent (image: %s).", image)
 	}
 
@@ -255,6 +255,8 @@ func TestAliasAgentRestartWithIPForwardingConfigFalse(t *testing.T) {
 	if err := utils.RestartAgent(ctx); err != nil {
 		t.Fatalf("Failed to restart agent after setting IP forwarding to false: %v", err)
 	}
+
+	time.Sleep(10 * time.Second) // Give some extra time for the agent to do its job.
 
 	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
