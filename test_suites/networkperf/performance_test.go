@@ -152,14 +152,21 @@ func TestNetworkPerformance(t *testing.T) {
 		}
 		if resultPerf < attrs.expectedThroughput {
 			t.Errorf(
-				"Did not meet performance expectation for %q with network tier %q on interface %d. expected: %v Gbps, actual: %v Gbps",
+				"Did not meet performance expectation for %q with network tier %q on interface %d. got: %v Gbps, want at least: %v Gbps",
 				attrs.machineType,
 				attrs.networkTier,
 				i,
-				attrs.expectedThroughput,
 				resultPerf,
+				attrs.expectedThroughput,
+			)
+		} else {
+			t.Logf("Machine type %q with network tier %q met performance expectation on interface %d, got: %v Gbps, want at least: %v Gbps",
+				attrs.machineType,
+				attrs.networkTier,
+				i,
+				resultPerf,
+				attrs.expectedThroughput,
 			)
 		}
-		t.Logf("Machine type: %v, Expected: %v Gbits/s, Actual: %v Gbits/s", attrs.machineType, attrs.expectedThroughput, resultPerf)
 	}
 }
