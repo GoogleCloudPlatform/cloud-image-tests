@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"path"
 	"regexp"
 	"strconv"
@@ -36,11 +37,10 @@ var (
 	// Name is the name of the test package. It must match the directory name.
 	Name = "networkperf"
 
-	testFilter              = flag.String("networkperf_test_filter", ".*", "regexp filter for networkperf test cases, only cases with a matching name will be run")
-	useSpotInstances        = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
-	useMachineParamsFromCLI = flag.Bool("networkperf_machine_params_from_cli", false, "use the machine parameters (machine type, zone) provided by the CIT wrapper instead of the default machine parameters built into the test")
-	networkTiers            = flag.String("networkperf_network_tiers", "", "comma separated list of network tiers to test (DEFAULT|TIER_1)")
-	nicTypes                = flag.String("networkperf_nic_types", "", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
+	testFilter       = flag.String("networkperf_test_filter", "", "(deprecated) regexp filter for networkperf test cases, only cases with a matching name will be run")
+	useSpotInstances = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
+	networkTiers     = flag.String("networkperf_network_tiers", "", "comma separated list of network tiers to test (DEFAULT|TIER_1)")
+	nicTypes         = flag.String("networkperf_nic_types", "", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
 
 	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
 )
@@ -409,6 +409,9 @@ func parseNetworkTiers(networkTiersStr string) ([]networkTier, error) {
 	var tiers []networkTier
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
 		switch part {
 		case string(defaultTier):
 			tiers = append(tiers, defaultTier)
@@ -418,55 +421,58 @@ func parseNetworkTiers(networkTiersStr string) ([]networkTier, error) {
 			return nil, fmt.Errorf("invalid network tier: %q", part)
 		}
 	}
+
+	if len(tiers) == 0 {
+		tiers = append(tiers, defaultTier)
+	}
 	return tiers, nil
 }
 
-func testConfigs(t *imagetest.TestWorkflow, filter *regexp.Regexp) ([]networkPerfTest, error) {
-	var networkPerfTests []networkPerfTest
-	var err error
+func testConfigs(t *imagetest.TestWorkflow) ([]networkPerfTest, error) {
+	if *testFilter != "" {
+		log.Printf("Flag \"networkperf_test_filter\" is deprecated and may be deleted in a future version.")
 
-	if *useMachineParamsFromCLI {
-		// Flag-driven workflow for running a specific machine only.
-
-		networkTiers, err := parseNetworkTiers(*networkTiers)
+		filter, err := regexp.Compile(*testFilter)
 		if err != nil {
-			return nil, fmt.Errorf("parsing network tiers: %w", err)
+			return nil, fmt.Errorf("parsing test filter: %w", err)
 		}
-		citNetworkPerfTestConfig := networkPerfConfig{
-			machineType: t.MachineType.Name,
-			zone:        t.Zone.Name,
-			arch:        x86_64,
-			networks:    networkTiers,
-			nicTypes:    *nicTypes,
-		}
-		networkPerfTests, err = expandNetworkTestConfigs([]networkPerfConfig{citNetworkPerfTestConfig})
+
+		// Default workflow for running all configured machine types.
+		networkPerfTests, err := expandNetworkTestConfigs(defaultNetworkPerfTestConfigs)
 		if err != nil {
 			return nil, fmt.Errorf("expanding network test configs: %w", err)
 		}
+		networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
+
 		return networkPerfTests, nil
 	}
 
-	// Default workflow for running all configured machine types.
-	networkPerfTests, err = expandNetworkTestConfigs(defaultNetworkPerfTestConfigs)
+	// Flag-driven workflow for running a specific machine only.
+
+	networkTiers, err := parseNetworkTiers(*networkTiers)
+	if err != nil {
+		return nil, fmt.Errorf("parsing network tiers: %w", err)
+	}
+	networkPerfTestConfig := networkPerfConfig{
+		machineType: t.MachineType.Name,
+		zone:        t.Zone.Name,
+		networks:    networkTiers,
+		nicTypes:    *nicTypes,
+	}
+	networkPerfTests, err := expandNetworkTestConfigs([]networkPerfConfig{networkPerfTestConfig})
 	if err != nil {
 		return nil, fmt.Errorf("expanding network test configs: %w", err)
 	}
-	networkPerfTests = filterNetworkTestConfigs(networkPerfTests, filter, t.Image.Architecture)
-
 	return networkPerfTests, nil
 }
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	filter, err := regexp.Compile(*testFilter)
-	if err != nil {
-		return fmt.Errorf("invalid networkperf test filter: %v", err)
-	}
 	if !utils.HasFeature(t.Image, "GVNIC") {
 		t.Skip(fmt.Sprintf("%q does not support GVNIC", t.Image.Name))
 	}
 
-	networkPerfTests, err := testConfigs(t, filter)
+	networkPerfTests, err := testConfigs(t)
 	if err != nil {
 		return fmt.Errorf("getting test configs: %w", err)
 	}

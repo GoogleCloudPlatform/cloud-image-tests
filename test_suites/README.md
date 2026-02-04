@@ -301,23 +301,30 @@ Test that two multinic VMs connected to each other after two networks can send p
 Validate the network performance of an image reaches at least 85% of advertised
 speeds.
 
-This test suite adds a flag to the manager which can be used to filter the test cases it runs.
+This test suite adds a flag to the manager which can be used to filter the test
+cases it runs.
 
-  -networkperf_test_filter string
-  	regexp filter for networkperf test cases, only cases with a matching family name will be run (default ".*")
+Test-specific flags:
 
-To see the list of test cases, check [networkperf/setup.go](networkperf/setup.go)
+- `-networkperf_use_spot_instances`: Use spot instances instead of standard
+  [provisioning](https://docs.cloud.google.com/compute/docs/instances/provisioning-models).
+- `-networkperf_network_tiers`: Comma-separated list of
+[egress bandwidth](https://docs.cloud.google.com/compute/docs/network-bandwidth)
+tier(s) to test. If unspecified, defaults to `DEFAULT`.
+- `-networkperf_nic_types`: NIC types in a comma-separated list of
+`<NIC_TYPE>:<NIC_COUNT>`. If unspecified, defaults to `GVNIC:1`.
 
 #### TestNetworkPerformance
 
-- <b>Background</b>: Reaching advertised speeds is important, as failing to reach them means that
-there are problems with the image or its drivers. The 85% number is chosen as
-that is the baseline that the performance tests generally can match or exceed.
-Reaching 100% of the advertised speeds is unrealistic in real scenarios.
+- **Background**: Reaching advertised network speeds is important, and failing
+to reach them means that there may be problems with the image or its drivers.
+"85% of line rate" is chosen as the threshold for passing the test, as that is
+a rate that can generally be achieved under test. Reaching 100% of line rate is
+not feasible in practice.
 
-- <b>Test logic</b>: Launch a server VM and client VM, then run an iperf test between the two to test
-network speeds. This test launches up to 3 sets of servers and clients: default
-network, jumbo frames network, and tier1 networking tier.
+- **Test logic**: Launch a server VM and client VM, then run an iperf test
+between them. This test launches 2 pairs of servers and clients: one pair for
+1460 MTU, and one for 8896 MTU.
 
 ### Test suite: networkinterfacenaming
 
