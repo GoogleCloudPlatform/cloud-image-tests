@@ -129,7 +129,7 @@ func getSudoFile(client *ssh.Client, user string) (string, error) {
 		return "", fmt.Errorf("failed to create ssh session: %v", err)
 	}
 
-	output, err := session.Output(fmt.Sprintf("sudo cat /var/google-sudoers.d/%v", user))
+	output, err := session.Output(fmt.Sprintf("sudo cat /var/google-sudoers.d/%v", user)) // NOLINT
 	if err != nil {
 		return "", fmt.Errorf("error getting user's /var/google-sudoers.d file: %v", err)
 	}
@@ -383,7 +383,7 @@ func Test2FASSH(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		secret := strings.ToUpper(s)
+		secret := strings.ToUpper(strings.Join(strings.Fields(s), ""))
 
 		if !gotp.IsSecretValid(secret) {
 			// Avoid panic that doesn't return a useful error message for test runner
@@ -484,7 +484,7 @@ func Test2FAAdminSSH(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		secret := strings.ToUpper(s)
+		secret := strings.ToUpper(strings.Join(strings.Fields(s), ""))
 
 		if !gotp.IsSecretValid(secret) {
 			// Avoid panic that doesn't return a useful error message for test runner

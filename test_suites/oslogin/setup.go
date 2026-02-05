@@ -17,14 +17,29 @@
 package oslogin
 
 import (
+	"context"
+	"fmt"
+	"math"
+	"math/rand"
+	"os"
+	"regexp"
 	"strings"
+	"sync"
 
+	"cloud.google.com/go/secretmanager/apiv1"
+	secretmanagerpb "cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"google.golang.org/api/iterator"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "oslogin"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name = "oslogin"
+
+	// initialize2FA makes sure we only initialize 2FA users list once.
+	initialize2FA sync.Once
+)
 
 // test2FAUser encapsulates a test user for 2FA tests.
 type test2FAUser struct {
@@ -62,26 +77,6 @@ var (
 			sshKey: "normal-2fa-ssh-key",
 			twoFA:  "normal-2fa-key",
 		},
-		{
-			email:  "normal-2fa-user-1",
-			sshKey: "normal-2fa-ssh-key-1",
-			twoFA:  "normal-2fa-key-1",
-		},
-		{
-			email:  "normal-2fa-user-2",
-			sshKey: "normal-2fa-ssh-key-2",
-			twoFA:  "normal-2fa-key-2",
-		},
-		{
-			email:  "normal-2fa-user-3",
-			sshKey: "normal-2fa-ssh-key-3",
-			twoFA:  "normal-2fa-key-3",
-		},
-		{
-			email:  "normal-2fa-user-4",
-			sshKey: "normal-2fa-ssh-key-4",
-			twoFA:  "normal-2fa-key-4",
-		},
 	}
 
 	// twoFAAdminTestUsers is the list of 2FA admin test users to use for this test.
@@ -91,26 +86,6 @@ var (
 			email:  "admin-2fa-user",
 			sshKey: "admin-2fa-ssh-key",
 			twoFA:  "admin-2fa-key",
-		},
-		{
-			email:  "admin-2fa-user-1",
-			sshKey: "admin-2fa-ssh-key-1",
-			twoFA:  "admin-2fa-key-1",
-		},
-		{
-			email:  "admin-2fa-user-2",
-			sshKey: "admin-2fa-ssh-key-2",
-			twoFA:  "admin-2fa-key-2",
-		},
-		{
-			email:  "admin-2fa-user-3",
-			sshKey: "admin-2fa-ssh-key-3",
-			twoFA:  "admin-2fa-key-3",
-		},
-		{
-			email:  "admin-2fa-user-4",
-			sshKey: "admin-2fa-ssh-key-4",
-			twoFA:  "admin-2fa-key-4",
 		},
 	}
 )
@@ -134,6 +109,41 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
+	initialize2FA.Do(func() {
+		ctx := context.Background()
+		secretClient, err := secretmanager.NewClient(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create secret manager client: %v", err)
+			return
+		}
+		normal2FARegex := regexp.MustCompile(`normal-2fa-user-(\d+)`)
+		admin2FARegex := regexp.MustCompile(`admin-2fa-user-(\d+)`)
+		secrets := secretClient.ListSecrets(ctx, &secretmanagerpb.ListSecretsRequest{Parent: fmt.Sprintf("projects/%s", t.Project.Name)})
+		for secret, err := secrets.Next(); secret != nil && err != iterator.Done; secret, err = secrets.Next() {
+			if normal2FARegex.MatchString(secret.Name) {
+				num := normal2FARegex.FindStringSubmatch(secret.Name)[1]
+				twoFATestUsers = append(twoFATestUsers, test2FAUser{
+					email:  fmt.Sprintf("normal-2fa-user-%s", num),
+					sshKey: fmt.Sprintf("normal-2fa-ssh-key-%s", num),
+					twoFA:  fmt.Sprintf("normal-2fa-key-%s", num),
+				})
+			}
+			if admin2FARegex.MatchString(secret.Name) {
+				num := admin2FARegex.FindStringSubmatch(secret.Name)[1]
+				twoFAAdminTestUsers = append(twoFAAdminTestUsers, test2FAUser{
+					email:  fmt.Sprintf("admin-2fa-user-%s", num),
+					sshKey: fmt.Sprintf("admin-2fa-ssh-key-%s", num),
+					twoFA:  fmt.Sprintf("admin-2fa-key-%s", num),
+				})
+			}
+		}
+
+		// Randomize the starting point of the counter. We use the larger of the two
+		// lists to avoid cases where one of the lists is extremely small, in which
+		// case the randomization would not be very effective.
+		counter = rand.Intn(int(math.Max(float64(len(twoFATestUsers)), float64(len(twoFAAdminTestUsers)))))
+	})
+
 	testAgent, err := t.CreateTestVM("testagent")
 	if err != nil {
 		return err
@@ -153,6 +163,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	normalUser := twoFATestUsers[counter%len(twoFATestUsers)]
 	adminUser := twoFAAdminTestUsers[counter%len(twoFAAdminTestUsers)]
+
+	fmt.Printf("Normal User: %v\n", normalUser)
+	fmt.Printf("Admin User: %v\n", adminUser)
 
 	ssh, err := t.CreateTestVM("ssh")
 	if err != nil {
