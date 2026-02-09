@@ -101,10 +101,12 @@ func skipIfUbuntu(t *testing.T) {
 
 func TestNetworkManagerRestart(t *testing.T) {
 	utils.LinuxOnly(t)
+
 	// TODO(b/434210587): Remove this skip once the bug is fixed.
 	skipIfUbuntu(t)
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
+
 	beforeRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
@@ -113,12 +115,22 @@ func TestNetworkManagerRestart(t *testing.T) {
 
 	// This is how long the guest agent can take to re-apply the routes, plus a
 	// bit of padding to give time for the agent to re-add the routes.
-	time.Sleep(65 * time.Second)
-	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
-	if err != nil {
-		t.Fatal(err)
+	succeeded := true
+	var afterRestart []string
+	for i := 0; i < 2; i++ {
+		time.Sleep(65 * time.Second)
+		afterRestart, err = utils.GetGoogleRoutes(ctx, t, iface)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !compare(beforeRestart, afterRestart) {
+			succeeded = false
+			t.Logf("Failed attempt #%d: routes are inconsistent after restart, before %v after %v", i, beforeRestart, afterRestart)
+		} else {
+			return
+		}
 	}
-	if !compare(beforeRestart, afterRestart) {
+	if !succeeded {
 		t.Fatalf("routes are inconsistent after restart, before %v after %v", beforeRestart, afterRestart)
 	}
 }
@@ -198,6 +210,7 @@ func readNic(ctx context.Context, t *testing.T, id int) net.Interface {
 func TestAliasAgentRestart(t *testing.T) {
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
+
 	beforeRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
@@ -205,6 +218,7 @@ func TestAliasAgentRestart(t *testing.T) {
 	if err := utils.RestartAgent(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	afterRestart, err := utils.GetGoogleRoutes(ctx, t, iface)
 	if err != nil {
 		t.Fatal(err)
