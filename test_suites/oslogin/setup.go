@@ -98,8 +98,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// TODO(b/440641320): Remove this skip once the bug is fixed.
-	if strings.Contains(t.Image.Name, "rhel-9-0-sap-ha-guest-agent") {
-		t.Skip("OSLogin is not working on rhel-9-0-sap-ha images, skipping the test until b/440641320 is fixed.")
+	if strings.Contains(t.Image.Name, "rhel-9-0-sap") {
+		t.Skip("OSLogin is not working on rhel-9-0-sap images, skipping the test until b/440641320 is fixed.")
 		return nil
 	}
 
