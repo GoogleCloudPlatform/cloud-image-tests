@@ -126,7 +126,7 @@ func testServiceConfigWindows(t *testing.T, image string) {
 	t.Helper()
 	services := []string{"GCEAgentManager"}
 	// TODO(b/478951370): Remove this exception once the bug is fixed.
-	if strings.Contains(image, "guest-agent-stable") || strings.Contains(image, "gce-staging-images") {
+	if strings.Contains(image, "guest-agent-stable") {
 		// Service is enabled only on stable images. Some staging images still have
 		// the old agent.
 		services = append(services, "GCEAgent")
