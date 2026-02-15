@@ -19,6 +19,8 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
+// TODO(tylerdao): Comment testing CIT Copybara, remove this line once the config has been fixed
+
 // Name is the name of the test package. It must match the directory name.
 const Name = "mdsmtls"
 
