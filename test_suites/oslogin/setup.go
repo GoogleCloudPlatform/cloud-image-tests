@@ -104,8 +104,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// TODO(b/468323433): Remove this skip once the bug is fixed.
-	if strings.Contains(t.Image.Name, "sles-16") {
-		t.Skip("OSLogin is not working on sles-16 images, skipping the test until b/468323433 is fixed.")
+	if strings.Contains(t.Image.Name, "sles-16") || strings.Contains(t.Image.Name, "opensuse-leap-16") {
+		t.Skip(fmt.Sprintf("OSLogin is not working on sles-16 images, skipping the test on %q until b/468323433 is fixed.", t.Image.Name))
 		return nil
 	}
 
