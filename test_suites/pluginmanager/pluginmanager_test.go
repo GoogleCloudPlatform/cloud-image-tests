@@ -257,7 +257,6 @@ func TestCorePluginStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
 	}
-	t.Logf("Output of ggactl_plugin: %s", string(out))
 
 	// Core plugin should be stopped.
 	verifyCorePluginExists(t, false)
@@ -285,6 +284,7 @@ acs_client = false
 
 func stopAgentManager(t *testing.T) {
 	t.Helper()
+	t.Logf("Stopping agent manager")
 	if utils.IsWindows() {
 		out, err := utils.RunPowershellCmd(`Stop-Service -Name GCEAgentManager -Verbose`)
 		if err != nil {
@@ -301,6 +301,7 @@ func stopAgentManager(t *testing.T) {
 
 func startAgentManager(t *testing.T) {
 	t.Helper()
+	t.Logf("Starting agent manager")
 	if utils.IsWindows() {
 		out, err := utils.RunPowershellCmd(`Start-Service -Name GCEAgentManager -Verbose`)
 		if err != nil {
@@ -340,7 +341,7 @@ func verifyCorePluginExists(t *testing.T, shouldExist bool) {
 	t.Helper()
 
 	if utils.IsWindows() {
-		utils.VerifyProcessExistsWindows(t, false, "CorePlugin")
+		utils.VerifyProcessExistsWindows(t, shouldExist, "CorePlugin")
 	} else {
 		_, foundOld, err := utils.ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
 		if !foundOld || err != nil {
@@ -382,6 +383,7 @@ func TestACSDisabled(t *testing.T) {
 	// the new agent is not yet installed.
 	ggactlCleanupPath(t)
 
+	t.Logf("ACS Enabled")
 	stopAgentManager(t)
 	server, socketPath := startTestServer(t)
 	configureTestACS(t, socketPath)
@@ -394,6 +396,7 @@ func TestACSDisabled(t *testing.T) {
 	}
 
 	// Reset the request count and disable ACS.
+	t.Logf("ACS Disabled")
 	requestCount = 0
 	stopAgentManager(t)
 	disableACS(t)
@@ -409,6 +412,7 @@ func TestACSDisabled(t *testing.T) {
 
 	// Core plugin should be running regardless of ACS being enabled or disabled.
 	shouldExist := !utils.IsCoreDisabled()
+	t.Logf("Should exist: %t", shouldExist)
 	verifyCorePluginExists(t, shouldExist)
 }
 
