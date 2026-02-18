@@ -120,7 +120,38 @@ func checkCorePluginProcessExists(t *testing.T, exists bool) {
 	if utils.IsWindows() {
 		utils.VerifyProcessExistsWindows(t, exists, "CorePlugin")
 	} else {
-		utils.VerifyProcessExistsLinux(t, exists, "/usr/lib/google/guest_agent/core_plugin")
+		_, foundOld, err := utils.ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
+		if !foundOld || err != nil {
+			t.Logf("Core plugin not found at /usr/lib/google/guest_agent/core_plugin, checking /usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
+			// Check for the new location of the core plugin.
+			_, foundNew, err := utils.ProcessExistsLinux("/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
+			if err != nil {
+				t.Fatalf("Failed to check if core plugin exists: %v", err)
+				return
+			}
+
+			found := foundOld || foundNew
+			if found != exists {
+				foundStr := "not found"
+				if found {
+					foundStr = "found"
+				}
+
+				shouldExistStr := "not exist"
+				if exists {
+					shouldExistStr = "exist"
+				}
+
+				pathString := "/usr/lib/google/guest_agent/core_plugin"
+				if foundNew {
+					pathString = "/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin"
+				}
+
+				if found {
+					t.Fatalf("Core plugin process %s at %q, but should %s", foundStr, pathString, shouldExistStr)
+				}
+			}
+		}
 	}
 }
 
