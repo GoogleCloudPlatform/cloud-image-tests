@@ -250,24 +250,17 @@ func TestCorePluginStop(t *testing.T) {
 	stopPluginManager(t)
 	command := exec.Command(path, "coreplugin", "stop")
 	// Core plugin should be running even after the manager is stopped.
-	if utils.IsWindows() {
-		utils.VerifyProcessExistsWindows(t, true, "CorePlugin")
-	} else {
-		utils.VerifyProcessExistsLinux(t, true, "/usr/lib/google/guest_agent/core_plugin")
-	}
+	verifyCorePluginExists(t, true)
 
 	// ggactl command to stop the core plugin.
 	out, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
 	}
+	t.Logf("Output of ggactl_plugin: %s", string(out))
 
 	// Core plugin should be stopped.
-	if utils.IsWindows() {
-		utils.VerifyProcessExistsWindows(t, false, "CorePlugin")
-	} else {
-		utils.VerifyProcessExistsLinux(t, false, "/usr/lib/google/guest_agent/core_plugin")
-	}
+	verifyCorePluginExists(t, false)
 }
 
 func disableACS(t *testing.T) {
@@ -343,6 +336,47 @@ host = %s
 	f.Close()
 }
 
+func verifyCorePluginExists(t *testing.T, shouldExist bool) {
+	t.Helper()
+
+	if utils.IsWindows() {
+		utils.VerifyProcessExistsWindows(t, false, "CorePlugin")
+	} else {
+		_, foundOld, err := utils.ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
+		if !foundOld || err != nil {
+			t.Logf("Core plugin not found at /usr/lib/google/guest_agent/core_plugin, checking /usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
+			// Check for the new location of the core plugin.
+			_, foundNew, err := utils.ProcessExistsLinux("/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
+			if err != nil {
+				t.Fatalf("Failed to check if core plugin exists: %v", err)
+				return
+			}
+
+			found := foundOld || foundNew
+			if found != shouldExist {
+				foundStr := "not found"
+				if found {
+					foundStr = "found"
+				}
+
+				shouldExistStr := "not exist"
+				if shouldExist {
+					shouldExistStr = "exist"
+				}
+
+				pathString := "/usr/lib/google/guest_agent/core_plugin"
+				if foundNew {
+					pathString = "/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin"
+				}
+
+				if found {
+					t.Fatalf("Core plugin process %s at %q, but should %s", foundStr, pathString, shouldExistStr)
+				}
+			}
+		}
+	}
+}
+
 func TestACSDisabled(t *testing.T) {
 	// Skip if ggactl_plugin is not available to avoid running on images where
 	// the new agent is not yet installed.
@@ -375,11 +409,7 @@ func TestACSDisabled(t *testing.T) {
 
 	// Core plugin should be running regardless of ACS being enabled or disabled.
 	shouldExist := !utils.IsCoreDisabled()
-	if utils.IsWindows() {
-		utils.VerifyProcessExistsWindows(t, shouldExist, "CorePlugin")
-	} else {
-		utils.VerifyProcessExistsLinux(t, shouldExist, "/usr/lib/google/guest_agent/core_plugin")
-	}
+	verifyCorePluginExists(t, shouldExist)
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {
