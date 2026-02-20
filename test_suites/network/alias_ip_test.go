@@ -102,8 +102,6 @@ func skipIfUbuntu(t *testing.T) {
 func TestNetworkManagerRestart(t *testing.T) {
 	utils.LinuxOnly(t)
 
-	// TODO(b/434210587): Remove this skip once the bug is fixed.
-	skipIfUbuntu(t)
 	ctx := utils.Context(t)
 	iface := readNic(ctx, t, 0)
 
@@ -326,7 +324,7 @@ func verifyIPExist(ctx context.Context, routes []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("alias ip %s is not exist after reboot, routes: %v", expected, routes)
+	return fmt.Errorf("alias ip %s does not exist after reboot, routes: %v", expected, routes)
 }
 
 func compare(a, b []string) bool {

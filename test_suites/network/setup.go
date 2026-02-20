@@ -80,7 +80,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm1.RunTests("TestStaticIP|TestSendPing|TestDHCP|TestDefaultMTU|TestNTP")
 
 	multinictests := "TestWaitForPing"
-	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !utils.IsCOS(t.Image.Name) {
+	// TODO(b/485679396): Remove this skip once the bug is fixed.
+	// We are skipping on SLES 15 and 16 because network route is added via cloud-netconfig.service instead of guest-agent.
+	// The alias IP test currently only checks whether the alias IP route is added by the guest agent,
+	// rather than just checking for whether the route exists
+	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "sles-16") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !utils.IsCOS(t.Image.Name) {
 		multinictests += "|TestAlias|TestGgactlCommand|TestNetworkManagerRestart"
 	}
 
