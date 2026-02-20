@@ -47,7 +47,7 @@ func TestVersionLock(t *testing.T) {
 
 		expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
 		if err != nil {
-			t.Fatalf("Failed to get the rhel-version metadata: %v", err)
+			t.Fatalf("Failed to get the rhel-major-version metadata: %v", err)
 		}
 
 		expectedMinorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-minor-version")
@@ -82,7 +82,7 @@ func TestRhuiPackage(t *testing.T) {
 
 	expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
 	if err != nil {
-		t.Fatalf("Failed to get the rhel-version metadata: %v", err)
+		t.Fatalf("Failed to get the rhel-major-version metadata: %v", err)
 	}
 
 	rhuiClientPackage := "google-rhui-client-rhel" + expectedMajorVersion
@@ -114,6 +114,89 @@ func TestRhuiPackage(t *testing.T) {
 		// the base RHEL image then make sure that the package name doesn't contain "-eus" or "-sap".
 		if utils.IsRHELEUS(string(output)) || utils.IsSAP(string(output)) {
 			t.Errorf("The rhui client package is not installed: %s", err)
+		}
+	}
+}
+
+func TestPackageInstallation(t *testing.T) {
+	utils.LinuxOnly(t)
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Failed to read image metadata: %v", err)
+	}
+
+	isArm := strings.Contains(image, "arm")
+	isBYOS := utils.IsBYOS(image)
+	isSAP := utils.IsSAP(image)
+
+	expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
+	if err != nil {
+		t.Fatalf("Failed to get the rhel-major-version metadata: %v", err)
+	}
+	expectedMinorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-minor-version")
+	if isSAP && err != nil {
+		t.Fatalf("Failed to get the rhel-minor-version metadata: %v", err)
+	}
+
+	// nvme-cli is needed on all RHEL images.
+	checkPackageInstallation(t, "nvme-cli", true)
+	// subscription-manager is installed on BYOS images only.
+	checkPackageInstallation(t, "subscription-manager", isBYOS)
+
+	switch expectedMajorVersion {
+	case "10":
+		// RHEL 10 w/ rhc: All BYOS
+		// RHEL 10 w/ insights-client: All BYOS
+		checkPackageInstallation(t, "rhc", isBYOS)
+		checkPackageInstallation(t, "insights-client", isBYOS)
+	case "9":
+		isSAP90 := isSAP && expectedMinorVersion == "0"
+		isSAP92 := isSAP && expectedMinorVersion == "2"
+		// RHEL 9 w/ rhc: All BYOS (except RHEL 9.0 SAP BYOS), RHEL 9.2 SAP.
+		if (isBYOS && !isSAP90) || isSAP92 {
+			checkPackageInstallation(t, "rhc", true)
+		} else {
+			checkPackageInstallation(t, "rhc", false)
+		}
+		// RHEL 9 w/ insights-client: All BYOS (except RHEL 9.0 SAP BYOS), RHEL 9.2 SAP.
+		if (isBYOS && !isSAP90) || isSAP92 {
+			checkPackageInstallation(t, "insights-client", true)
+		} else {
+			checkPackageInstallation(t, "insights-client", false)
+		}
+	case "8":
+		isSAP86 := isSAP && expectedMinorVersion == "6"
+		isSAP88 := isSAP && expectedMinorVersion == "8"
+		isBYOSX86 := isBYOS && !isArm
+
+		// RHEL 8 w/ rhc: All x86 BYOS, RHEL 8.6/8.8 SAP.
+		if isSAP86 || isSAP88 || isBYOSX86 {
+			checkPackageInstallation(t, "rhc", true)
+		} else {
+			checkPackageInstallation(t, "rhc", false)
+		}
+
+		// RHEL 8 w/ insights-client: All x86 BYOS, RHEL 8.6/8.8 SAP.
+		if isSAP86 || isSAP88 || isBYOSX86 {
+			checkPackageInstallation(t, "insights-client", true)
+		} else {
+			checkPackageInstallation(t, "insights-client", false)
+		}
+	default:
+		t.Fatalf("Unsupported RHEL major version: %s", expectedMajorVersion)
+	}
+}
+
+func checkPackageInstallation(t *testing.T, packageName string, shouldBeInstalled bool) {
+	t.Helper()
+	output, err := exec.Command("rpm", "-q", packageName).Output()
+	if shouldBeInstalled {
+		if err != nil {
+			t.Errorf("The package %s is not installed when it should be: %s", packageName, string(output))
+		}
+	} else {
+		if err == nil {
+			t.Errorf("The package %s is still installed when it should not be: %s", packageName, string(output))
 		}
 	}
 }

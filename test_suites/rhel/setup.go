@@ -51,5 +51,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	vm.RunTests("TestVersionLock")
 	vm.RunTests("TestRhuiPackage")
+	vm.RunTests("TestPackageInstallation")
 	return nil
 }
