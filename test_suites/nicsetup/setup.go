@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -222,10 +223,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			if err != nil {
 				return err
 			}
-			ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
-			if err != nil {
-				return err
-			}
 
 			// Add networks to VMs. Primary NIC must be EXTERNAL IPv6 for tests to work.
 			ipv4dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV4_ONLY", "")
@@ -249,10 +246,20 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			ipv6dual.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
 			ipv6dual.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV4_IPV6", "INTERNAL")
 
-			ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
-			ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+			allMultiVMs = append(allMultiVMs, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual)
 
-			allMultiVMs = append(allMultiVMs, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual, ipv6ipv6)
+			// TODO(b/486324756): Remove this once the bug is fixed.
+			if !strings.Contains(t.Image.Name, "sles-16") {
+				ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
+				if err != nil {
+					return err
+				}
+
+				ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+				ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+
+				allMultiVMs = append(allMultiVMs, ipv6ipv6)
+			}
 		}
 		allVMs = append(allVMs, allMultiVMs...)
 		for _, vm := range allMultiVMs {
