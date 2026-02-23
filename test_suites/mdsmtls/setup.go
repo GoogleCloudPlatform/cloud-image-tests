@@ -13,8 +13,6 @@
 package mdsmtls
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
@@ -28,35 +26,25 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
-	// TODO(b/479320912): Remove this exception once the bug is fixed.
-	updatedAgent := strings.Contains(t.Image.Name, "guest-agent") && !strings.Contains(t.Image.Name, "guest-agent-stable")
-
 	vm, err := t.CreateTestVM("mtlscreds")
 	if err != nil {
 		return err
 	}
-	if !updatedAgent {
-		// Old agents have it disabled by default.
-		vm.AddMetadata("disable-https-mds-setup", "FALSE")
-	}
+	// TODO(b/486921519): Remove this once the bug is fixed, as this should be default behavior.
+	vm.AddMetadata("disable-https-mds-setup", "FALSE")
 
 	vm2, err := t.CreateTestVM("mtlscredsdisabled")
 	if err != nil {
 		return err
 	}
-	if updatedAgent {
-		// New agents have it enabled by default, so we need to explicitly disable it.
-		vm2.AddMetadata("disable-https-mds-setup", "TRUE")
-	}
+	vm2.AddMetadata("disable-https-mds-setup", "TRUE")
 
 	vm3, err := t.CreateTestVM("mtlscredswithtruststore")
 	if err != nil {
 		return err
 	}
-	if !updatedAgent {
-		// Old agents have it disabled by default.
-		vm3.AddMetadata("disable-https-mds-setup", "FALSE")
-	}
+	// TODO(b/486921519): Remove this once the bug is fixed, as this should be default behavior.
+	vm3.AddMetadata("disable-https-mds-setup", "FALSE")
 	vm3.AddMetadata("enable-https-mds-native-cert-store", "TRUE")
 
 	vm.RunTests("TestMTLSCredsExists|TestMTLSJobScheduled")

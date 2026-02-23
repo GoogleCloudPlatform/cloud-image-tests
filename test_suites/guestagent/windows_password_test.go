@@ -247,6 +247,9 @@ func TestWindowsPasswordReset(t *testing.T) {
 // group.
 func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 	utils.WindowsOnly(t)
+	if utils.AgentFeatureCheck(t) {
+		t.Skip("Skipping test as it tests a feature that is not currently generally available in the guest agent.")
+	}
 
 	// TODO(b/478892615): Remove this skip once the fix is released.
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")

@@ -977,6 +977,18 @@ func InstallPackage(packages ...string) error {
 	return ErrPackageManagersNotFound
 }
 
+// AgentFeatureCheck checks if a certain set of features are enabled on the agent.
+// TODO(b/486921519): Remove this once we have a way to mark features as enabled.
+func AgentFeatureCheck(t *testing.T) bool {
+	corePluginPath := ""
+	if IsWindows() {
+		corePluginPath = `C:\Program Files\Google\Compute Engine\agent\CorePlugin.exe`
+	} else {
+		corePluginPath = "/usr/lib/google/guest_agent/core_plugin"
+	}
+	return !Exists(corePluginPath, TypeFile)
+}
+
 // VerifyProcessExistsWindows checks if the process exists on Windows.
 func VerifyProcessExistsWindows(t *testing.T, shouldExist bool, processName string) {
 	t.Helper()
