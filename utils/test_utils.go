@@ -978,6 +978,7 @@ func InstallPackage(packages ...string) error {
 }
 
 // AgentFeatureCheck checks if a certain set of features are enabled on the agent.
+// This returns true if the features exist, false otherwise.
 // TODO(b/486921519): Remove this once we have a way to mark features as enabled.
 func AgentFeatureCheck(t *testing.T) bool {
 	corePluginPath := ""

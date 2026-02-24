@@ -247,7 +247,7 @@ func TestWindowsPasswordReset(t *testing.T) {
 // group.
 func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 	utils.WindowsOnly(t)
-	if utils.AgentFeatureCheck(t) {
+	if !utils.AgentFeatureCheck(t) {
 		t.Skip("Skipping test as it tests a feature that is not currently generally available in the guest agent.")
 	}
 
