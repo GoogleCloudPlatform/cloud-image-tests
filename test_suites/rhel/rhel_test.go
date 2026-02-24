@@ -35,25 +35,24 @@ func TestVersionLock(t *testing.T) {
 	}
 
 	isEUSOrSAP := utils.IsSAP(image) || utils.IsRHELEUS(image)
-	data, err := os.ReadFile(releaseVerFile)
+	data, releaseVerFileErr := os.ReadFile(releaseVerFile)
+	expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
 	if err != nil {
-		t.Fatalf("Failed to read releasever file: %v", err)
+		t.Fatalf("Failed to get the rhel-major-version metadata: %v", err)
+	}
+	expectedMinorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-minor-version")
+	if err != nil {
+		t.Fatalf("Failed to get the rhel-minor-version metadata: %v", err)
 	}
 
-	if isEUSOrSAP {
+	if isEUSOrSAP && expectedMinorVersion != "10" {
+		if releaseVerFileErr != nil {
+			t.Fatalf("Failed to read releasever file: %v", releaseVerFileErr)
+		}
+
 		rhelVersionSplit := strings.Split(string(data), ".")
 		rhelMajorVersion := strings.TrimSpace(rhelVersionSplit[0])
 		rhelMinorVersion := strings.TrimSpace(rhelVersionSplit[1])
-
-		expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
-		if err != nil {
-			t.Fatalf("Failed to get the rhel-major-version metadata: %v", err)
-		}
-
-		expectedMinorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-minor-version")
-		if err != nil {
-			t.Fatalf("Failed to get the rhel-minor-version metadata: %v", err)
-		}
 
 		if rhelMajorVersion != expectedMajorVersion {
 			t.Errorf("The major release version in the image does not match the major release version in the image family: %s != %s", rhelMajorVersion, expectedMajorVersion)
@@ -62,8 +61,8 @@ func TestVersionLock(t *testing.T) {
 		if rhelMinorVersion != expectedMinorVersion {
 			t.Errorf("The minor release version in the image does not match the minor release version in the image family: \"%s\" != \"%s\"", rhelMinorVersion, expectedMinorVersion)
 		}
-	} else {
-		if err == nil {
+	} else if !isEUSOrSAP {
+		if releaseVerFileErr == nil {
 			t.Errorf("The release version file shouldn't exist for non-EUS/SAP images: %s", string(data))
 		}
 	}

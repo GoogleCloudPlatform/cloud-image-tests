@@ -49,8 +49,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm.AddMetadata("rhel-major-version", rhelVersionSplit[0])
 	vm.AddMetadata("rhel-minor-version", rhelMinorVersion)
 
-	vm.RunTests("TestVersionLock")
-	vm.RunTests("TestRhuiPackage")
-	vm.RunTests("TestPackageInstallation")
+	vm.RunTests("TestVersionLock|TestRhuiPackage|TestPackageInstallation")
 	return nil
 }
