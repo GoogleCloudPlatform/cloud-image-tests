@@ -124,17 +124,7 @@ func testServiceConfigLinux(t *testing.T, image string) {
 
 func testServiceConfigWindows(t *testing.T, image string) {
 	t.Helper()
-	services := []string{"GCEAgentManager"}
-	// TODO(b/478951370): Remove this exception once the bug is fixed.
-	if strings.Contains(image, "guest-agent-stable") {
-		// Service is enabled only on stable images. Some staging images still have
-		// the old agent.
-		services = append(services, "GCEAgent")
-	} else {
-		// Service is disabled on stable images.
-		services = append(services, "GCEWindowsCompatManager")
-	}
-
+	services := []string{"GCEAgentManager", "GCEWindowsCompatManager"}
 	t.Logf("Testing service config for image: %s, services: %v", image, services)
 
 	for _, service := range services {
