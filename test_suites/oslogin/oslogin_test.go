@@ -105,43 +105,59 @@ func rootUserEntry(ctx context.Context, t *testing.T) string {
 // TODO: b/474640709 - remove this function once the bug is fixed.
 func PreTestCacheCheck(t *testing.T) {
 	t.Helper()
-	cacheFile := "/etc/oslogin_passwd.cache"
+	cacheFiles := []string{"/etc/oslogin_passwd.cache", "/etc/oslogin_passwd.cache.bin"}
 	const maxRetries = 3
 
 	for i := 0; i < maxRetries; i++ {
-		fileInfo, err := os.Stat(cacheFile)
-
-		if err != nil {
-			if os.IsNotExist(err) {
-				t.Logf("OS Login cache file %s does not exist. Refresh attempt %d/%d.", cacheFile, i+1, maxRetries)
-			} else {
-				t.Logf("Error stating OS Login cache file %s: %v. Refresh attempt %d/%d.", cacheFile, err, i+1, maxRetries)
+		populated := false
+		for _, cacheFile := range cacheFiles {
+			fileInfo, err := os.Stat(cacheFile)
+			if err == nil && fileInfo.Size() > 0 {
+				t.Logf("OS Login cache file %s is populated with size %d bytes. Cache is in a good state.", cacheFile, fileInfo.Size())
+				populated = true
+				break
 			}
-		} else if fileInfo.Size() == 0 {
-			t.Logf("OS Login cache file %s is empty. Refresh attempt %d/%d.", cacheFile, i+1, maxRetries)
-		} else {
-			t.Logf("OS Login cache file %s is not empty. Size: %d bytes.", cacheFile, fileInfo.Size())
-			return // Cache is in a good state
 		}
-		// If we haven't returned, we need to refresh.
-		t.Logf("Attempting to refresh cache, attempt %d/%d...", i+1, maxRetries)
+		if populated {
+			return
+		}
+
+		t.Logf("No populated OS Login cache file found. Refresh attempt %d/%d.", i+1, maxRetries)
+		for _, cacheFile := range cacheFiles {
+			fileInfo, err := os.Stat(cacheFile)
+			if err != nil {
+				if os.IsNotExist(err) {
+					t.Logf("OS Login cache file %s does not exist.", cacheFile)
+				} else {
+					t.Logf("Error stating OS Login cache file %s: %v.", cacheFile, err)
+				}
+			} else if fileInfo.Size() == 0 {
+				t.Logf("OS Login cache file %s is empty.", cacheFile)
+			}
+		}
+
 		cmd := exec.Command("sudo", "/usr/bin/google_oslogin_nss_cache")
 		out, refreshErr := cmd.CombinedOutput()
 		if refreshErr != nil {
 			t.Logf("Failed to run OS Login cache refresh: %v\nOutput: %s", refreshErr, string(out))
+		} else {
+			t.Logf("OS Login cache refresh command output:\n%s", string(out))
 		}
-		t.Logf("OS Login cache refresh command output:\n%s", string(out))
-		if i < maxRetries-1 { // Don't sleep after the last attempt in the loop
-			// Give a moment for the cache file to be written
+
+		if i < maxRetries-1 {
 			time.Sleep(2 * time.Second)
 		}
 	}
 
 	// Final check after retries
-	fileInfo, err := os.Stat(cacheFile)
-	if err != nil || fileInfo.Size() == 0 {
-		t.Logf("OS Login cache file %s is still not populated after %d refresh attempts.", cacheFile, maxRetries)
+	for _, cacheFile := range cacheFiles {
+		fileInfo, err := os.Stat(cacheFile)
+		if err == nil && fileInfo.Size() > 0 {
+			t.Logf("OS Login cache file %s is populated with size %d bytes. Cache is in a good state.", cacheFile, fileInfo.Size())
+			return
+		}
 	}
+	t.Logf("OS Login cache is still not populated after %d refresh attempts.", maxRetries)
 }
 
 func TestGetentPasswdAllUsers(t *testing.T) {
