@@ -18,6 +18,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,13 +32,27 @@ func TestOsLoginEnabled(t *testing.T) {
 	}
 }
 
+func readUsrEtcFile(t *testing.T, file string) string {
+	t.Helper()
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("failed to get image: %v", err)
+	}
+	f := file
+	if strings.Contains(image, "sles-16") || strings.Contains(image, "opensuse-leap-16") {
+		f = filepath.Join("/usr", file)
+	}
+	data, err := os.ReadFile(f)
+	if err != nil {
+		t.Fatalf("cannot read %q: %v", f, err)
+	}
+	return string(data)
+}
+
 func TestOsLoginDisabled(t *testing.T) {
 	// Check OS Login not enabled in /etc/nsswitch.conf
-	data, err := os.ReadFile("/etc/nsswitch.conf")
-	if err != nil {
-		t.Fatalf("cannot read /etc/nsswitch.conf")
-	}
-	for _, line := range strings.Split(string(data), "\n") {
+	nsswitchConf := readUsrEtcFile(t, "/etc/nsswitch.conf")
+	for _, line := range strings.Split(nsswitchConf, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			continue
@@ -48,11 +63,8 @@ func TestOsLoginDisabled(t *testing.T) {
 	}
 
 	// Check AuthorizedKeys Command
-	data, err = os.ReadFile("/etc/ssh/sshd_config")
-	if err != nil {
-		t.Fatalf("cannot read /etc/ssh/sshd_config")
-	}
-	for _, line := range strings.Split(string(data), "\n") {
+	data := readUsrEtcFile(t, "/etc/ssh/sshd_config")
+	for _, line := range strings.Split(data, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			continue
@@ -62,7 +74,7 @@ func TestOsLoginDisabled(t *testing.T) {
 		}
 	}
 
-	if err = testSSHDPamConfig(utils.Context(t)); err != nil {
+	if err := testSSHDPamConfig(utils.Context(t)); err != nil {
 		t.Fatalf("error checking pam config: %v", err)
 	}
 }

@@ -47,7 +47,9 @@ func snapshotTestPrep(t *testing.T) {
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			t.Fatal(err)
 		}
-		agentcfg = append(agentcfg, []byte("[Snapshots]\nenabled = true\ntimeout_in_seconds = 300\n")...)
+		// File may not end with a newline, so prepend one to make sure config is
+		// valid.
+		agentcfg = append(agentcfg, []byte("\n\n[Snapshots]\nenabled = true\ntimeout_in_seconds = 300\n")...)
 		err = os.WriteFile("/etc/default/instance_configs.cfg", agentcfg, 0640)
 		if err != nil {
 			t.Fatal(err)
