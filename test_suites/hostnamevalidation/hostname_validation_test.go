@@ -162,7 +162,7 @@ func TestFQDN(t *testing.T) {
 	printSuseDebugInfo(t)
 	if hostname != metadataHostname {
 		// TODO(b/460799853): Remove this exception once the bug is fixed.
-		if utils.IsSLES(image) && strings.Contains(image, "arm") {
+		if (utils.IsSLES(image) || utils.IsOpenSUSE(image)) && strings.Contains(image, "arm") {
 			t.Skipf("Skipping TestFQDN for SLES ARM image: %q due to b/460799853, got hostname: %q, want hostname: %q", image, hostname, metadataHostname)
 		}
 		t.Errorf("hostname -f does not match metadata. Expected: %q got: %q", metadataHostname, hostname)

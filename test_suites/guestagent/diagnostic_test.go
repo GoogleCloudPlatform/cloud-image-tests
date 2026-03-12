@@ -93,8 +93,9 @@ func testServiceConfigLinux(t *testing.T, image string) {
 	services := []string{"google-guest-agent-manager", "google-guest-agent", "google-guest-compat-manager"}
 
 	// TODO(b/478951370): Remove this exception once the bug is fixed.
-	if !strings.Contains(image, "guest-agent") && (utils.IsCOS(image) || utils.IsUbuntu(image) || utils.IsSLES(image)) {
-		// Old agent package installed on COS, SLES and Ubuntu images only has google-guest-agent service.
+	isOldAgentDistro := utils.IsCOS(image) || utils.IsUbuntu(image) || utils.IsSLES(image) || utils.IsOpenSUSE(image)
+	if !strings.Contains(image, "guest-agent") && isOldAgentDistro {
+		// Old agent package installed on COS, SLES, OpenSUSE and Ubuntu images only has google-guest-agent service.
 		services = []string{"google-guest-agent"}
 	}
 
