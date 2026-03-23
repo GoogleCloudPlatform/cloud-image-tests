@@ -258,8 +258,18 @@ func TestCorePluginStop(t *testing.T) {
 	}
 	stopPluginManager(t)
 	command := exec.Command(path, "coreplugin", "stop")
+
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Failed to get instance image from MDS: %v", err)
+	}
+
 	// Core plugin should be running even after the manager is stopped.
-	verifyCorePluginExists(t, true)
+	// For the new agent, the core plugin is a direct child process, so stopping
+	// the manager should stop the core plugin.
+	// For the old agent, the core plugin is a detached process, so stopping the
+	// manager should not stop the core plugin.
+	verifyCorePluginExists(t, strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent"))
 
 	// ggactl command to stop the core plugin.
 	out, err := command.CombinedOutput()
