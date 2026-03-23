@@ -22,6 +22,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,6 +84,13 @@ func agentBaseDir(t *testing.T) string {
 	}
 
 	return filepath.Join(baseDir, id)
+}
+
+func agentLocalDir(t *testing.T) string {
+	if utils.IsWindows() {
+		return `C:\Program Files\Google\Compute Engine\agent`
+	}
+	return "/usr/lib/google/guest_agent"
 }
 
 func createTestSocketfile(t *testing.T) string {
@@ -262,24 +271,42 @@ func TestCorePluginStop(t *testing.T) {
 	verifyCorePluginExists(t, false)
 }
 
-func disableACS(t *testing.T) {
-	t.Helper()
-	conf := `
-[Core]
-acs_client = false
-`
+func writeConfigFile(conf string) error {
 	file := "/etc/default/instance_configs.cfg"
 	if utils.IsWindows() {
 		file = `C:\Program Files\Google\Compute Engine\instance_configs.cfg`
 	}
 	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		t.Fatalf("Failed to open instance_configs.cfg: %v", err)
+		return fmt.Errorf("failed to open instance_configs.cfg: %v", err)
 	}
 	if _, err := f.WriteString(conf); err != nil {
-		t.Fatalf("Failed to write to instance_configs.cfg: %v", err)
+		return fmt.Errorf("Failed to write to instance_configs.cfg: %v", err)
 	}
-	f.Close()
+	return f.Close()
+}
+
+func disableACS(t *testing.T) {
+	t.Helper()
+	conf := `
+[Core]
+acs_client = false
+`
+
+	if err := writeConfigFile(conf); err != nil {
+		t.Fatalf("Failed to disable ACS: %v", err)
+	}
+}
+
+func enableLocalPlugin(t *testing.T, enable bool) {
+	t.Helper()
+	conf := fmt.Sprintf(`
+[Core]
+enable_local_plugins = %t`, enable)
+
+	if err := writeConfigFile(conf); err != nil {
+		t.Fatalf("Failed to enable local plugin: %v", err)
+	}
 }
 
 func stopAgentManager(t *testing.T) {
@@ -288,14 +315,14 @@ func stopAgentManager(t *testing.T) {
 	if utils.IsWindows() {
 		out, err := utils.RunPowershellCmd(`Stop-Service -Name GCEAgentManager -Verbose`)
 		if err != nil {
-			t.Fatalf("Failed to restart GCEAgentManager service: %v, \noutput: \n%+v", err, out)
+			t.Fatalf("Failed to stop GCEAgentManager service: %v, \noutput: \n%+v", err, out)
 		}
 		return
 	}
 	cmd := exec.Command("systemctl", "stop", "google-guest-agent-manager")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("Failed to restart google-guest-agent-manager: %v, \noutput: \n%s", err, string(out))
+		t.Fatalf("Failed to stop google-guest-agent-manager: %v, \noutput: \n%s", err, string(out))
 	}
 }
 
@@ -414,6 +441,57 @@ func TestACSDisabled(t *testing.T) {
 	shouldExist := !utils.IsCoreDisabled()
 	t.Logf("Should exist: %t", shouldExist)
 	verifyCorePluginExists(t, shouldExist)
+}
+
+func TestLocalPlugin(t *testing.T) {
+	ggactlCleanupPath(t)
+
+	// Check for local plugins.
+	pluginsDir := agentLocalDir(t)
+	files, err := os.ReadDir(pluginsDir)
+	if err != nil {
+		t.Fatalf("Failed to read local plugins directory(%q): %v", pluginsDir, err)
+	}
+	var found bool
+	var plugins []string
+	for _, file := range files {
+		if file.IsDir() {
+			t.Logf("Found plugin: %s", file.Name())
+			// Look for the manifest files. This is an indicator that the package
+			// supports dynamically launching local plugins.
+			if _, err := os.Stat(filepath.Join(pluginsDir, file.Name(), "manifest.binpb")); err == nil {
+				found = true
+				// Determine the binary name.
+				pluginDirFiles, err := os.ReadDir(filepath.Join(pluginsDir, file.Name()))
+				if err != nil {
+					t.Fatalf("Failed to read local plugins directory(%q): %v", filepath.Join(pluginsDir, file.Name()), err)
+				}
+				for _, pluginDirFile := range pluginDirFiles {
+					if pluginDirFile.Name() != "manifest.binpb" {
+						t.Logf("Found potential executable: %s", pluginDirFile.Name())
+						plugins = append(plugins, filepath.Join(file.Name(), pluginDirFile.Name()))
+					}
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("No local plugins found, at least core plugin should be found.")
+	}
+
+	// With local plugins enabled, check to see that all plugins are running.
+	for _, plugin := range plugins {
+		if runtime.GOOS == "windows" {
+			// Remove the .exe extension from the plugin name for the verifications.
+			plugin = strings.TrimSuffix(plugin, ".exe")
+			utils.VerifyProcessExistsWindows(t, true, filepath.Base(plugin))
+		} else {
+			utils.VerifyProcessExistsLinux(t, true, filepath.Join(pluginsDir, plugin))
+		}
+	}
+
+	// TODO(b/489540405): Add test to disable local plugins and verify that all
+	// non-core plugins are not running.
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {
