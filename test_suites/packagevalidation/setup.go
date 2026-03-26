@@ -32,7 +32,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	vm1.RunTests("TestStandardPrograms|TestGuestPackages")
+	tests := "TestStandardPrograms|TestGuestPackages"
+	// Artifact registry plugin is not installed on all images. Test only runs if
+	// the image is built with artifact registry plugin. Tests requires
+	// apt-transport-artifact-registry or dnf-plugin-artifact-registry installed.
+	if strings.Contains(t.Image.Name, "artifact-registry") {
+		vm1.AddScope("https://www.googleapis.com/auth/cloud-platform")
+		tests += "|TestArtifactRegistryPlugin"
+	}
+	vm1.RunTests(tests)
 	imageName := t.Image.Name
 	is2012 := strings.Contains(imageName, "windows-server-2012-dc")
 	// as part of the migration of the windows test suite, these vms
