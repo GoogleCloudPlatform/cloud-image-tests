@@ -250,11 +250,17 @@ func stopPluginManager(t *testing.T) {
 	}
 }
 
+func timeNow(t *testing.T) string {
+	t.Helper()
+	return time.Now().Format(time.RFC3339)
+}
+
 func TestCorePluginStop(t *testing.T) {
 	// Skip if ggactl_plugin is not available.
 	if utils.IsCoreDisabled() {
 		t.Skip("Core plugin is disabled, skipping the test.")
 	}
+	t.Logf("%v: Stopping plugin manager", timeNow(t))
 	stopPluginManager(t)
 
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
@@ -262,17 +268,55 @@ func TestCorePluginStop(t *testing.T) {
 		t.Fatalf("Failed to get instance image from MDS: %v", err)
 	}
 
-	// Sleep for a few seconds to allow the agent manager to fully stop.
-	time.Sleep(time.Second * 5)
-
 	// For the new agent, the core plugin is a direct child process, so stopping
 	// the manager should stop the core plugin.
 	// For the old agent, the core plugin is a detached process, so stopping the
 	// manager should not stop the core plugin.
-	attached := strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent")
-	verifyCorePluginExists(t, attached)
+	detached := strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent")
+	t.Logf("%v: Detached: %t", timeNow(t), detached)
+	corePluginPath := getCorePluginProcessName(t)
 
-	if !attached {
+	// Try up to 10 times to see if the core plugin is stopped.
+	var passed bool
+	var output string
+	for i := 0; i < 10; i++ {
+		t.Logf("%v: Iteration %d", timeNow(t), i)
+		if runtime.GOOS == "windows" {
+			status, _, err := utils.ProcessExistsWindows(corePluginPath)
+			output = status.Stdout + "\r\n" + status.Stderr
+
+			// If the error is nil, the process is running.
+			// If the process is detached, it should be running.
+			if (err == nil) == detached {
+				passed = true
+				break
+			}
+		} else {
+			out, found, err := utils.ProcessExistsLinux(corePluginPath)
+			if err != nil {
+				t.Logf("%v: Failed to check if core plugin exists: %v", timeNow(t), err)
+			}
+			output = out
+
+			// If the process is found, the process is running.
+			// If the process is detached, it should be running.
+			if found == detached {
+				passed = true
+				break
+			}
+		}
+		time.Sleep(time.Second * 3)
+	}
+	if !passed {
+		foundStatus := "found"
+		if detached {
+			foundStatus = "not found"
+		}
+		t.Errorf("Core plugin process %s at %q, but should: %t", foundStatus, corePluginPath, detached)
+		t.Errorf("Output: %s", output)
+	}
+
+	if !detached {
 		// ggactl command to stop the core plugin.
 		path := ggactlCleanupPath(t)
 		command := exec.Command(path, "coreplugin", "stop")
@@ -377,6 +421,26 @@ host = %s
 		t.Fatalf("Failed to write to instance_configs.cfg: %v", err)
 	}
 	f.Close()
+}
+
+// getCorePluginProcessName returns the process name of the core plugin based
+// on the OS.
+func getCorePluginProcessName(t *testing.T) string {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		return "CorePlugin"
+	}
+	_, err := os.Stat("/usr/lib/google/guest_agent/core_plugin")
+	if err == nil {
+		return "/usr/lib/google/guest_agent/core_plugin"
+	}
+
+	_, err = os.Stat("/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
+	if err != nil {
+		t.Fatalf("No core plugin paths found!")
+	}
+	return "/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin"
 }
 
 func verifyCorePluginExists(t *testing.T, shouldExist bool) {
