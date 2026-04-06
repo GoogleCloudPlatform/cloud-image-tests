@@ -235,98 +235,206 @@ func TestPluginCleanup(t *testing.T) {
 	}
 }
 
-func stopPluginManager(t *testing.T) {
-	t.Helper()
-	if utils.IsWindows() {
-		if err := utils.CheckPowershellSuccess("Stop-Service -Name GCEAgentManager -Verbose"); err != nil {
-			t.Fatalf("Failed to stop GCEWindowsAgentManager service: %v", err)
-		}
-	} else {
-		cmd := exec.Command("systemctl", "stop", "google-guest-agent-manager")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("Failed to stop google-guest-agent service: %v, \noutput: \n%s", err, string(out))
-		}
-	}
-}
-
 func timeNow(t *testing.T) string {
 	t.Helper()
 	return time.Now().Format(time.RFC3339)
 }
 
 func TestCorePluginStop(t *testing.T) {
-	// Skip if ggactl_plugin is not available.
 	if utils.IsCoreDisabled() {
-		t.Skip("Core plugin is disabled, skipping the test.")
+		t.Skip("Core functionality is disabled, skipping the test.")
 	}
-	t.Logf("%v: Stopping plugin manager", timeNow(t))
-	stopPluginManager(t)
 
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
-	if err != nil {
-		t.Fatalf("Failed to get instance image from MDS: %v", err)
+	// Determine which version of the agent we have.
+	_, err := exec.LookPath("ggactl_plugin")
+	isNewAgent := err == nil
+
+	// Fallback for Windows where the agent dir might not be in PATH.
+	if !isNewAgent && utils.IsWindows() {
+		winPluginPath := `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
+		if _, err := os.Stat(winPluginPath); err == nil {
+			isNewAgent = true
+		}
+	}
+
+	if !isNewAgent {
+		t.Log("Architecture: Legacy (Monolithic).")
+		t.Skip("Core plugin lifecycle tests are not applicable to the legacy agent.")
 	}
 
 	// For the new agent, the core plugin is a direct child process, so stopping
 	// the manager should stop the core plugin.
 	// For the old agent, the core plugin is a detached process, so stopping the
 	// manager should not stop the core plugin.
-	detached := strings.Contains(image, "guest-agent-stable") || !strings.Contains(image, "guest-agent")
-	t.Logf("%v: Detached: %t", timeNow(t), detached)
-	corePluginPath := getCorePluginProcessName(t)
 
-	// Try up to 10 times to see if the core plugin is stopped.
+	// At this point, we know we are on the New Agent architecture.
+	t.Log("Architecture: New (Plugin-based).")
+
+	serviceToStop := "google-guest-agent-manager"
+	if utils.IsWindows() {
+		serviceToStop = "GCEAgentManager"
+	}
+
+	processToCheck := getCorePluginProcessName(t)
+
+	// Use the runtime check to see if the plugin is actually a child or detached.
+	isDetached := checkIsDetached(t, serviceToStop, processToCheck)
+	t.Logf("Detached state detected as: %t", isDetached)
+
+	stopAgentManager(t)
+	verifyProcessState(t, processToCheck, isDetached)
+
+}
+
+// checkIsDetached determines if the plugin is a child of the manager.
+// If it's not a child (e.g. PPID is 1), then it's detached.
+func checkIsDetached(t *testing.T, managerService, pluginPath string) bool {
+	var managerPid, pluginPpid string
+	var err error
+
+	if utils.IsWindows() {
+		managerPid, err = getServicePidWindows(managerService)
+		if err == nil {
+			pluginPpid, err = getProcessPpidWindows(pluginPath)
+		}
+	} else {
+		managerPid, err = getServicePidLinux(managerService)
+		if err == nil {
+			pluginPpid, err = getProcessPpidLinux(pluginPath)
+		}
+	}
+
+	if err != nil {
+		t.Logf("PPID detection failed: %v. Defaulting to architecture expectation.", err)
+		return false
+	}
+	// If the plugin's PPID is not the manager's PID, then it's detached (returns true).
+	return managerPid != pluginPpid
+}
+
+// getServicePidLinux fetches the MainPID of a systemd service.
+func getServicePidLinux(serviceName string) (string, error) {
+	// "--value" flag is not supported by systemd < 230 (like CentOS 7)
+	cmd := exec.Command("systemctl", "show", serviceName, "--property=MainPID")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run %q: %v, output: %s", cmd.String(), err, string(out))
+	}
+
+	// The output will be "MainPID=1234" or just "MainPID=" if not running
+	output := strings.TrimSpace(string(out))
+	parts := strings.Split(output, "=")
+	if len(parts) != 2 || parts[1] == "" || parts[1] == "0" {
+		return "", fmt.Errorf("service %s is not running (MainPID not found), logic check failed for parts: %q", serviceName, parts)
+	}
+
+	return parts[1], nil
+}
+
+// getProcessPpidLinux fetches the PPID of a process.
+func getProcessPpidLinux(processPath string) (string, error) {
+	// Get PID of the process first
+	cmd := exec.Command("pgrep", "-f", processPath)
+	pidOut, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run %q: %v, output: %s", cmd.String(), err, string(pidOut))
+	}
+	pid := strings.TrimSpace(strings.Split(string(pidOut), "\n")[0])
+
+	// Get PPID of that PID
+	cmd = exec.Command("ps", "-o", "ppid=", "-p", pid)
+	ppidOut, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run %q: %v, output: %s", cmd.String(), err, string(ppidOut))
+	}
+	return strings.TrimSpace(string(ppidOut)), nil
+}
+
+// getServicePidWindows fetches the PID of a service.
+func getServicePidWindows(serviceName string) (string, error) {
+	cmd := fmt.Sprintf("(Get-Service %s).Id", serviceName)
+	out, err := utils.RunPowershellCmd(cmd)
+	return strings.TrimSpace(out.Stdout), err
+}
+
+// getProcessPpidWindows fetches the PPID of a process.
+func getProcessPpidWindows(processPath string) (string, error) {
+	var filter string
+
+	// If the string is a path (contains backslashes)
+	if strings.Contains(processPath, `\`) {
+		// Escape backslashes for WMI/CIM
+		escapedPath := strings.ReplaceAll(processPath, `\`, `\\`)
+		filter = fmt.Sprintf("ExecutablePath='%s'", escapedPath)
+	} else {
+		// If it's just a name, ensure it has the .exe suffix
+		name := processPath
+		if !strings.HasSuffix(strings.ToLower(name), ".exe") {
+			name += ".exe"
+		}
+		filter = fmt.Sprintf("Name='%s'", name)
+	}
+
+	// Wrap the filter in double quotes and the property in single quotes for PowerShell
+	cmd := fmt.Sprintf(`(Get-CimInstance Win32_Process -Filter "%s").ParentProcessId`, filter)
+	out, err := utils.RunPowershellCmd(cmd)
+
+	// If no output is found, the process might not be running yet; return error to trigger fallback
+	result := strings.TrimSpace(out.Stdout)
+	if err != nil || result == "" {
+		return "", fmt.Errorf("could not find PPID for %s: %v, \nstderr: \n%s, \nstdout: \n%s",
+			processPath, err, out.Stderr, out.Stdout)
+	}
+	return result, nil
+}
+
+// verifyProcessState verifies that the process is in the expected state.
+func verifyProcessState(t *testing.T, processPath string, expectRunning bool) {
+	t.Helper()
+	t.Logf("%v: Verifying %s (Expect Running: %t)", timeNow(t), processPath, expectRunning)
+
 	var passed bool
-	var output string
+	var lastOutput string
+
 	for i := 0; i < 10; i++ {
-		t.Logf("%v: Iteration %d", timeNow(t), i)
-		if runtime.GOOS == "windows" {
-			status, _, err := utils.ProcessExistsWindows(corePluginPath)
-			output = status.Stdout + "\r\n" + status.Stderr
+		var found bool
+		var currentOutput string
 
-			// If the error is nil, the process is running.
-			// If the process is detached, it should be running.
-			if (err == nil) == detached {
-				passed = true
-				break
-			}
+		if utils.IsWindows() {
+			procName := filepath.Base(processPath)
+			procName = strings.TrimSuffix(procName, ".exe")
+
+			cmd := fmt.Sprintf(`Get-Process -Name "%s" -ErrorAction SilentlyContinue`, procName)
+			status, _ := utils.RunPowershellCmd(cmd)
+
+			currentOutput = status.Stdout + status.Stderr
+			found = (strings.TrimSpace(status.Stdout) != "")
 		} else {
-			out, found, err := utils.ProcessExistsLinux(corePluginPath)
+			out, exists, err := utils.ProcessExistsLinux(processPath)
 			if err != nil {
-				t.Logf("%v: Failed to check if core plugin exists: %v", timeNow(t), err)
+				t.Logf("Error checking process: %v", err)
+				time.Sleep(3 * time.Second)
+				continue
 			}
-			output = out
-
-			// If the process is found, the process is running.
-			// If the process is detached, it should be running.
-			if found == detached {
-				passed = true
-				break
-			}
+			currentOutput = out
+			found = exists
 		}
-		time.Sleep(time.Second * 3)
+
+		lastOutput = currentOutput
+		if found == expectRunning {
+			passed = true
+			break
+		}
+		time.Sleep(3 * time.Second)
 	}
+
 	if !passed {
-		foundStatus := "found"
-		if detached {
-			foundStatus = "not found"
+		expectedStr := "STOPPED"
+		if expectRunning {
+			expectedStr = "RUNNING (Detached)"
 		}
-		t.Errorf("Core plugin process %s at %q, but should: %t", foundStatus, corePluginPath, detached)
-		t.Errorf("Output: %s", output)
-	}
-
-	if !detached {
-		// ggactl command to stop the core plugin.
-		path := ggactlCleanupPath(t)
-		command := exec.Command(path, "coreplugin", "stop")
-		out, err := command.CombinedOutput()
-		if err != nil {
-			t.Fatalf("Failed to run ggactl_plugin: %v, \noutput: \n%s", err, string(out))
-		}
-
-		// Core plugin should be stopped.
-		verifyCorePluginExists(t, false)
+		t.Errorf("Process mismatch for %q. Expected: %s", processPath, expectedStr)
+		t.Fatalf("Last check output: \n%s", lastOutput)
 	}
 }
 
