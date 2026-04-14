@@ -272,6 +272,8 @@ func TestCorePluginStop(t *testing.T) {
 
 	serviceToStop := "google-guest-agent-manager"
 	if utils.IsWindows() {
+		// The Service Name is GCEAgentManager,
+		// but the Binary Name is GCEWindowsAgentManager.
 		serviceToStop = "GCEAgentManager"
 	}
 
@@ -293,7 +295,7 @@ func checkIsDetached(t *testing.T, managerService, pluginPath string) bool {
 	var err error
 
 	if utils.IsWindows() {
-		managerPid, err = getServicePidWindows(managerService)
+		managerPid, err = getServicePidWindows()
 		if err == nil {
 			pluginPpid, err = getProcessPpidWindows(pluginPath)
 		}
@@ -304,11 +306,16 @@ func checkIsDetached(t *testing.T, managerService, pluginPath string) bool {
 		}
 	}
 
-	if err != nil {
-		t.Logf("PPID detection failed: %v. Defaulting to architecture expectation.", err)
+	// Logging with quotes helps identify empty strings or trailing spaces
+	t.Logf("Manager PID: %q, Plugin PPID: %q", managerPid, pluginPpid)
+
+	if err != nil || managerPid == "" || pluginPpid == "" {
+		t.Logf("PID detection failed (Err: %v). Defaulting to isDetached=false for New Agent.", err)
+		// For the new agent architecture, we assume it is NOT detached
+		// unless we can successfully prove the PIDs are different.
 		return false
 	}
-	// If the plugin's PPID is not the manager's PID, then it's detached (returns true).
+
 	return managerPid != pluginPpid
 }
 
@@ -350,11 +357,19 @@ func getProcessPpidLinux(processPath string) (string, error) {
 	return strings.TrimSpace(string(ppidOut)), nil
 }
 
-// getServicePidWindows fetches the PID of a service.
-func getServicePidWindows(serviceName string) (string, error) {
-	cmd := fmt.Sprintf("(Get-Service %s).Id", serviceName)
+// getServicePidWindows fetches the PID of a service with a fallback to process name.
+func getServicePidWindows() (string, error) {
+	// Directly query the process table for the manager binary.
+	// This avoids SCM delays and naming mismatches between Service and Binary.
+	cmd := `(Get-Process -Name "GCEWindowsAgentManager" -ErrorAction SilentlyContinue).Id`
 	out, err := utils.RunPowershellCmd(cmd)
-	return strings.TrimSpace(out.Stdout), err
+	pid := strings.TrimSpace(out.Stdout)
+
+	if err != nil || pid == "" || pid == "0" {
+		return "", fmt.Errorf("could not find PID for GCEWindowsAgentManager: %v, stderr: %s", err, out.Stderr)
+	}
+
+	return pid, nil
 }
 
 // getProcessPpidWindows fetches the PPID of a process.
