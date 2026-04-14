@@ -17,8 +17,6 @@
 package pluginmanager
 
 import (
-	"strings"
-
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 )
 
@@ -33,14 +31,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	defaultVM.RunTests("TestPluginCleanup")
 
-	// Don't run on the stable image.
-	if !strings.Contains(t.Image.Name, "guest-agent-stable") && strings.Contains(t.Image.Name, "guest-agent") {
-		localPluginVM, err := t.CreateTestVM("localplugin")
-		if err != nil {
-			return err
-		}
-		localPluginVM.RunTests("TestLocalPlugin")
+	localPluginVM, err := t.CreateTestVM("localplugin")
+	if err != nil {
+		return err
 	}
+	localPluginVM.RunTests("TestLocalPlugin")
 	pluginStopVM, err := t.CreateTestVM("pluginstop")
 	if err != nil {
 		return err
