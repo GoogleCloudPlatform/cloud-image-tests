@@ -909,7 +909,7 @@ func RestartAgent(ctx context.Context) error {
 	}
 
 	if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-		cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
+		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
 		wait = true
 	}
 
