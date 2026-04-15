@@ -909,7 +909,11 @@ func RestartAgent(ctx context.Context) error {
 	}
 
 	if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
+		if IsWindows() {
+			cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgentManager")
+		} else {
+			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
+		}
 		wait = true
 	}
 
