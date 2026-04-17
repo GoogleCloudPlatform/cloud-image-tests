@@ -209,11 +209,6 @@ func TestPackagesSigned(t *testing.T) {
 			t.Logf("Skipping %q as it does not exist", exec)
 			continue
 		}
-		// TODO(b/503088088): Remove this skip once the parent is fixed.
-		if exec == "C:\\Program Files\\Google\\OSConfig\\google_osconfig_agent.exe" {
-			t.Logf("Skipping %q as b/503088088 is not fixed yet", exec)
-			continue
-		}
 		command := fmt.Sprintf("(Get-AuthenticodeSignature '%s').Status", exec)
 		output, err := utils.RunPowershellCmd(command)
 		if err != nil {
