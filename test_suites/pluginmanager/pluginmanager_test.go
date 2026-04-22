@@ -689,6 +689,9 @@ func TestLocalPlugin(t *testing.T) {
 
 	// With local plugins enabled, check to see that all plugins are running.
 	for _, plugin := range plugins {
+		if strings.Contains(plugin, "GuestTelemetryExtension") { // TODO(b/505402355): Re-enable when local plugins are enabled.
+			continue
+		}
 		if runtime.GOOS == "windows" {
 			// Remove the .exe extension from the plugin name for the verifications.
 			plugin = strings.TrimSuffix(plugin, ".exe")
