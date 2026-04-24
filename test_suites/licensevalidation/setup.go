@@ -137,7 +137,7 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 		project = "opensuse-cloud"
 		// Quirk of opensuse licensing. This suffix will not need to be updated with version changes.
 		transform = func() { requiredLicenses[len(requiredLicenses)-1] += "-42" }
-	case utils.IsRHELEUS(image.Name) || utils.IsRHELLVM(image.Name):
+	case utils.IsRHELEUS(image.Name) || utils.IsRHELLVM(image.Name) || (utils.IsRHEL(image.Name) && utils.IsBeta(image.Name)):
 		project = "rhel-cloud"
 		transform = func() {
 			rhelMajorVersion := strings.TrimPrefix(regexp.MustCompile("rhel-[0-9]{1,2}").FindString(image.Name), "rhel-")
@@ -153,6 +153,9 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 			}
 			if utils.IsRHELLVM(image.Name) {
 				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-lvm")))
+			}
+			if utils.IsRHEL(image.Name) && utils.IsBeta(image.Name) {
+				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-%s-beta", rhelMajorVersion)))
 			}
 		}
 	case utils.IsRHEL(image.Name) && utils.IsSAP(image.Name):

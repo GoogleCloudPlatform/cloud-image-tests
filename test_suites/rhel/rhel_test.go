@@ -34,7 +34,7 @@ func TestVersionLock(t *testing.T) {
 		t.Fatalf("Failed to read image metadata: %v", err)
 	}
 
-	isEUSOrSAP := utils.IsSAP(image) || utils.IsRHELEUS(image)
+	isBetaOrEUSOrSAP := utils.IsSAP(image) || utils.IsRHELEUS(image) || utils.IsBeta(image)
 	data, releaseVerFileErr := os.ReadFile(releaseVerFile)
 	expectedMajorVersion, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "rhel-major-version")
 	if err != nil {
@@ -45,7 +45,7 @@ func TestVersionLock(t *testing.T) {
 		t.Fatalf("Failed to get the rhel-minor-version metadata: %v", err)
 	}
 
-	if isEUSOrSAP && expectedMinorVersion != "10" {
+	if isBetaOrEUSOrSAP && expectedMinorVersion != "10" {
 		if releaseVerFileErr != nil {
 			t.Fatalf("Failed to read releasever file: %v", releaseVerFileErr)
 		}
@@ -61,7 +61,7 @@ func TestVersionLock(t *testing.T) {
 		if rhelMinorVersion != expectedMinorVersion {
 			t.Errorf("The minor release version in the image does not match the minor release version in the image family: \"%s\" != \"%s\"", rhelMinorVersion, expectedMinorVersion)
 		}
-	} else if !isEUSOrSAP {
+	} else if !isBetaOrEUSOrSAP {
 		if releaseVerFileErr == nil {
 			t.Errorf("The release version file shouldn't exist for non-EUS/SAP images: %s", string(data))
 		}
@@ -75,6 +75,7 @@ func TestRhuiPackage(t *testing.T) {
 		t.Fatalf("Failed to read image metadata: %v", err)
 	}
 
+	isBeta := utils.IsBeta(image)
 	isBYOS := utils.IsBYOS(image)
 	isEUS := utils.IsRHELEUS(image)
 	isSAP := utils.IsSAP(image)
@@ -88,6 +89,10 @@ func TestRhuiPackage(t *testing.T) {
 	// For the final point release of a major version for EUS/SAP images, the package appends the
 	// minor release version.
 	rhuiClientFinalPackage := rhuiClientPackage + "10"
+	if isBeta {
+		rhuiClientPackage = rhuiClientPackage + "-beta"
+		rhuiClientFinalPackage = rhuiClientPackage + "-beta"
+	}
 	if isEUS {
 		rhuiClientPackage = rhuiClientPackage + "-eus"
 		rhuiClientFinalPackage = rhuiClientPackage + "-eus"
@@ -101,7 +106,7 @@ func TestRhuiPackage(t *testing.T) {
 		if err == nil {
 			t.Errorf("The rhui client package shouldn't still be installed")
 		}
-	} else if isEUS || isSAP {
+	} else if isBeta || isEUS || isSAP {
 		if !strings.Contains(string(output), rhuiClientPackage) && !strings.Contains(string(output), rhuiClientFinalPackage) {
 			t.Errorf("The rhui client package is not installed: %s", err)
 		}

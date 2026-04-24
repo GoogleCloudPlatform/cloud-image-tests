@@ -421,6 +421,11 @@ func IsAlmaLinux(image string) bool {
 	return strings.Contains(image, "almalinux")
 }
 
+// IsBeta returns true if the image is a beta image.
+func IsBeta(image string) bool {
+	return strings.Contains(image, "beta")
+}
+
 // IsBYOS returns true if the image is BYOS(Bring Your Own Service).
 func IsBYOS(image string) bool {
 	return strings.Contains(image, "byos")
