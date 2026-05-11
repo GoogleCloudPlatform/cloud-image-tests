@@ -16,7 +16,6 @@ package imageboot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -61,6 +60,7 @@ const (
 	secureBootFile     = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 	setupModeFile      = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 	defaultMaxBootTime = 20 // In seconds
+	metadataCurlCmd    = `curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/image`
 )
 
 func mountEFIVarsCOS(t *testing.T) error {
@@ -73,14 +73,14 @@ func mountEFIVarsCOS(t *testing.T) error {
 	ctx := utils.Context(t)
 	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
 	if err != nil {
-		t.Fatalf("Couldn't get image from metadata %v", err)
+		t.Fatalf("[FAILED] unable to get image from metadata with equivalent command %q: %v", metadataCurlCmd, err)
 	}
 
 	if utils.IsCOS(image) {
 		cmd := exec.CommandContext(ctx, "mount", "-t", "efivarfs", "efivarfs", "/sys/firmware/efi/efivars/")
 		_, err := cmd.Output()
 		if err != nil {
-			return fmt.Errorf("Failed to mount EFI vars: %v", err)
+			return fmt.Errorf("failed to mount EFI vars with command %q: %v", cmd.String(), err)
 		}
 	}
 	return nil
@@ -95,13 +95,13 @@ func TestGuestReboot(t *testing.T) {
 	if os.IsNotExist(err) {
 		// first boot
 		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
-			t.Fatalf("failed creating marker file directory: %v", err)
+			t.Fatalf("[FAILED] unable to create marker file directory: %v", err)
 		}
 		if _, err := os.Create(markerFile); err != nil {
-			t.Fatalf("failed creating marker file: %v", err)
+			t.Fatalf("[FAILED] unable to create marker file: %v", err)
 		}
 	} else if err != nil {
-		t.Fatalf("failed to stat marker file: %+v", err)
+		t.Fatalf("[FAILED] unable to stat marker file: %+v", err)
 	}
 	// second boot
 	t.Log("marker file exist signal the guest reboot successful")
@@ -112,10 +112,10 @@ func TestGuestRebootOnHost(t *testing.T) {
 	if os.IsNotExist(err) {
 		// first boot
 		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
-			t.Fatalf("failed creating marker file directory: %v", err)
+			t.Fatalf("[FAILED] unable to create marker file directory: %v", err)
 		}
 		if _, err := os.Create(markerFile); err != nil {
-			t.Fatalf("failed creating marker file: %v", err)
+			t.Fatalf("[FAILED] unable to create marker file: %v", err)
 		}
 		var cmd *exec.Cmd
 		if utils.IsWindows() {
@@ -126,7 +126,7 @@ func TestGuestRebootOnHost(t *testing.T) {
 		if err := cmd.Run(); err != nil {
 			// check if error value is "signal: terminated" and if so, it means the reboot command was sent successfully
 			if !(strings.Contains(err.Error(), "signal: terminated")) {
-				t.Fatalf("failed to run reboot command: %v", err)
+				t.Fatalf("[FAILED] error running reboot command %q: %v", cmd.String(), err)
 			}
 		}
 		// sleep for a minute to ensure the guest has time to reboot
@@ -141,11 +141,11 @@ func TestGuestRebootOnHost(t *testing.T) {
 func TestGuestSecureBoot(t *testing.T) {
 	if utils.IsWindows() {
 		if err := testWindowsGuestSecureBoot(); err != nil {
-			t.Fatalf("SecureBoot test failed with: %v", err)
+			t.Fatalf("[FAILED] error running SecureBoot test: %v", err)
 		}
 	} else {
 		if err := testLinuxGuestSecureBoot(t); err != nil {
-			t.Fatalf("SecureBoot test failed with: %v", err)
+			t.Fatalf("[FAILED] error running SecureBoot test: %v", err)
 		}
 	}
 }
@@ -156,22 +156,22 @@ func testLinuxGuestSecureBoot(t *testing.T) error {
 	}
 
 	if _, err := os.Stat(secureBootFile); os.IsNotExist(err) {
-		return errors.New("secureboot efi var is missing")
+		return fmt.Errorf("failed to stat file %q: secureboot efi var is missing", secureBootFile)
 	}
 	data, err := ioutil.ReadFile(secureBootFile)
 	if err != nil {
-		return errors.New("failed reading secure boot file")
+		return fmt.Errorf("failed reading secure boot file %q: %v", secureBootFile, err)
 	}
 	// https://www.kernel.org/doc/Documentation/ABI/stable/sysfs-firmware-efi-vars
 	secureBootMode := data[len(data)-1]
 	// https://uefi.org/specs/UEFI/2.9_A/32_Secure_Boot_and_Driver_Signing.html#firmware-os-key-exchange-creating-trust-relationships
 	// If setup mode is not 0 secure boot isn't actually enabled because no PK is enrolled.
 	if _, err = os.Stat(setupModeFile); os.IsNotExist(err) {
-		return errors.New("setupmode efi var is missing")
+		return fmt.Errorf("failed to stat file %q: setupmode efi var is missing", setupModeFile)
 	}
 	data, err = ioutil.ReadFile(setupModeFile)
 	if err != nil {
-		return errors.New("failed reading setup mode file")
+		return fmt.Errorf("failed reading setup mode file %q: %v", setupModeFile, err)
 	}
 	setupMode := data[len(data)-1]
 	if secureBootMode != 1 || setupMode != 0 {
@@ -185,13 +185,13 @@ func testWindowsGuestSecureBoot() error {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to run SecureBoot command: %v", err)
+		return fmt.Errorf("failed to run SecureBoot command %q: %v", cmd.String(), err)
 	}
 
 	// The output will return a string that is either 'True' or 'False'
 	// so we need to parse it and compare here.
 	if trimmedOutput := strings.TrimSpace(string(output)); trimmedOutput != "True" {
-		return errors.New("Secure boot is not enabled as expected")
+		return fmt.Errorf("Secure boot is not enabled as expected, output of %q is %q", cmd.String(), trimmedOutput)
 	}
 
 	return nil
@@ -201,7 +201,7 @@ func TestBootTime(t *testing.T) {
 	ctx := utils.Context(t)
 	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
-		t.Errorf("utils.GetMetadata(ctx, instance, image) = err %v want nil", err)
+		t.Errorf("[FAILED] unable to get image from metadata with equivalent command %q: %v", metadataCurlCmd, err)
 	}
 	startTime := findInstanceStartTime(ctx, t)
 	essentialServiceStartTime := findEssentialServiceStartTime(ctx, t, image)
@@ -209,7 +209,7 @@ func TestBootTime(t *testing.T) {
 	t.Logf("Instance start time: %s", startTime.Format(time.ANSIC))
 	t.Logf("Service start time: %s", essentialServiceStartTime.Format(time.ANSIC))
 	if bootTime < 0 {
-		t.Fatalf("Invalid boot time, services started before boot.")
+		t.Fatalf("[FAILED] Invalid boot time, services started before boot.")
 	}
 	maxBootTime := defaultMaxBootTime
 	for _, threshold := range imageBootTimeThresholds {
@@ -219,7 +219,7 @@ func TestBootTime(t *testing.T) {
 		}
 	}
 	if bootTime > maxBootTime {
-		t.Errorf("Boot time of %d is greater than limit of %d", bootTime, maxBootTime)
+		t.Errorf("[FAILED] Boot time of %d is greater than limit of %d", bootTime, maxBootTime)
 	}
 	if bootTime+10 < maxBootTime {
 		t.Logf("Boot time of %d is more than 10 seconds below limit of %d. Consider lowering the limit if this is consistent.", bootTime, maxBootTime)
@@ -232,23 +232,23 @@ func findInstanceStartTime(ctx context.Context, t *testing.T) time.Time {
 		cmd := "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime"
 		output, err := utils.RunPowershellCmd(cmd)
 		if err != nil {
-			t.Fatalf("utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
+			t.Fatalf("[FAILED] utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
 		}
 		timestamp := strings.TrimSpace(output.Stdout)
 		instanceStartTime, err := time.Parse(windowsTimeFormat, timestamp)
 		if err != nil {
-			t.Fatalf("time.Parse(windowsTimeFormat, %s) = %v want nil", timestamp, err)
+			t.Fatalf("[FAILED] time.Parse(windowsTimeFormat, %s) = %v want nil", timestamp, err)
 		}
 		return instanceStartTime
 	}
 	uptimeData, err := os.ReadFile("/proc/uptime")
 	if err != nil {
-		t.Fatalf("os.ReadFile(/proc/uptime) = %v want nil", err)
+		t.Fatalf("[FAILED] unable to read file %q: %v", "/proc/uptime", err)
 	}
 	fields := strings.Split(string(uptimeData), " ")
 	uptime, err := strconv.ParseFloat(fields[0], 64)
 	if err != nil {
-		t.Fatalf("strconv.ParseFloat(%s, 64) = %v want nil", fields, err)
+		t.Fatalf("[FAILED] strconv.ParseFloat(%s, 64) = %v want nil", fields, err)
 	}
 	instanceStartTime := time.Now().Add(time.Duration(-1*uptime) * time.Second)
 	return instanceStartTime
@@ -279,7 +279,7 @@ func findEssentialServiceStartTime(ctx context.Context, t *testing.T, image stri
 		}
 	}
 	if !foundOneRunningService && len(essentialServices) > 0 {
-		t.Fatalf("Critical error: None of the essential services (%v) were found running for image %s.", essentialServices, image)
+		t.Fatalf("[FAILED] Critical error: None of the essential services (%v) were found running for image %s.", essentialServices, image)
 	}
 	return latestStartTime
 }
@@ -301,25 +301,25 @@ func findServiceStartTime(ctx context.Context, t *testing.T, service string) tim
 			}
 			output, err := utils.RunPowershellCmd(fmt.Sprintf(`(Get-Service -Name "%s").Status`, service))
 			if err != nil {
-				t.Fatalf("utils.RunPowershellCmd((Get-Service -Name %q).Status) = stderr: %v err: %v want err: nil", service, output.Stderr, err)
+				t.Fatalf("[FAILED] utils.RunPowershellCmd((Get-Service -Name %q).Status) = stderr: %v err: %v want err: nil", service, output.Stderr, err)
 			}
 			if strings.Contains(output.Stdout, "Running") {
 				break
 			}
 			time.Sleep(time.Second)
 			if ctx.Err() != nil {
-				t.Fatalf("context expired before service %s was started: %v", service, ctx.Err())
+				t.Fatalf("[FAILED] context expired before service %s was started: %v", service, ctx.Err())
 			}
 		}
 		cmd := fmt.Sprintf(`(Get-Process -Id ((Get-CimInstance -ClassName Win32_Service | Where-Object {$_.Name -eq "%s"}).ProcessId)).StartTime`, service)
 		output, err := utils.RunPowershellCmd(cmd)
 		if err != nil {
-			t.Fatalf("utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
+			t.Fatalf("[FAILED] utils.RunPowershellCmd(%s) = stderr: %v err: %v want err: nil", cmd, output.Stderr, err)
 		}
 		timestamp := strings.TrimSpace(output.Stdout)
 		serviceStartTime, err := time.Parse(windowsTimeFormat, timestamp)
 		if err != nil {
-			t.Fatalf("time.Parse(windowsServiceTimeFormat, %q) = %v want nil", timestamp, err)
+			t.Fatalf("[FAILED] time.Parse(windowsServiceTimeFormat, %q) = %v want nil", timestamp, err)
 		}
 		return serviceStartTime
 	}
@@ -327,7 +327,7 @@ func findServiceStartTime(ctx context.Context, t *testing.T, service string) tim
 		cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveState,UnitFileState", service)
 		output, err := cmd.Output()
 		if err != nil {
-			t.Fatalf("exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
+			t.Fatalf("[FAILED] exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
 		}
 		if strings.Contains(string(output), "ActiveState=active") {
 			break
@@ -338,18 +338,18 @@ func findServiceStartTime(ctx context.Context, t *testing.T, service string) tim
 		}
 		time.Sleep(time.Second)
 		if ctx.Err() != nil {
-			t.Fatalf("context expired before service %s was started: %v", service, ctx.Err())
+			t.Fatalf("[FAILED] context expired before service %s was started: %v", service, ctx.Err())
 		}
 	}
 	cmd := exec.CommandContext(ctx, "systemctl", "show", "--property=ActiveEnterTimestamp", service)
 	output, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("exec.CommandContext(ctx, %s) = %v want nil", cmd.String(), err)
+		t.Fatalf("[FAILED] error while running command: %q: %v", cmd.String(), err)
 	}
 	timestamp := strings.TrimPrefix(strings.TrimSpace(string(output)), "ActiveEnterTimestamp=")
 	serviceStartTime, err := time.Parse(systemdTimeFormat, timestamp)
 	if err != nil {
-		t.Fatalf("time.Parse(systemdTimeFormat, %q) = %v want nil", timestamp, err)
+		t.Fatalf("[FAILED] time.Parse(systemdTimeFormat, %q) = %v want nil", timestamp, err)
 	}
 	return serviceStartTime
 }
