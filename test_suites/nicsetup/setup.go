@@ -75,6 +75,11 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return nil
 	}
 
+	if strings.Contains(t.Image.Name, "sles-16") {
+		t.Skip("b/511534265: Skipping nicsetup test for SLES 16 due to flaky tests.")
+		return nil
+	}
+
 	// Verify the VM type for the test.
 	if !slices.Contains(possibleVMTypes, *vmtype) {
 		return fmt.Errorf("invalid vmtype: %s\nMust be one of: %v", *vmtype, possibleVMTypes)
