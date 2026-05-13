@@ -75,6 +75,7 @@ func TestRhuiPackage(t *testing.T) {
 		t.Fatalf("Failed to read image metadata: %v", err)
 	}
 
+	isBeta := utils.IsBeta(image)
 	isBYOS := utils.IsBYOS(image)
 	isEUS := utils.IsRHELEUS(image)
 	isSAP := utils.IsSAP(image)
@@ -88,6 +89,10 @@ func TestRhuiPackage(t *testing.T) {
 	// For the final point release of a major version for EUS/SAP images, the package appends the
 	// minor release version.
 	rhuiClientFinalPackage := rhuiClientPackage + "10"
+	if isBeta {
+		rhuiClientPackage = rhuiClientPackage + "-beta"
+		rhuiClientFinalPackage = rhuiClientPackage + "-beta"
+	}
 	if isEUS {
 		rhuiClientPackage = rhuiClientPackage + "-eus"
 		rhuiClientFinalPackage = rhuiClientPackage + "-eus"
@@ -101,7 +106,7 @@ func TestRhuiPackage(t *testing.T) {
 		if err == nil {
 			t.Errorf("The rhui client package shouldn't still be installed")
 		}
-	} else if isEUS || isSAP {
+	} else if isBeta || isEUS || isSAP {
 		if !strings.Contains(string(output), rhuiClientPackage) && !strings.Contains(string(output), rhuiClientFinalPackage) {
 			t.Errorf("The rhui client package is not installed: %s", err)
 		}
