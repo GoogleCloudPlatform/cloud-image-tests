@@ -239,11 +239,11 @@ func TestCleanTestWorkflow(t *testing.T) {
 
 func TestWorkflowRegions(t *testing.T) {
 	testcases := []struct {
-		name     string
-		wfZone   string
-		gaVMs    []string // per-VM zones for the GA (Instance) struct
-		betaVMs  []string // per-VM zones for the Beta (InstanceBeta) struct
-		want     []string
+		name    string
+		wfZone  string
+		gaVMs   []string // per-VM zones for the GA (Instance) struct
+		betaVMs []string // per-VM zones for the Beta (InstanceBeta) struct
+		want    []string
 	}{
 		{
 			name: "no zones at all",
