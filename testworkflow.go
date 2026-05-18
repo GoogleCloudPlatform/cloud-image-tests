@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -1148,9 +1149,13 @@ func cleanTestWorkflow(test *TestWorkflow) (totalCleaned []string, totalErrs []e
 }
 
 // regionFromZone returns the region a zone belongs to (e.g. "us-central1" for
-// "us-central1-a"). Returns "" if zone is empty or not in <region>-<suffix>
-// form.
+// "us-central1-a"). Accepts short names ("us-central1-a") as well as path or
+// URL forms (e.g. "zones/us-central1-a", or a full
+// "https://www.googleapis.com/compute/v1/.../zones/us-central1-a") because
+// daisy may populate vm.Zone with either at different stages. Returns "" if
+// zone is empty or not in <region>-<suffix> form.
 func regionFromZone(zone string) string {
+	zone = path.Base(zone)
 	i := strings.LastIndex(zone, "-")
 	if i <= 0 {
 		return ""

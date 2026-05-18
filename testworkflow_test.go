@@ -268,6 +268,13 @@ func TestWorkflowRegions(t *testing.T) {
 			want:   []string{"us-central1"},
 		},
 		{
+			name:    "url-form vm zone reduced to region",
+			wfZone:  "us-central1-a",
+			gaVMs:   []string{"https://www.googleapis.com/compute/v1/projects/p/zones/us-west1-a"},
+			betaVMs: []string{"zones/europe-west4-b"},
+			want:    []string{"europe-west4", "us-central1", "us-west1"},
+		},
+		{
 			name:   "malformed zone ignored",
 			wfZone: "us-central1-a",
 			gaVMs:  []string{"nodash", ""},
