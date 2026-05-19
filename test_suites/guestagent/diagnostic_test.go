@@ -12,7 +12,10 @@
 package guestagent
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -28,6 +31,14 @@ type diagnosticsEntry struct {
 	ExpireOn  string
 	Trace     bool
 }
+
+const (
+	guestAgentManagerService = "google-guest-agent-manager.service"
+	guestAgentService        = "google-guest-agent.service"
+	rsaKeyPath               = "/etc/ssh/ssh_host_rsa_key"
+	ed25519KeyPath           = "/etc/ssh/ssh_host_ed25519_key"
+	ecdsaKeyPath             = "/etc/ssh/ssh_host_ecdsa_key"
+)
 
 func TestDiagnostic(t *testing.T) {
 	entry := &diagnosticsEntry{
@@ -146,4 +157,75 @@ func testServiceConfigWindows(t *testing.T, image string) {
 			t.Errorf("Service %s is not in AUTO_START (DELAYED) state, output: %s", service, string(out))
 		}
 	}
+}
+
+// TestSSHHostKeyExistence verifies that standard SSH host keys have been generated.
+func TestSSHHostKeyExistence(t *testing.T) {
+	expectedKeys := []string{rsaKeyPath, ed25519KeyPath}
+
+	for _, key := range expectedKeys {
+		if _, err := os.Stat(key); err != nil {
+			t.Errorf("Required SSH host key %s is missing: %v", key, err)
+		} else {
+			t.Logf("Found SSH host key: %s", key)
+		}
+	}
+}
+
+// TestSSHHostKeyTimingVsAgent verifies that SSH host keys are written
+// by the Google Guest Agent before it marks itself ready.
+func TestSSHHostKeyTimingVsAgent(t *testing.T) {
+	ctx := context.Background()
+
+	// Get the modification time of the RSA host key
+	info, err := os.Stat(rsaKeyPath)
+	if err != nil {
+		t.Fatalf("Failed to stat %s: %v", rsaKeyPath, err)
+	}
+	keyTime := info.ModTime()
+	t.Logf("Host key %s modification time: %v", rsaKeyPath, keyTime)
+
+	// Determine which service is active and get its timestamps
+	activeService := guestAgentService
+	agentReadyTime, err := getServiceTimestamps(ctx, activeService)
+	if err != nil {
+		t.Logf("Failed to get timestamps for %s: %v. Trying %s...", activeService, err, guestAgentManagerService)
+
+		activeService = guestAgentManagerService
+		agentReadyTime, err = getServiceTimestamps(ctx, activeService)
+		if err != nil {
+			t.Fatalf("Failed to get start times for both %s and %s: %v", guestAgentService, guestAgentManagerService, err)
+		}
+	}
+
+	t.Logf("%s ActiveEnterTimestamp: %v", activeService, agentReadyTime)
+	// Assertion: Key should be written BEFORE the guest agent marks itself ready.
+	if keyTime.After(agentReadyTime) {
+		t.Errorf("Host keys written (%v) AFTER %s became ready (%v). Keys must exist before agent is ready.", keyTime, activeService, agentReadyTime)
+	} else {
+		t.Logf("PASS: Host keys written (%v) before %s ActiveEnterTimestamp (%v)", keyTime, activeService, agentReadyTime)
+	}
+}
+
+// getServiceTimestamps queries systemd for the ActiveEnterTimestamp of a given service.
+func getServiceTimestamps(ctx context.Context, service string) (time.Time, error) {
+	cmd := exec.CommandContext(ctx, "systemctl", "show", service, "-p", "ActiveEnterTimestamp", "--value")
+	out, err := cmd.Output()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("systemctl show failed for %s: %v", service, err)
+	}
+
+	timeStr := strings.TrimSpace(string(out))
+	if timeStr == "" {
+		return time.Time{}, fmt.Errorf("empty timestamp returned for %s", service)
+	}
+
+	// systemd ActiveEnterTimestamp format: "Mon 2023-10-23 15:34:12 UTC"
+	layout := "Mon 2006-01-02 15:04:05 MST"
+	parsedTime, err := time.Parse(layout, timeStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse time %q: %v", timeStr, err)
+	}
+
+	return parsedTime, nil
 }

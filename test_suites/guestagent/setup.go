@@ -13,6 +13,8 @@
 package guestagent
 
 import (
+	"fmt"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/compute-daisy"
@@ -67,6 +69,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
 		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
 		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
+	}
+
+	if !utils.IsWindowsImage(t.Image.Name) {
+		// Only test SSH host keys on non-Windows images.
+		vm, err := t.CreateTestVM("sshkeytest")
+		if err != nil {
+			return fmt.Errorf("failed to create test VM: %w", err)
+		}
+		vm.AddScope("https://www.googleapis.com/auth/cloud-platform")
+		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent")
 	}
 
 	return nil
