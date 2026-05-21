@@ -12,12 +12,14 @@
 package guestagent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -35,9 +37,9 @@ type diagnosticsEntry struct {
 const (
 	guestAgentManagerService = "google-guest-agent-manager.service"
 	guestAgentService        = "google-guest-agent.service"
-	rsaKeyPath               = "/etc/ssh/ssh_host_rsa_key"
-	ed25519KeyPath           = "/etc/ssh/ssh_host_ed25519_key"
-	ecdsaKeyPath             = "/etc/ssh/ssh_host_ecdsa_key"
+	rsaKey                   = "ssh_host_rsa_key"
+	ed25519Key               = "ssh_host_ed25519_key"
+	ecdsaKey                 = "ssh_host_ecdsa_key"
 )
 
 func TestDiagnostic(t *testing.T) {
@@ -159,9 +161,47 @@ func testServiceConfigWindows(t *testing.T, image string) {
 	}
 }
 
+// getHostKeyDir searches for the instance config file and parses the host_key_dir variable.
+// It defaults to "/etc/ssh" if the configuration is not found.
+func getHostKeyDir() string {
+	defaultDir := "/etc/ssh"
+
+	// The guest agent config is usually /etc/default/instance_configs.cfg
+	matches, err := filepath.Glob("/etc/default/instance_config*")
+	if err != nil || len(matches) == 0 {
+		return defaultDir
+	}
+
+	for _, configPath := range matches {
+		file, err := os.Open(configPath)
+		if err != nil {
+			continue // skip to next file if we can't open this one
+		}
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			// Check if the line sets the host_key_dir variable (ignoring comments)
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[0]) == "host_key_dir" {
+				file.Close()
+				return strings.TrimSpace(parts[1])
+			}
+		}
+		file.Close()
+	}
+
+	return defaultDir
+}
+
 // TestSSHHostKeyExistence verifies that standard SSH host keys have been generated.
 func TestSSHHostKeyExistence(t *testing.T) {
-	expectedKeys := []string{rsaKeyPath, ed25519KeyPath}
+	keyDir := getHostKeyDir()
+	expectedKeys := []string{
+		filepath.Join(keyDir, rsaKey),
+		filepath.Join(keyDir, ed25519Key),
+		filepath.Join(keyDir, ecdsaKey),
+	}
 
 	for _, key := range expectedKeys {
 		if _, err := os.Stat(key); err != nil {
@@ -176,6 +216,8 @@ func TestSSHHostKeyExistence(t *testing.T) {
 // by the Google Guest Agent before it marks itself ready.
 func TestSSHHostKeyTimingVsAgent(t *testing.T) {
 	ctx := context.Background()
+	keyDir := getHostKeyDir()
+	rsaKeyPath := filepath.Join(keyDir, rsaKey)
 
 	// Get the modification time of the RSA host key
 	info, err := os.Stat(rsaKeyPath)
@@ -207,25 +249,36 @@ func TestSSHHostKeyTimingVsAgent(t *testing.T) {
 	}
 }
 
-// getServiceTimestamps queries systemd for the ActiveEnterTimestamp of a given service.
+// getServiceTimestamps queries systemd's DBus API to get the exact microsecond ActiveEnterTimestamp.
 func getServiceTimestamps(ctx context.Context, service string) (time.Time, error) {
-	cmd := exec.CommandContext(ctx, "systemctl", "show", service, "-p", "ActiveEnterTimestamp", "--value")
+	// 1. Escape the service name for DBus object path routing
+	// Example: "google-guest-agent.service" -> "google_2dguest_2dagent_2eservice"
+	dbusPath := strings.ReplaceAll(service, "-", "_2d")
+	dbusPath = strings.ReplaceAll(dbusPath, ".", "_2e")
+	fullPath := fmt.Sprintf("/org/freedesktop/systemd1/unit/%s", dbusPath)
+
+	// 2. Ask busctl for the raw microsecond timestamp
+	cmd := exec.CommandContext(ctx, "busctl", "get-property", "org.freedesktop.systemd1",
+		fullPath, "org.freedesktop.systemd1.Unit", "ActiveEnterTimestamp")
 	out, err := cmd.Output()
 	if err != nil {
-		return time.Time{}, fmt.Errorf("systemctl show failed for %s: %v", service, err)
+		return time.Time{}, fmt.Errorf("busctl command failed for %s: %v\nOutput: %s", service, err, out)
 	}
 
-	timeStr := strings.TrimSpace(string(out))
-	if timeStr == "" {
-		return time.Time{}, fmt.Errorf("empty timestamp returned for %s", service)
+	// 3. Parse the output (busctl returns format: "t 1653139385938123")
+	fields := strings.Fields(string(out))
+	if len(fields) < 2 {
+		return time.Time{}, fmt.Errorf("unexpected busctl output format for %s: %s", service, string(out))
 	}
 
-	// systemd ActiveEnterTimestamp format: "Mon 2023-10-23 15:34:12 UTC"
-	layout := "Mon 2006-01-02 15:04:05 MST"
-	parsedTime, err := time.Parse(layout, timeStr)
+	microSec, err := strconv.ParseInt(fields[1], 10, 64)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to parse time %q: %v", timeStr, err)
+		return time.Time{}, fmt.Errorf("failed to parse microseconds %q for %s: %v", fields[1], service, err)
 	}
 
-	return parsedTime, nil
+	if microSec == 0 {
+		return time.Time{}, fmt.Errorf("service %s has not been started (timestamp is 0)", service)
+	}
+
+	return time.UnixMicro(microSec), nil
 }
