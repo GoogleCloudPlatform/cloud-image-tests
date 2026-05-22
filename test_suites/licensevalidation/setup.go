@@ -157,6 +157,9 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 			if utils.IsRHEL(image.Name) && utils.IsBeta(image.Name) {
 				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("rhel-%s-beta", rhelMajorVersion)))
 			}
+			if strings.Contains(image.Name, "gvnic-baremetal") {
+				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("el-oot-gvnic-baremetal-driver")))
+			}
 		}
 	case utils.IsRHEL(image.Name) && utils.IsSAP(image.Name):
 		project = "rhel-sap-cloud"
@@ -167,6 +170,9 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 			}
 			rhelSapVersionRe := regexp.MustCompile("-[0-9]+-sap-(ha|byos)$")
 			requiredLicenses[len(requiredLicenses)-1] = rhelSapVersionRe.ReplaceAllString(requiredLicenses[len(requiredLicenses)-1], newSuffix)
+			if strings.Contains(image.Name, "gvnic-baremetal") {
+				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("el-oot-gvnic-baremetal-driver")))
+			}
 		}
 	case utils.IsRHEL(image.Name):
 		project = "rhel-cloud"
@@ -175,6 +181,11 @@ func requiredLicenseList(t *imagetest.TestWorkflow) ([]string, error) {
 				requiredLicenses[len(requiredLicenses)-1] += "-server"
 			}
 			requiredLicenses[len(requiredLicenses)-1] = strings.ReplaceAll(requiredLicenses[len(requiredLicenses)-1], "-c3m", "")
+			requiredLicenses[len(requiredLicenses)-1] = strings.ReplaceAll(requiredLicenses[len(requiredLicenses)-1], "-gvnic-baremetal", "")
+			requiredLicenses[len(requiredLicenses)-1] = strings.ReplaceAll(requiredLicenses[len(requiredLicenses)-1], "-unsigned", "")
+			if strings.Contains(image.Name, "gvnic-baremetal") {
+				requiredLicenses = append(requiredLicenses, fmt.Sprintf(licenseURLTmpl, project, fmt.Sprintf("el-oot-gvnic-baremetal-driver")))
+			}
 		}
 	case utils.IsRocky(image.Name) && utils.IsAccelerator(image.Name):
 		project = "rocky-linux-cloud"
