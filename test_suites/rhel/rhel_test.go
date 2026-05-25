@@ -151,14 +151,14 @@ func TestPackageInstallation(t *testing.T) {
 	case "9":
 		isSAP90 := isSAP && expectedMinorVersion == "0"
 		isSAP92 := isSAP && expectedMinorVersion == "2"
-		// RHEL 9 w/ rhc: All BYOS (except RHEL 9.0 SAP BYOS), RHEL 9.2 SAP.
-		if (isBYOS && !isSAP90) || isSAP92 {
+		// RHEL 9 w/ rhc: All BYOS, RHEL 9.0 SAP, RHEL 9.2 SAP.
+		if isBYOS || isSAP90 || isSAP92 {
 			checkPackageInstallation(t, "rhc", true)
 		} else {
 			checkPackageInstallation(t, "rhc", false)
 		}
-		// RHEL 9 w/ insights-client: All BYOS (except RHEL 9.0 SAP BYOS), RHEL 9.2 SAP.
-		if (isBYOS && !isSAP90) || isSAP92 {
+		// RHEL 9 w/ insights-client: All BYOS, RHEL 9.0 SAP, RHEL 9.2 SAP.
+		if isBYOS || isSAP90 || isSAP92 {
 			checkPackageInstallation(t, "insights-client", true)
 		} else {
 			checkPackageInstallation(t, "insights-client", false)
@@ -176,7 +176,7 @@ func TestPackageInstallation(t *testing.T) {
 		}
 
 		// RHEL 8 w/ insights-client: All x86 BYOS, RHEL 8.6/8.8 SAP.
-		if isSAP86 || isSAP88 || isBYOSX86 {
+		if isSAP86 || isSAP88 || isBYOS {
 			checkPackageInstallation(t, "insights-client", true)
 		} else {
 			checkPackageInstallation(t, "insights-client", false)
