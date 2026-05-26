@@ -63,7 +63,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes"
 	if !utils.IsWindowsImage(t.Image.Name) {
 		// Windows does not remove the local users.
-		runTests += "|TestDeleteLocalUser|TestDeleteUserDefault"
+		runTests += "|TestSSHServiceStartsAfterGuestAgent|TestDeleteLocalUser|TestDeleteUserDefault"
 	}
 
 	vm.RunTests(runTests)
