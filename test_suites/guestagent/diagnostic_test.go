@@ -227,20 +227,11 @@ func TestSSHHostKeyTimingVsAgent(t *testing.T) {
 	keyTime := info.ModTime()
 	t.Logf("Host key %s modification time: %v", rsaKeyPath, keyTime)
 
-	// Determine which service is active and get its timestamps
-	activeService := guestAgentService
-	agentReadyTime, err := getServiceTimestamps(ctx, activeService)
-	if err != nil {
-		t.Logf("Failed to get timestamps for %s: %v. Trying %s...", activeService, err, guestAgentManagerService)
-
-		activeService = guestAgentManagerService
-		agentReadyTime, err = getServiceTimestamps(ctx, activeService)
-		if err != nil {
-			t.Fatalf("Failed to get start times for both %s and %s: %v", guestAgentService, guestAgentManagerService, err)
-		}
-	}
-
+	// Get the active agent service and its ready time
+	// (We use '_' to ignore the logName since this test doesn't need journalctl)
+	activeService, _, agentReadyTime := getActiveGuestAgent(ctx, t)
 	t.Logf("%s ActiveEnterTimestamp: %v", activeService, agentReadyTime)
+
 	// Assertion: Key should be written BEFORE the guest agent marks itself ready.
 	if keyTime.After(agentReadyTime) {
 		t.Errorf("Host keys written (%v) AFTER %s became ready (%v). Keys must exist before agent is ready.", keyTime, activeService, agentReadyTime)
@@ -281,4 +272,89 @@ func getServiceTimestamps(ctx context.Context, service string) (time.Time, error
 	}
 
 	return time.UnixMicro(microSec), nil
+}
+
+// TestNetworkSetupCompletesBeforeAgentReady verifies that the Google Guest Agent
+// finishes its network management module setup before systemd marks it as active/ready.
+func TestNetworkSetupCompletesBeforeAgentReady(t *testing.T) {
+	ctx := context.Background()
+
+	// Get the active agent service and its ready time
+	activeService, logName, agentReadyTime := getActiveGuestAgent(ctx, t)
+	if activeService == guestAgentService {
+		t.Skip("Skipping test: the legacy agent does not log messages around network setup with respect to its readiness.")
+	}
+	t.Logf("%s ActiveEnterTimestamp: %v", activeService, agentReadyTime)
+
+	// Query the system journal for the Guest Agent's logs with high precision timestamps.
+	cmd := exec.CommandContext(ctx, "sudo", "journalctl", "-u", logName, "-o", "short-iso-precise")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to query journalctl for %s logs: %v\nOutput: %s", logName, err, string(out))
+	}
+
+	// Find the network configuration completion timestamp from the logs.
+	var networkLogTime time.Time
+	var found bool
+
+	targetLogMsg := "Finished linux network management module setup."
+
+	// Helper to handle journalctl's inconsistent timezone formatting across OS versions
+	parseJournalTime := func(ts string) (time.Time, error) {
+		if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+			return parsed, nil
+		}
+		customLayout := "2006-01-02T15:04:05.999999999-0700"
+		return time.Parse(customLayout, ts)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, targetLogMsg) {
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) > 0 {
+				parsed, err := parseJournalTime(parts[0])
+				if err == nil {
+					networkLogTime = parsed
+					found = true
+				} else {
+					t.Logf("Found target log but failed to parse timestamp %q: %v", parts[0], err)
+				}
+			}
+		}
+	}
+
+	if !found {
+		t.Fatalf("Could not find %q in journalctl. Network setup may have failed or log phrasing changed.", targetLogMsg)
+	}
+	t.Logf("Network setup completion log timestamp: %v", networkLogTime)
+
+	// Assert that network setup finished before guest agent marked itself ready.
+	if networkLogTime.After(agentReadyTime) {
+		t.Errorf("Network setup completed (%v) AFTER the agent was marked ready (%v).", networkLogTime, agentReadyTime)
+	} else {
+		t.Logf("PASS: Network setup completed (%v) BEFORE the agent ready time (%v).", networkLogTime, agentReadyTime)
+	}
+}
+
+// getActiveGuestAgent finds the active guest agent service and returns its systemd
+// service name, its journalctl unit name, and its ActiveEnterTimestamp.
+func getActiveGuestAgent(ctx context.Context, t *testing.T) (serviceName string, logName string, readyTime time.Time) {
+	t.Helper()
+
+	serviceName = guestAgentService
+	logName = "google-guest-agent"
+	readyTime, err := getServiceTimestamps(ctx, serviceName)
+
+	if err != nil {
+		t.Logf("Failed to get timestamps for %s: %v. Trying %s...", serviceName, err, guestAgentManagerService)
+
+		serviceName = guestAgentManagerService
+		logName = "google-guest-agent-manager"
+		readyTime, err = getServiceTimestamps(ctx, serviceName)
+		if err != nil {
+			t.Fatalf("Failed to get ready time for both %s and %s: %v", guestAgentService, guestAgentManagerService, err)
+		}
+	}
+	return serviceName, logName, readyTime
 }
