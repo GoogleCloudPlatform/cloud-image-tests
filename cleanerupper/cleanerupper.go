@@ -450,16 +450,30 @@ func CleanSnapshots(clients Clients, project string, delete PolicyFunc, dryRun b
 	return deleted, errs
 }
 
-// CleanLoadBalancerResources deletes load balancer backend services and associated URL Maps, forwarding rules, network endpoint groups, and HTTP Proxies indicated by the policy func.
-func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFunc, dryRun bool) ([]string, []error) {
+// CleanLoadBalancerResources deletes load balancer backend services and
+// associated URL Maps, forwarding rules, network endpoint groups, and HTTP
+// Proxies indicated by the policy func.
+//
+// regions optionally restricts the scan to the named regions (short names like
+// "us-central1", not URLs). When empty or nil, every region in the project is
+// scanned via ListRegions — slow but exhaustive. Pass the regions a caller
+// expects its resources to live in to avoid ~5 list calls per unused region.
+func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFunc, regions []string, dryRun bool) ([]string, []error) {
 	globalForwardingRules, err := clients.Daisy.AggregatedListForwardingRules(project)
 	if err != nil {
 		return nil, []error{fmt.Errorf("could not list all forwarding rules: %v", err)}
 	}
 
-	regions, err := clients.Daisy.ListRegions(project)
-	if err != nil {
-		return nil, []error{fmt.Errorf("could not list regions: %v", err)}
+	regionNames := regions
+	if len(regionNames) == 0 {
+		computeRegions, err := clients.Daisy.ListRegions(project)
+		if err != nil {
+			return nil, []error{fmt.Errorf("could not list regions: %v", err)}
+		}
+		regionNames = make([]string, 0, len(computeRegions))
+		for _, r := range computeRegions {
+			regionNames = append(regionNames, path.Base(r.SelfLink))
+		}
 	}
 
 	regionalForwardingRules := make(map[string][]*compute.ForwardingRule)
@@ -497,8 +511,7 @@ func CleanLoadBalancerResources(clients Clients, project string, delete PolicyFu
 	}
 	wg.Wait()
 
-	for _, computeRegion := range regions {
-		region := path.Base(computeRegion.SelfLink)
+	for _, region := range regionNames {
 		regionFRs, ok := regionalForwardingRules[region]
 		if !ok {
 			var err error

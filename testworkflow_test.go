@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 
@@ -127,6 +128,7 @@ func TestAddStopStep(t *testing.T) {
 func TestCleanTestWorkflow(t *testing.T) {
 	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
 	twf.wf.Project = "test-project"
+	twf.CreatesLoadBalancers = true
 	_, daisyFake, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/aggregated/instances?alt=json&pageToken=&prettyPrint=false", "test-project") {
 			fmt.Fprint(w, `{"Items":{"Instances":{"instances":[{"SelfLink": "projects/test-project/zones/test-zone/instances/test-instance-`+twf.wf.ID()+`", "Zone":"test-zone", "Name": "test-instance-`+twf.wf.ID()+`", "Description": "created by Daisy in workflow \"`+twf.wf.ID()+`\""}]}}}`)
@@ -232,6 +234,143 @@ func TestCleanTestWorkflow(t *testing.T) {
 	cleaned = slices.Compact(cleaned)
 	if diff := cmp.Diff(expect, cleaned); diff != "" {
 		t.Errorf("cmp.Diff(expect, cleaned) != nil (-want +got):\n%s", diff)
+	}
+}
+
+func TestWorkflowRegions(t *testing.T) {
+	testcases := []struct {
+		name    string
+		wfZone  string
+		gaVMs   []string // per-VM zones for the GA (Instance) struct
+		betaVMs []string // per-VM zones for the Beta (InstanceBeta) struct
+		want    []string
+	}{
+		{
+			name: "no zones at all",
+			want: nil,
+		},
+		{
+			name:   "only workflow zone",
+			wfZone: "us-central1-a",
+			want:   []string{"us-central1"},
+		},
+		{
+			name:    "mixed zones across VM types",
+			wfZone:  "us-central1-a",
+			gaVMs:   []string{"", "europe-west4-a"},
+			betaVMs: []string{"us-east4-b"},
+			want:    []string{"europe-west4", "us-central1", "us-east4"},
+		},
+		{
+			name:   "duplicate zones deduplicated",
+			wfZone: "us-central1-a",
+			gaVMs:  []string{"us-central1-b", "us-central1-c"},
+			want:   []string{"us-central1"},
+		},
+		{
+			name:    "url-form vm zone reduced to region",
+			wfZone:  "us-central1-a",
+			gaVMs:   []string{"https://www.googleapis.com/compute/v1/projects/p/zones/us-west1-a"},
+			betaVMs: []string{"zones/europe-west4-b"},
+			want:    []string{"europe-west4", "us-central1", "us-west1"},
+		},
+		{
+			name:   "malformed zone ignored",
+			wfZone: "us-central1-a",
+			gaVMs:  []string{"nodash", ""},
+			want:   []string{"us-central1"},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+			twf.wf.Zone = tc.wfZone
+			if len(tc.gaVMs) > 0 {
+				step, err := twf.wf.NewStep("create-vms")
+				if err != nil {
+					t.Fatal(err)
+				}
+				step.CreateInstances = &daisy.CreateInstances{}
+				for i, z := range tc.gaVMs {
+					step.CreateInstances.Instances = append(step.CreateInstances.Instances, &daisy.Instance{
+						Instance: compute.Instance{Name: fmt.Sprintf("ga-%d", i), Zone: z},
+					})
+				}
+			}
+			if len(tc.betaVMs) > 0 {
+				step, err := twf.wf.NewStep("create-vms-beta")
+				if err != nil {
+					t.Fatal(err)
+				}
+				step.CreateInstances = &daisy.CreateInstances{}
+				for i, z := range tc.betaVMs {
+					step.CreateInstances.InstancesBeta = append(step.CreateInstances.InstancesBeta, &daisy.InstanceBeta{
+						Instance: computeBeta.Instance{Name: fmt.Sprintf("beta-%d", i), Zone: z},
+					})
+				}
+			}
+			got := workflowRegions(twf)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("workflowRegions mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestCleanTestWorkflowSkipsLBWhenNotMarked verifies that cleanTestWorkflow
+// makes no requests to load-balancer endpoints when the workflow doesn't set
+// CreatesLoadBalancers.
+func TestCleanTestWorkflowSkipsLBWhenNotMarked(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	twf.wf.Project = "test-project"
+	twf.wf.Zone = "us-central1-a"
+	var lbCall string
+	_, daisyFake, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Any request that touches LB endpoints is a regression — flag and
+		// answer with a 555 so the call surfaces as an error too.
+		if strings.Contains(r.URL.Path, "forwardingRules") ||
+			strings.Contains(r.URL.Path, "backendServices") ||
+			strings.Contains(r.URL.Path, "targetHttpProxies") ||
+			strings.Contains(r.URL.Path, "urlMaps") ||
+			strings.Contains(r.URL.Path, "networkEndpointGroups") ||
+			strings.Contains(r.URL.Path, "healthChecks") {
+			lbCall = r.URL.String()
+			w.WriteHeader(555)
+			return
+		}
+		// Empty responses for the other Clean* phases (instances, disks,
+		// networks, firewalls, subnetworks, routes).
+		switch {
+		case r.URL.Path == "/projects/test-project/aggregated/instances":
+			fmt.Fprint(w, `{"Items":{}}`)
+		case r.URL.Path == "/projects/test-project/aggregated/disks":
+			fmt.Fprint(w, `{"items":{}}`)
+		case r.URL.Path == "/projects/test-project/global/networks":
+			fmt.Fprint(w, `{"items":[]}`)
+		case r.URL.Path == "/projects/test-project/global/firewalls":
+			fmt.Fprint(w, `{"items":[]}`)
+		case r.URL.Path == "/projects/test-project/aggregated/subnetworks":
+			fmt.Fprint(w, `{"items":{}}`)
+		case r.URL.Path == "/projects/test-project/global/routes":
+			fmt.Fprint(w, `{"items":[]}`)
+		default:
+			w.WriteHeader(555)
+			fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	twf.Client = daisyFake
+	if twf.CreatesLoadBalancers {
+		t.Fatalf("CreatesLoadBalancers default must be false; got true")
+	}
+	_, errs := cleanTestWorkflow(twf)
+	for _, err := range errs {
+		t.Errorf("cleanTestWorkflow returned error: %v", err)
+	}
+	if lbCall != "" {
+		t.Errorf("expected no LB endpoint requests, but got: %s", lbCall)
 	}
 }
 
