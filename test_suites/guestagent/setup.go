@@ -78,7 +78,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return fmt.Errorf("failed to create test VM: %w", err)
 		}
 		vm.AddScope("https://www.googleapis.com/auth/cloud-platform")
-		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent")
+		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady")
 	}
 
 	return nil
