@@ -274,7 +274,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	for _, vm := range allVMs {
 		vm.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
-		vm.RunTests("TestNICSetup")
+		vm.RunTests("TestNICSetup|TestMetadataHostsCompliance|TestMetadataResolutionAndReachability|TestMDSHostsCorrection")
 	}
 	return nil
 }
