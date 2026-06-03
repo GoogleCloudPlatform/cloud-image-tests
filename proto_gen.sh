@@ -7,3 +7,5 @@
 # Installation path of protoc-gen-go must be in your $PATH for the protoc to 
 # find it. Usually protoc-gen-go is installed in $GOPATH/bin or $HOME/go/bin
 protoc --go_out=. vm_test_info.proto
+protoc --go_out=. test_suites/networkconfig/config_expectations.proto
+
