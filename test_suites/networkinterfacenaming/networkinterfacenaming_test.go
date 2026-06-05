@@ -34,6 +34,7 @@ var (
 		"sles",
 		"rhel-8",
 		"rhel-9",
+		"rhel-10",
 		"centos-stream-8",
 		"centos-stream-9",
 		"almalinux-8",
