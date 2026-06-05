@@ -23,6 +23,8 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -133,6 +135,13 @@ type TestWorkflow struct {
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
 	// AcceleratorType is the accelerator type to be used for accelerator tests which use GPUs.
 	AcceleratorType string
+	// CreatesLoadBalancers indicates that this test suite creates regional load
+	// balancer resources (forwarding rules, backend services, URL maps, target
+	// HTTP proxies, NEGs, health checks) at runtime. Suites that set this true
+	// opt into the post-test LB cleanup pass; suites that leave it false skip
+	// the call entirely. Default false because only the loadbalancer suite
+	// creates LB resources today.
+	CreatesLoadBalancers bool
 	// argZoneOverride is whether to override the zone from the command line. If
 	// true, the zone from the command line will be enforced if the test suite
 	// does specify a zone. If false, the hardcoded zone will be used.
@@ -1116,20 +1125,84 @@ func cleanTestWorkflow(test *TestWorkflow) (totalCleaned []string, totalErrs []e
 	c := cleanerupper.Clients{Daisy: test.Client}
 	policy := cleanerupper.WorkflowPolicy(test.wf.ID())
 
+	// Scope load-balancer-resource cleanup to the regions this workflow could
+	// have created regional resources in. Scanning every GCP region adds ~200
+	// list calls for no leftover yield in the common single-region case.
+	regions := workflowRegions(test)
+
 	cleaned, errs := cleanerupper.CleanInstances(c, test.wf.Project, policy, false)
 	totalCleaned = append(totalCleaned, cleaned...)
 	totalErrs = append(totalErrs, errs...)
 	cleaned, errs = cleanerupper.CleanDisks(c, test.wf.Project, policy, false)
 	totalCleaned = append(totalCleaned, cleaned...)
 	totalErrs = append(totalErrs, errs...)
-	cleaned, errs = cleanerupper.CleanLoadBalancerResources(c, test.wf.Project, policy, false)
-	totalCleaned = append(totalCleaned, cleaned...)
-	totalErrs = append(totalErrs, errs...)
+	if test.CreatesLoadBalancers {
+		cleaned, errs = cleanerupper.CleanLoadBalancerResources(c, test.wf.Project, policy, regions, false)
+		totalCleaned = append(totalCleaned, cleaned...)
+		totalErrs = append(totalErrs, errs...)
+	}
 	cleaned, errs = cleanerupper.CleanNetworks(c, test.wf.Project, policy, false)
 	totalCleaned = append(totalCleaned, cleaned...)
 	totalErrs = append(totalErrs, errs...)
 
 	return
+}
+
+// regionFromZone returns the region a zone belongs to (e.g. "us-central1" for
+// "us-central1-a"). Accepts short names ("us-central1-a") as well as path or
+// URL forms (e.g. "zones/us-central1-a", or a full
+// "https://www.googleapis.com/compute/v1/.../zones/us-central1-a") because
+// daisy may populate vm.Zone with either at different stages. Returns "" if
+// zone is empty or not in <region>-<suffix> form.
+func regionFromZone(zone string) string {
+	zone = path.Base(zone)
+	i := strings.LastIndex(zone, "-")
+	if i <= 0 {
+		return ""
+	}
+	return zone[:i]
+}
+
+// workflowRegions returns the sorted unique set of regions this workflow may
+// have created regional resources in. It walks every CreateInstances step
+// (CIT test suites can override the workflow's primary zone on individual
+// VMs, e.g. shapevalidation pinning a shape to europe-west4-a) plus the
+// workflow's zone for VMs that don't set one explicitly. Returns nil if no
+// region can be derived, signalling callers to fall back to scanning all
+// regions.
+//
+// LB resources count as VM-anchored: the loadbalancer suite is the only
+// place CIT creates them, and it derives the region from the in-VM
+// zoneClient.Get lookup. Any test that creates regional resources via a
+// daisy step in a region with no VM (none exist today) would be missed.
+func workflowRegions(test *TestWorkflow) []string {
+	seen := make(map[string]struct{})
+	add := func(zone string) {
+		if r := regionFromZone(zone); r != "" {
+			seen[r] = struct{}{}
+		}
+	}
+	add(test.wf.Zone)
+	for _, step := range test.wf.Steps {
+		if step.CreateInstances == nil {
+			continue
+		}
+		for _, vm := range step.CreateInstances.Instances {
+			add(vm.Zone)
+		}
+		for _, vm := range step.CreateInstances.InstancesBeta {
+			add(vm.Zone)
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	regions := make([]string, 0, len(seen))
+	for r := range seen {
+		regions = append(regions, r)
+	}
+	sort.Strings(regions)
+	return regions
 }
 
 // gets result struct and converts to a jUnit TestSuite

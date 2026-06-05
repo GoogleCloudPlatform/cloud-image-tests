@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"path"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -677,7 +678,7 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			o, errs := CleanLoadBalancerResources(tc.clients, tc.project, tc.policy, tc.dryRun)
+			o, errs := CleanLoadBalancerResources(tc.clients, tc.project, tc.policy, nil, tc.dryRun)
 			if len(errs) > 0 {
 				for _, e := range errs {
 					t.Errorf("error from CleanLoadBalancerResources: %v", e)
@@ -689,6 +690,63 @@ func TestCleanLoadBalancerResources(t *testing.T) {
 				t.Errorf("cmp.Diff(tc.output, o) != nil (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// TestCleanLoadBalancerResourcesRegionScope verifies that passing a non-empty
+// regions slice skips the ListRegions call entirely and confines the
+// per-region list calls to the named regions.
+func TestCleanLoadBalancerResourcesRegionScope(t *testing.T) {
+	const scopedRegion = "us-central1"
+	var listRegionsCalled, outOfScopeCall string
+	_, daisyFake, err := computeDaisy.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/projects/test-project/aggregated/forwardingRules" {
+			fmt.Fprint(w, `{"items":{}}`)
+			return
+		}
+		if r.Method == "GET" && r.URL.Path == "/projects/test-project/regions" {
+			// If we reach this, scoping is broken — the function fell back to
+			// ListRegions despite a non-empty scope.
+			listRegionsCalled = r.URL.String()
+			fmt.Fprint(w, `{"items":[]}`)
+			return
+		}
+		// Zonal NEG lookups are scoped per region via a filter; assert that
+		// filter matches the scoped region prefix and return empty.
+		if r.Method == "GET" && r.URL.Path == "/projects/test-project/zones" {
+			if filter := r.URL.Query().Get("filter"); !strings.Contains(filter, scopedRegion+"-") {
+				outOfScopeCall = r.URL.String()
+			}
+			fmt.Fprint(w, `{"items":[]}`)
+			return
+		}
+		// Allow region-scoped list endpoints for the scoped region; everything
+		// else is a scope violation.
+		if r.Method == "GET" && strings.HasPrefix(r.URL.Path, fmt.Sprintf("/projects/test-project/regions/%s/", scopedRegion)) {
+			fmt.Fprint(w, `{"items":[]}`)
+			return
+		}
+		if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/projects/test-project/regions/") {
+			outOfScopeCall = r.URL.String()
+			fmt.Fprint(w, `{"items":[]}`)
+			return
+		}
+		w.WriteHeader(555)
+		fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, errs := CleanLoadBalancerResources(Clients{Daisy: daisyFake}, "test-project", deleteNothing, []string{scopedRegion}, false); len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("CleanLoadBalancerResources: %v", e)
+		}
+	}
+	if listRegionsCalled != "" {
+		t.Errorf("expected ListRegions to be skipped when regions scope is set, but it was called: %s", listRegionsCalled)
+	}
+	if outOfScopeCall != "" {
+		t.Errorf("expected only %q to be scanned, but saw an out-of-scope call: %s", scopedRegion, outOfScopeCall)
 	}
 }
 

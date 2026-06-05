@@ -45,6 +45,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		// Alias IPs are disabled on COS and required for cloud load balancers.
 		return nil
 	}
+	t.CreatesLoadBalancers = true
 	lbnet, err := t.CreateNetwork("loadbalancer", false)
 	if err != nil {
 		return err
