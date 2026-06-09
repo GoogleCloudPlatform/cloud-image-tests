@@ -6,6 +6,8 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -49,6 +51,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 	}
 
+	if utils.HasFeature(t.Image, "SUSPEND_RESUME_COMPATIBLE") {
+		suspend := &daisy.Instance{}
+		suspend.Scopes = append(suspend.Scopes, "https://www.googleapis.com/auth/cloud-platform")
+		suspendvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "suspend"}}, suspend)
+		if err != nil {
+			return err
+		}
+		suspendvm.RunTests("TestSuspend")
+		suspendvm.Resume()
+	}
 	return nil
 }
 
