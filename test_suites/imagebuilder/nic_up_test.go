@@ -1,4 +1,3 @@
-// Package imagebuilder is a CIT suite for testing customer images built by the GCE Image Builder.
 package imagebuilder
 
 import (
