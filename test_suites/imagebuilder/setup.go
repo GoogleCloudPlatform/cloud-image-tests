@@ -10,10 +10,11 @@ var Name = "imagebuilder"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	vm1, err := t.CreateTestVM("networkinterfaces")
+	vm1, err := t.CreateTestVM("networkingandguestagent")
 	if err != nil {
 		return err
 	}
-	vm1.RunTests("TestNetworkInterfacesUp|TestNetworkInterfaceNaming")
+	vm1.RunTests("TestNetworkInterfacesUp|TestNetworkInterfaceNaming|TestGoogleGuestAgentHealthy")
+
 	return nil
 }
