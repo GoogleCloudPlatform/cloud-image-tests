@@ -2,6 +2,7 @@
 package imagebuilder
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -10,8 +11,10 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
-// Name is the name of the test package. It must match the directory name.
-var Name = "imagebuilder"
+var (
+	// Name is the name of the test package. It must match the directory name.
+	Name = "imagebuilder"
+)
 
 // supportedSecureBootBaremetalMachineTypes is a list of baremetal machine types that support
 // secure boot.
@@ -60,6 +63,21 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 		suspendvm.RunTests("TestSuspend")
 		suspendvm.Resume()
+	}
+
+	if utils.HasFeature(t.Image, "IDPF") && isBaremetal(t.MachineType.Name) {
+		zone := t.Zone.Name
+		fmt.Printf("Using zone %s for %s instance\n", zone, t.MachineType.Name)
+		baremetal := &daisy.Instance{}
+		baremetal.MachineType = t.MachineType.Name
+		baremetal.Zone = zone
+		baremetal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
+		baremetalDiskType := imagetest.DiskTypeNeeded(baremetal.MachineType)
+		baremetalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "baremetal", Type: baremetalDiskType, Zone: zone}}, baremetal)
+		if err != nil {
+			return err
+		}
+		baremetalVM.RunTests("TestIDPFNICDriver")
 	}
 	return nil
 }
