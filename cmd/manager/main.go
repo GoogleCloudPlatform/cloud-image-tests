@@ -55,6 +55,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/mdsroutes"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/metadata"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/network"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkconfig"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkinterfacenaming"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkperf"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/nicsetup"
@@ -324,7 +325,10 @@ func main() {
 			networkperf.Name,
 			networkperf.TestSetup,
 		},
-
+		{
+			networkconfig.Name,
+			networkconfig.TestSetup,
+		},
 		{
 			networkinterfacenaming.Name,
 			networkinterfacenaming.TestSetup,

@@ -1,0 +1,74 @@
+# proto-file: third_party/golang/github_com/GoogleCloudPlatform/cloud_image_tests/test_suites/networkconfig/config_expectations.proto
+# proto-message: ConfigExpectations
+
+config_expectations: {
+  description: "Simple n2-32 machine, single VIRTIO"
+  machine_type: "n2-highcpu-32"
+  nics: {
+    type: "VIRTIO_NET"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "3" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "4" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "5" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "6" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "7" }
+    tx_queues: { index: 8 irq_cpulist: "8" xps_cpulist: "8" }
+    tx_queues: { index: 9 irq_cpulist: "9" xps_cpulist: "9" }
+    tx_queues: { index: 10 irq_cpulist: "10" xps_cpulist: "10" }
+    tx_queues: { index: 11 irq_cpulist: "11" xps_cpulist: "11" }
+    tx_queues: { index: 12 irq_cpulist: "12" xps_cpulist: "12" }
+    tx_queues: { index: 13 irq_cpulist: "13" xps_cpulist: "13" }
+    tx_queues: { index: 14 irq_cpulist: "14" xps_cpulist: "14" }
+    tx_queues: { index: 15 irq_cpulist: "15" xps_cpulist: "15" }
+    tx_queues: { index: 16 irq_cpulist: "16" xps_cpulist: "16" }
+    tx_queues: { index: 17 irq_cpulist: "17" xps_cpulist: "17" }
+    tx_queues: { index: 18 irq_cpulist: "18" xps_cpulist: "18" }
+    tx_queues: { index: 19 irq_cpulist: "19" xps_cpulist: "19" }
+    tx_queues: { index: 20 irq_cpulist: "20" xps_cpulist: "20" }
+    tx_queues: { index: 21 irq_cpulist: "21" xps_cpulist: "21" }
+    tx_queues: { index: 22 irq_cpulist: "22" xps_cpulist: "22" }
+    tx_queues: { index: 23 irq_cpulist: "23" xps_cpulist: "23" }
+    tx_queues: { index: 24 irq_cpulist: "24" xps_cpulist: "24" }
+    tx_queues: { index: 25 irq_cpulist: "25" xps_cpulist: "25" }
+    tx_queues: { index: 26 irq_cpulist: "26" xps_cpulist: "26" }
+    tx_queues: { index: 27 irq_cpulist: "27" xps_cpulist: "27" }
+    tx_queues: { index: 28 irq_cpulist: "28" xps_cpulist: "28" }
+    tx_queues: { index: 29 irq_cpulist: "29" xps_cpulist: "29" }
+    tx_queues: { index: 30 irq_cpulist: "30" xps_cpulist: "30" }
+    tx_queues: { index: 31 irq_cpulist: "31" xps_cpulist: "31" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+    rx_queues: { index: 8 irq_cpulist: "8" }
+    rx_queues: { index: 9 irq_cpulist: "9" }
+    rx_queues: { index: 10 irq_cpulist: "10" }
+    rx_queues: { index: 11 irq_cpulist: "11" }
+    rx_queues: { index: 12 irq_cpulist: "12" }
+    rx_queues: { index: 13 irq_cpulist: "13" }
+    rx_queues: { index: 14 irq_cpulist: "14" }
+    rx_queues: { index: 15 irq_cpulist: "15" }
+    rx_queues: { index: 16 irq_cpulist: "16" }
+    rx_queues: { index: 17 irq_cpulist: "17" }
+    rx_queues: { index: 18 irq_cpulist: "18" }
+    rx_queues: { index: 19 irq_cpulist: "19" }
+    rx_queues: { index: 20 irq_cpulist: "20" }
+    rx_queues: { index: 21 irq_cpulist: "21" }
+    rx_queues: { index: 22 irq_cpulist: "22" }
+    rx_queues: { index: 23 irq_cpulist: "23" }
+    rx_queues: { index: 24 irq_cpulist: "24" }
+    rx_queues: { index: 25 irq_cpulist: "25" }
+    rx_queues: { index: 26 irq_cpulist: "26" }
+    rx_queues: { index: 27 irq_cpulist: "27" }
+    rx_queues: { index: 28 irq_cpulist: "28" }
+    rx_queues: { index: 29 irq_cpulist: "29" }
+    rx_queues: { index: 30 irq_cpulist: "30" }
+    rx_queues: { index: 31 irq_cpulist: "31" }
+  }
+}
