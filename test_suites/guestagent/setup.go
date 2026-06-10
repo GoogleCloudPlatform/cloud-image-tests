@@ -14,6 +14,7 @@ package guestagent
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -48,7 +49,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	telemetryenabledvm.AddMetadata("disable-guest-telemetry", "false")
 	telemetryenabledvm.RunTests("TestTelemetryEnabled|TestServiceConfig")
 
-	if !utils.IsWindowsClient(t.Image.Name) {
+	// Skip the snapshot tests on Windows client images, and any images using hyperdisk.
+	if !utils.IsWindowsClient(t.Image.Name) && !strings.Contains(diskType, "hyperdisk") {
 		snapshotinst := &daisy.Instance{}
 		snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 		snapshotinst.Name = "snapshotScripts"
