@@ -1,0 +1,75 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2024";
+
+package github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig;
+
+option go_package = "./test_suites/networkconfig/config_expectations";
+
+// To learn more about the cpuset "List Format", refer to
+// https://man7.org/linux/man-pages/man7/cpuset.7.html.
+
+message ConfigExpectations {
+  repeated SystemConfig config_expectations = 1;
+}
+
+// Configuration for a particular variant of a machine.
+// Keyed on machine type and NIC types.
+message SystemConfig {
+  // An informational description summarizing the configuration.
+  // Should only be used for logging/documentation purposes.
+  string description = 1;
+
+  // The GCE machine type e.g. "n2d-standard-2".
+  string machine_type = 2;
+
+  // NICs in the VM. This includes any device expected to be created by the
+  // GCE stack, but not any created by the user (e.g. not `lo` or `docker0`).
+  repeated NicExpectation nics = 4;
+}
+
+message NicExpectation {
+  // The type of NIC, corresponding to the type used in the GCE API, e.g.
+  // "VIRTIO_NET", "GVNIC", "IDPF".
+  string type = 1;
+
+  // Transmit queues for this NIC.
+  repeated TxQueue tx_queues = 2;
+
+  // Receive queues for this NIC.
+  repeated RxQueue rx_queues = 3;
+}
+
+message RxQueue {
+  // The OS's index for the queue. For instance, the rx queue at index 0
+  // will tend to manifest in the OS as `rx-0`.
+  int32 index = 1;
+
+  // The cpuset "List Format" representation of the IRQ affinity of this queue.
+  string irq_cpulist = 2;
+}
+
+message TxQueue {
+  // The OS's index for the queue. For instance, the tx queue at index 0
+  // will tend to manifest in the OS as `tx-0`.
+  int32 index = 1;
+
+  // The cpuset "List Format" representation of the IRQ affinity of this queue.
+  string irq_cpulist = 2;
+
+  // The cpuset "List Format" representation of the CPUS configured for XPS
+  // for this queue.
+  string xps_cpulist = 3;
+}
