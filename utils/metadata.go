@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,11 +30,16 @@ import (
 )
 
 const (
-	// metadataURLPrefix is the base URL for the metadata server.
-	metadataURLPrefix = "http://metadata.google.internal/computeMetadata/v1/"
 	// httpTimeout is the timeout for HTTP requests.
 	httpTimeout = time.Second * 30
 )
+
+func metadataURLPrefix() string {
+	if host := os.Getenv("GCE_METADATA_HOST"); host != "" {
+		return "http://" + host + "/computeMetadata/v1/"
+	}
+	return "http://metadata.google.internal/computeMetadata/v1/"
+}
 
 var (
 	// ErrMDSEntryNotFound is an error used to report 404 status code.
@@ -47,7 +53,7 @@ var (
 // resp, err := GetAttribute(context.Background(), "instance", "guest-attributes")
 // ...
 func GetMetadata(ctx context.Context, elem ...string) (string, error) {
-	path, err := url.JoinPath(metadataURLPrefix, elem...)
+	path, err := url.JoinPath(metadataURLPrefix(), elem...)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse metadata url: %+s", err)
 	}
@@ -60,7 +66,7 @@ func GetMetadata(ctx context.Context, elem ...string) (string, error) {
 // returns only the response's body as a string and an error GetMetadataWithHeaders returns the
 // response's body as a string, the headers and an error.
 func GetMetadataWithHeaders(ctx context.Context, elem ...string) (string, http.Header, error) {
-	path, err := url.JoinPath(metadataURLPrefix, elem...)
+	path, err := url.JoinPath(metadataURLPrefix(), elem...)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse metadata url: %+s", err)
 	}
@@ -71,7 +77,7 @@ func GetMetadataWithHeaders(ctx context.Context, elem ...string) (string, http.H
 // GetRecursiveMetadata is same as GetMetadata but returns recursive metadata
 // for the key.
 func GetRecursiveMetadata(ctx context.Context, elem ...string) (string, error) {
-	path, err := url.JoinPath(metadataURLPrefix, elem...)
+	path, err := url.JoinPath(metadataURLPrefix(), elem...)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse metadata url: %+s", err)
 	}
@@ -88,7 +94,7 @@ func GetRecursiveMetadata(ctx context.Context, elem ...string) (string, error) {
 // err := PutMetadata(context.Background(), path.Join("instance", "guest-attributes", "example"), "data")
 // ...
 func PutMetadata(ctx context.Context, path string, data string) error {
-	path, err := url.JoinPath(metadataURLPrefix, path)
+	path, err := url.JoinPath(metadataURLPrefix(), path)
 	if err != nil {
 		return fmt.Errorf("failed to parse metadata url: %+v", err)
 	}
