@@ -28,7 +28,7 @@ const Name = "networkconfig"
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	vm, err := createMachnie(t, t.MachineType.Name, t.Zone.Name)
+	vm, err := createMachine(t, t.MachineType.Name, t.Zone.Name)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	return nil
 }
 
-func createMachnie(t *imagetest.TestWorkflow, machineType string, zone string) (*imagetest.TestVM, error) {
+func createMachine(t *imagetest.TestWorkflow, machineType string, zone string) (*imagetest.TestVM, error) {
 	disk := compute.Disk{
 		Name: "machine",
 		Type: imagetest.DiskTypeNeeded(machineType),
