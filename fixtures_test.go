@@ -947,3 +947,35 @@ func TestForceZone(t *testing.T) {
 		t.Errorf("could not set test zone, got %q, want us-east1-a", tvm.instance.Zone)
 	}
 }
+
+func TestIsMetal(t *testing.T) {
+	cases := []struct {
+		machineType string
+		want        bool
+	}{
+		{
+			machineType: "c3-highmem-192",
+			want:        false,
+		},
+		{
+			machineType: "c3-highmem-192-metal",
+			want:        true,
+		},
+		{
+			machineType: "hypothetical-new-machine",
+			want:        false,
+		},
+		{
+			machineType: "hypothetical-new-machine-metal",
+			want:        true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.machineType, func(t *testing.T) {
+			got := IsMetal(tc.machineType)
+			if got != tc.want {
+				t.Errorf("IsMetal(%q) = %v, want %v", tc.machineType, got, tc.want)
+			}
+		})
+	}
+}

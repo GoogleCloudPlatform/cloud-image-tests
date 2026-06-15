@@ -126,12 +126,17 @@ func (t *TestWorkflow) waitForQuotaStep(qa *daisy.QuotaAvailable, stepname strin
 	return nil
 }
 
+// IsMetal returns whether the machine type is a metal machine type.
+func IsMetal(machineType string) bool {
+	return strings.HasSuffix(machineType, "-metal")
+}
+
 // DiskTypeNeeded returns disk type needed for the machine type. Default is hyperdisk Balanced.
 // If a machine supports both PD Balanced and Hyperdisk, PD Balanced is returned.
 func DiskTypeNeeded(machineType string) string {
 	pdBalancedMachineFamilyPrefix := []string{"a2", "a3", "c2", "c3", "e2", "h3", "m1", "m2", "m3", "n1", "n2",
 		"t2", "z3"}
-	if strings.HasSuffix(machineType, "-metal") || strings.HasPrefix(machineType, "a3-ultra") {
+	if IsMetal(machineType) || strings.HasPrefix(machineType, "a3-ultra") {
 		return HyperdiskBalanced
 	}
 	for _, prefix := range pdBalancedMachineFamilyPrefix {
