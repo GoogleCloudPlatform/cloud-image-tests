@@ -172,6 +172,11 @@ var (
 	}
 )
 
+var extraTestPackages []struct {
+	name      string
+	setupFunc func(*imagetest.TestWorkflow) error
+}
+
 // StringSlice is a flag.Value that represents a comma-separated list of strings.
 type StringSlice []string
 
@@ -457,6 +462,8 @@ func main() {
 			wsfc.TestSetup,
 		},
 	}
+
+	testPackages = append(testPackages, extraTestPackages...)
 
 	ctx := context.Background()
 	var computeclient compute.Client
