@@ -86,6 +86,8 @@ type TestWorkflowOpts struct {
 	Project string
 	// Zone is the zone used to run the test workflow.
 	Zone string
+	// Zones is the list of zones to try in case of stockout or quota issues.
+	Zones []string
 	// ExcludeFilter is a filter used to exclude individual test cases within a test suite. Can break test suites if used incorrectly, be careful.
 	ExcludeFilter string
 	// X86Shape is the default shape for x86 images being tested.
@@ -146,6 +148,12 @@ type TestWorkflow struct {
 	// true, the zone from the command line will be enforced if the test suite
 	// does specify a zone. If false, the hardcoded zone will be used.
 	argZoneOverride bool
+	// opts is the options struct for the TestWorkflow. Storing the original options
+	// is necessary so we can copy them and construct a clean recreation of the
+	// stateful, zone-bound Daisy workflows during stockout retries in a new zone.
+	opts *TestWorkflowOpts
+	// SetupFunc is an optional function that is called once at the beginning of the test workflow.
+	SetupFunc func(*TestWorkflow) error
 }
 
 func (t *TestWorkflow) setInstanceTestMetadata(instance *daisy.Instance, suffix string) {
@@ -801,14 +809,19 @@ func getTestResults(ctx context.Context, ts *TestWorkflow) ([]string, error) {
 }
 
 // NewTestWorkflow returns a new TestWorkflow.
-func NewTestWorkflow(opts *TestWorkflowOpts) (*TestWorkflow, error) {
+func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error) (*TestWorkflow, error) {
+	if len(opts.Zones) == 0 && opts.Zone != "" {
+		opts.Zones = []string{opts.Zone}
+	}
 	t := &TestWorkflow{}
+	t.opts = opts
 	t.counter = 0
 	t.Name = opts.Name
 	t.ImageURL = opts.Image
 	t.Client = opts.Client
 	t.testExcludeFilter = opts.ExcludeFilter
 	t.argZoneOverride = opts.ArgZoneOverride
+	t.SetupFunc = setupFunc
 
 	if opts.UseReservations {
 		reservationType := "ANY_RESERVATION"
@@ -1036,7 +1049,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 				} else {
 					test.wf.Project = <-projects
 				}
-				testResults <- runTestWorkflow(ctx, metrics, test)
+				testResults <- runTestWorkflow(ctx, metrics, test, gcsPrefix, localPath)
 				if test.lockProject {
 					// "unlock" the project.
 					exclusiveProjects <- test.wf.Project
@@ -1075,7 +1088,7 @@ func formatTimeDelta(format string, t time.Duration) string {
 	return z.Add(time.Duration(t)).Format(format)
 }
 
-func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkflow) testResult {
+func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkflow, gcsPrefix, localPath string) testResult {
 	metrics.started()
 
 	res := testResult{testWorkflow: test}
@@ -1085,28 +1098,19 @@ func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkfl
 		return res
 	}
 
-	clean := func() {
-		metrics.done()
-		log.Printf("cleaning up after test %s/%s (ID %s) in project %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, metrics.progress())
-		cleaned, errs := cleanTestWorkflow(test)
-		for _, err := range errs {
-			log.Printf("error cleaning test %s/%s: %v\n", test.Name, test.Image.Name, err)
-		}
-		if len(cleaned) > 0 {
-			log.Printf("test %s/%s had %d leftover resources\n", test.Name, test.Image.Name, len(cleaned))
-		}
-		for _, c := range cleaned {
-			log.Printf("deleted resource %s from test %s/%s", c, test.Name, test.Image.Name)
-		}
-	}
-	defer clean()
+	defer func() {
+		cleanupTestWorkflowProgress(res.testWorkflow, metrics)
+	}()
 
-	start := time.Now()
-	log.Printf("running test %s/%s (ID %s) in project: %s, zone: %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, metrics.progress())
-	if err := test.wf.Run(ctx); err != nil {
+	var start time.Time
+	var err error
+	test, start, err = runTestWorkflowWithRetries(ctx, test, metrics, gcsPrefix, localPath)
+	res.testWorkflow = test
+	if err != nil {
 		res.err = err
 		return res
 	}
+
 	delta := formatTimeDelta("04m 05s", time.Now().Sub(start))
 	log.Printf("finished test %s/%s (ID %s) in project %s, time spent: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, delta)
 
@@ -1119,6 +1123,58 @@ func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkfl
 	res.workflowSuccess = true
 
 	return res
+}
+
+func cleanupTestWorkflowProgress(test *TestWorkflow, metrics *testMetrics) {
+	metrics.done()
+	log.Printf("cleaning up after test %s/%s (ID %s) in project %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, metrics.progress())
+	cleaned, errs := cleanTestWorkflow(test)
+	for _, err := range errs {
+		log.Printf("error cleaning test %s/%s: %v\n", test.Name, test.Image.Name, err)
+	}
+	if len(cleaned) > 0 {
+		log.Printf("test %s/%s had %d leftover resources\n", test.Name, test.Image.Name, len(cleaned))
+	}
+	for _, c := range cleaned {
+		log.Printf("deleted resource %s from test %s/%s", c, test.Name, test.Image.Name)
+	}
+}
+
+func runTestWorkflowWithRetries(ctx context.Context, test *TestWorkflow, metrics *testMetrics, gcsPrefix, localPath string) (*TestWorkflow, time.Time, error) {
+	var err error
+	var start time.Time
+	for zoneIdx, zone := range test.opts.Zones {
+		if zoneIdx > 0 {
+			log.Printf("Retrying test %s in zone %s due to previous stockout/quota error", test.Name, zone)
+
+			// Clean up resources of the failed run before retrying
+			cleanTestWorkflow(test)
+
+			newTest, err := recreateTestWorkflow(test, zone)
+			if err != nil {
+				return test, start, fmt.Errorf("failed to recreate workflow for retry: %v", err)
+			}
+
+			// Finalize the new workflow
+			if err := finalizeWorkflows(ctx, []*TestWorkflow{newTest}, gcsPrefix, localPath); err != nil {
+				return newTest, start, fmt.Errorf("failed to finalize workflow for retry: %v", err)
+			}
+
+			test = newTest
+		}
+
+		start = time.Now()
+		log.Printf("running test %s/%s (ID %s) in project: %s, zone: %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, metrics.progress())
+		err = test.wf.Run(ctx)
+		if err == nil {
+			break // Success
+		}
+		if !isStockoutOrQuotaError(err) {
+			break // Non-stockout error, don't retry
+		}
+		log.Printf("stockout/quota error in test %s/%s (ID %s) in project: %s, zone: %s, error: %v\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, err)
+	}
+	return test, start, err
 }
 
 func cleanTestWorkflow(test *TestWorkflow) (totalCleaned []string, totalErrs []error) {
@@ -1333,4 +1389,35 @@ func (t *TestWorkflow) skipWindowsStagingKMS(isWindows bool, instance *daisy.Ins
 // IsComputeStaging returns true if the compute endpoint is staging.
 func (t *TestWorkflow) IsComputeStaging() bool {
 	return t.wf.ComputeEndpoint == "https://www.googleapis.com/compute/staging_v1/"
+}
+
+func isStockoutOrQuotaError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// "ZONE_RESOURCE_POOL_EXHAUSTED" also matches "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS".
+	return strings.Contains(errStr, "ZONE_RESOURCE_POOL_EXHAUSTED") ||
+		strings.Contains(errStr, "INSUFFICIENT_CAPACITY") ||
+		strings.Contains(errStr, "QUOTA_EXCEEDED")
+}
+
+func recreateTestWorkflow(old *TestWorkflow, zone string) (*TestWorkflow, error) {
+	opts := *old.opts
+	opts.Zone = zone // Update the zone in options
+
+	newTest, err := NewTestWorkflow(&opts, old.SetupFunc)
+	if err != nil {
+		return nil, err
+	}
+	newTest.wf.Project = old.wf.Project // Preserve the assigned project
+
+	log.Printf("Recreating test workflow %s with project: %s, zone: %s", old.Name, newTest.wf.Project, newTest.wf.Zone)
+
+	if newTest.SetupFunc != nil {
+		if err := newTest.SetupFunc(newTest); err != nil {
+			return nil, err
+		}
+	}
+	return newTest, nil
 }

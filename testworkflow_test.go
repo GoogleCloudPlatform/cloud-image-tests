@@ -828,7 +828,7 @@ func TestNewTestWorkflow(t *testing.T) {
 				UseReservations: tc.useReservations,
 				ReservationURLs: tc.reservationURLs,
 				AcceleratorType: tc.wantAcceleratorType,
-			})
+			}, nil)
 			if err != nil {
 				t.Fatalf("NewTestWorkflow() failed: %v want nil", err)
 			}
@@ -957,5 +957,101 @@ func TestMetrics(t *testing.T) {
 
 	if metrics.finished != metrics.total {
 		t.Errorf("finished %d, want %d", metrics.finished, metrics.total)
+	}
+}
+
+func TestIsStockoutError(t *testing.T) {
+	testcases := []struct {
+		err  error
+		want bool
+	}{
+		{
+			err:  nil,
+			want: false,
+		},
+		{
+			err:  fmt.Errorf("some standard error"),
+			want: false,
+		},
+		{
+			err:  fmt.Errorf("error code: ZONE_RESOURCE_POOL_EXHAUSTED, some message"),
+			want: true,
+		},
+		{
+			err:  fmt.Errorf("error code: ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS, some message"),
+			want: true,
+		},
+		{
+			err:  fmt.Errorf("error code: INSUFFICIENT_CAPACITY, some message"),
+			want: true,
+		},
+		{
+			err:  fmt.Errorf("error code: QUOTA_EXCEEDED, some message"),
+			want: true,
+		},
+	}
+	for _, tc := range testcases {
+		got := isStockoutOrQuotaError(tc.err)
+		if got != tc.want {
+			t.Errorf("isStockoutError(%v) = %t, want %t", tc.err, got, tc.want)
+		}
+	}
+}
+
+func TestRecreateTestWorkflow(t *testing.T) {
+	srv, client, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.String() == "/projects/fake-project?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"fake-project"}`)
+		} else if r.Method == "GET" && r.URL.String() == "/projects/fake-project/zones/us-central1-a?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"us-central1-a"}`)
+		} else if r.Method == "GET" && r.URL.String() == "/projects/fake-project/zones/us-central1-b?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"us-central1-b"}`)
+		} else if r.Method == "GET" && r.URL.String() == "/projects/fake-project/zones/us-central1-a/machineTypes/n1-standard-1?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"n1-standard-1"}`)
+		} else if r.Method == "GET" && r.URL.String() == "/projects/fake-project/zones/us-central1-b/machineTypes/n1-standard-1?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"n1-standard-1"}`)
+		} else if r.Method == "GET" && r.URL.String() == "/projects/fake-cloud/global/images/fakeos?alt=json&prettyPrint=false" {
+			fmt.Fprint(w, `{"Name":"fakeos", "Architecture":"X86_64"}`)
+		} else {
+			w.WriteHeader(500)
+			fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	opts := TestWorkflowOpts{
+		Client:   client,
+		Name:     "test-recreate",
+		Image:    "projects/fake-cloud/global/images/fakeos",
+		Timeout:  "20m",
+		Project:  "fake-project",
+		Zone:     "us-central1-a",
+		X86Shape: "n1-standard-1",
+	}
+
+	setupFunc := func(w *TestWorkflow) error {
+		return nil
+	}
+	twf, err := NewTestWorkflow(&opts, setupFunc)
+	if err != nil {
+		t.Fatalf("failed to create initial test workflow: %v", err)
+	}
+
+	recreated, err := recreateTestWorkflow(twf, "us-central1-b")
+	if err != nil {
+		t.Fatalf("recreateTestWorkflow failed: %v", err)
+	}
+
+	if recreated.Zone.Name != "us-central1-b" {
+		t.Errorf("recreated zone name = %q, want %q", recreated.Zone.Name, "us-central1-b")
+	}
+	if recreated.opts.Zone != "us-central1-b" {
+		t.Errorf("recreated opts.Zone = %q, want %q", recreated.opts.Zone, "us-central1-b")
+	}
+	if recreated.Name != twf.Name {
+		t.Errorf("recreated name = %q, want %q", recreated.Name, twf.Name)
 	}
 }

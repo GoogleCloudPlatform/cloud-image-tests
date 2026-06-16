@@ -199,23 +199,22 @@ func init() {
 	flag.Var(&zones, "zones", "A comma-separated list of zones (e.g., --zones=\"us-east4, us-west1, us-west4\")")
 }
 
-// selectZoneFromZonesFlag performs a round robin over the zones list,
-// and returns the next zone in the list.
-func selectZoneFromZonesFlag(zones []string) string {
+// rotatedZones returns a slice of zones rotated such that the zone at
+// zonesRoundRobinIdx is first.
+func rotatedZones() []string {
+	if len(zones) == 0 {
+		return []string{*zone}
+	}
 	zonesRoundRobinIdx++
 	if zonesRoundRobinIdx >= len(zones) {
 		zonesRoundRobinIdx = 0
 	}
-	return zones[zonesRoundRobinIdx]
-}
-
-// selectZone returns the zone to be used for the test. If the zones flag is set,
-// then a zone is selected from the zones flag. Otherwise, the zone flag is returned.
-func selectZone() string {
-	if len(zones) == 0 {
-		return *zone
+	rotated := make([]string, len(zones))
+	for i := 0; i < len(zones); i++ {
+		idx := (zonesRoundRobinIdx + i) % len(zones)
+		rotated[i] = zones[idx]
 	}
-	return selectZoneFromZonesFlag(zones)
+	return rotated
 }
 
 // displayZone returns the zone to be displayed in the log. If the zones
@@ -525,6 +524,7 @@ func main() {
 			}
 
 			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
+			rZones := rotatedZones()
 			test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
 				Client:                  computeclient,
 				ComputeEndpointOverride: *computeEndpointOverride,
@@ -532,7 +532,8 @@ func main() {
 				Image:                   image,
 				Timeout:                 *timeout,
 				Project:                 *project,
-				Zone:                    selectZone(),
+				Zone:                    rZones[0],
+				Zones:                   rZones,
 				ExcludeFilter:           *testExcludeFilter,
 				X86Shape:                *x86Shape,
 				ARM64Shape:              *arm64Shape,
@@ -540,12 +541,12 @@ func main() {
 				ReservationURLs:         reservationURLSlice,
 				AcceleratorType:         *acceleratorType,
 				ArgZoneOverride:         *argZoneOverride,
-			})
+			}, testPackage.setupFunc)
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)
 			}
 			testWorkflows = append(testWorkflows, test)
-			if err := testPackage.setupFunc(test); err != nil {
+			if err := test.SetupFunc(test); err != nil {
 				log.Fatalf("%s.TestSetup for %s failed: %v", testPackage.name, image, err)
 			}
 		}
