@@ -76,7 +76,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	mrdma.Name = mrdmaNetName
 	mrdma.Mtu = 8896                        // Max allowed value
 	mrdma.AutoCreateSubnetworks = new(bool) // false
-	mrdma.NetworkProfile = fmt.Sprintf("global/networkProfiles/%s-vpc-roce", testZone)
+	mrdma.NetworkProfile = fmt.Sprintf("projects/%s/global/networkProfiles/%s-vpc-roce", t.Project.Name, testZone)
 	mrdmaNet, err := t.CreateNetworkFromDaisyNetwork(mrdma)
 	if err != nil {
 		return err
