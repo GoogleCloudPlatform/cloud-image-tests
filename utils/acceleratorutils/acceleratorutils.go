@@ -85,7 +85,7 @@ func CreateNetwork(t *imagetest.TestWorkflow) ([]*computeBeta.NetworkInterface, 
 	mrdma.Name = mrdmaNetName
 	mrdma.Mtu = imagetest.JumboFramesMTU
 	mrdma.AutoCreateSubnetworks = new(bool) // false
-	mrdma.NetworkProfile = fmt.Sprintf("global/networkProfiles/%s-vpc-roce", testZone)
+	mrdma.NetworkProfile = fmt.Sprintf("projects/%s/global/networkProfiles/%s-vpc-roce", t.Project.Name, testZone)
 	mrdmaNet, err := t.CreateNetworkFromDaisyNetwork(mrdma)
 	if err != nil {
 		return nil, err
