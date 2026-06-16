@@ -24,11 +24,11 @@ import (
 	"log"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
 	"google.golang.org/api/compute/v1"
 )
@@ -41,8 +41,6 @@ var (
 	useSpotInstances = flag.Bool("networkperf_use_spot_instances", false, "use spot instances for networkperf test cases")
 	networkTiers     = flag.String("networkperf_network_tiers", "", "comma separated list of network tiers to test (DEFAULT|TIER_1)")
 	nicTypes         = flag.String("networkperf_nic_types", "", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
-
-	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
 )
 
 type networkTier string
@@ -53,8 +51,6 @@ const (
 
 	x86_64 string = "X86_64"
 	arm64  string = "ARM64"
-
-	nicTypeGVNIC string = "GVNIC"
 )
 
 // networkPerfConfig is a collection of related test configuration data
@@ -152,7 +148,7 @@ func expandNetworkTestConfigs(configs []networkPerfConfig) ([]networkPerfTest, e
 	for _, config := range configs {
 		for _, mtu := range []int{imagetest.DefaultMTU, imagetest.JumboFramesMTU} {
 			for _, network := range config.networks {
-				nicTypes, err := expandNICTypes(config.nicTypes)
+				nicTypes, err := networkutils.ExpandNICTypes(config.nicTypes)
 				if err != nil {
 					return nil, err
 				}
@@ -564,38 +560,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		clientVM.RunTests("TestGVNICExists|TestNetworkPerformance")
 	}
 	return nil
-}
-
-// expandNICTypes expands a comma separated list of <NIC_TYPE>:<COUNT> into a list of NIC types.
-// e.g. "GVNIC:2,MRDMA:1" -> ["GVNIC", "GVNIC", "MRDMA"]
-// If no NIC types are specified, defaults to a single GVNIC.
-func expandNICTypes(condensedNicTypes string) ([]string, error) {
-	nicTypeCounts := strings.Split(condensedNicTypes, ",")
-	var nicTypes []string
-	for _, nicTypeCount := range nicTypeCounts {
-		nicTypeCount = strings.TrimSpace(nicTypeCount)
-		if nicTypeCount == "" {
-			continue
-		}
-		matches := nicTypeRegex.FindStringSubmatch(nicTypeCount)
-		if len(matches) != 3 {
-			return nil, fmt.Errorf("invalid nic type count: %q", nicTypeCount)
-		}
-		nicType := matches[1]
-		count, err := strconv.Atoi(matches[2])
-		if err != nil {
-			return nil, fmt.Errorf("invalid count: %v", err)
-		}
-		for i := 0; i < count; i++ {
-			nicTypes = append(nicTypes, nicType)
-		}
-	}
-
-	if len(nicTypes) == 0 {
-		nicTypes = append(nicTypes, nicTypeGVNIC)
-	}
-
-	return nicTypes, nil
 }
 
 func networkPrefix(ifaceIndex int) string {

@@ -41,8 +41,12 @@ const (
 	NICTypeMRDMA = "MRDMA"
 )
 
-// EthtoolDriverRe is a regex to extract the driver name from the `ethtool -i` output.
-var EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
+var (
+	// EthtoolDriverRe is a regex to extract the driver name from the `ethtool -i` output.
+	EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
+
+	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
+)
 
 // NetworkInterface represents a network interface in the Metadata Server.
 type NetworkInterface struct {
@@ -131,4 +135,36 @@ func (c *Cpuset) ListString() string {
 		}
 	}
 	return result.String()
+}
+
+// ExpandNICTypes expands a comma separated list of <NIC_TYPE>:<COUNT> into a list of NIC types.
+// e.g. "GVNIC:2,MRDMA:1" -> ["GVNIC", "GVNIC", "MRDMA"]
+// If no NIC types are specified, defaults to a single GVNIC.
+func ExpandNICTypes(condensedNicTypes string) ([]string, error) {
+	nicTypeCounts := strings.Split(condensedNicTypes, ",")
+	var nicTypes []string
+	for _, nicTypeCount := range nicTypeCounts {
+		nicTypeCount = strings.TrimSpace(nicTypeCount)
+		if nicTypeCount == "" {
+			continue
+		}
+		matches := nicTypeRegex.FindStringSubmatch(nicTypeCount)
+		if len(matches) != 3 {
+			return nil, fmt.Errorf("invalid nic type count: %q", nicTypeCount)
+		}
+		nicType := matches[1]
+		count, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return nil, fmt.Errorf("invalid count: %v", err)
+		}
+		for i := 0; i < count; i++ {
+			nicTypes = append(nicTypes, nicType)
+		}
+	}
+
+	if len(nicTypes) == 0 {
+		nicTypes = append(nicTypes, NICTypeGVNIC)
+	}
+
+	return nicTypes, nil
 }

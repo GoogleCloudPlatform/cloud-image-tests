@@ -6,61 +6,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestExpandNICTypes(t *testing.T) {
-	cases := []struct {
-		name    string
-		input   string
-		want    []string
-		wantErr bool
-	}{
-		{
-			name:    "empty_defaults_to_gvnic",
-			input:   "",
-			want:    []string{"GVNIC"},
-			wantErr: false,
-		},
-		{
-			name:    "single",
-			input:   "a:1",
-			want:    []string{"a"},
-			wantErr: false,
-		},
-		{
-			name:    "double",
-			input:   "a:2",
-			want:    []string{"a", "a"},
-			wantErr: false,
-		},
-		{
-			name:    "two_kinds",
-			input:   "a:1,b:2",
-			want:    []string{"a", "b", "b"},
-			wantErr: false,
-		},
-		{
-			name:    "no_number",
-			input:   "a",
-			wantErr: true,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := expandNICTypes(tc.input)
-			if (err != nil) != tc.wantErr {
-				if tc.wantErr {
-					t.Errorf("expandNICTypes(%q) = (%v, %v), want (%v, %s)", tc.input, got, err, tc.want, "non-nil")
-				} else {
-					t.Errorf("expandNICTypes(%q) = (%v, %v), want (%v, %s)", tc.input, got, err, tc.want, "nil")
-				}
-			}
-
-			if !cmp.Equal(got, tc.want) {
-				t.Errorf("expandNICTypes(%q) = %v, want %v", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestNetworkAddressHelpers(t *testing.T) {
 	cases := []struct {
 		name       string
