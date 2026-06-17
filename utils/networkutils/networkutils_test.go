@@ -496,3 +496,74 @@ func TestDaisySubnet(t *testing.T) {
 		})
 	}
 }
+
+func TestEthtoolLRegex(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   string
+		want    *EthtoolQueueCounts
+		wantErr bool
+	}{
+		{
+			name: "gve 16 queues",
+			input: `Channel parameters for enp0s19:
+Pre-set maximums:
+RX:		16
+TX:		16
+Other:		n/a
+Combined:	n/a
+Current hardware settings:
+RX:		8
+TX:		8
+Other:		n/a
+Combined:	n/a`,
+			want: &EthtoolQueueCounts{
+				MaxRXQueues:           16,
+				MaxTXQueues:           16,
+				MaxOtherQueues:        -1,
+				MaxCombinedQueues:     -1,
+				CurrentRXQueues:       8,
+				CurrentTXQueues:       8,
+				CurrentOtherQueues:    -1,
+				CurrentCombinedQueues: -1,
+			},
+		},
+		{
+			name: "idpf or virtio 16 queues",
+			input: `Channel parameters for enp0s19:
+Pre-set maximums:
+RX:		n/a
+TX:		n/a
+Other:		n/a
+Combined:	64
+Current hardware settings:
+RX:		n/a
+TX:		n/a
+Other:		n/a
+Combined:	16`,
+			want: &EthtoolQueueCounts{
+				MaxRXQueues:           -1,
+				MaxTXQueues:           -1,
+				MaxOtherQueues:        -1,
+				MaxCombinedQueues:     64,
+				CurrentRXQueues:       -1,
+				CurrentTXQueues:       -1,
+				CurrentOtherQueues:    -1,
+				CurrentCombinedQueues: 16,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseEthtoolLOutput(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ParseEthtoolLOutput(%q) returned error %v, wantErr %t", tc.input, err, tc.wantErr)
+				return
+			}
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("ParseEthtoolLOutput(%q) = doesn't match expectations: diff (-got +want):\n%s", tc.input, diff)
+			}
+		})
+	}
+}

@@ -53,6 +53,10 @@ var (
 	EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
 
 	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
+
+	// ethtoolLRe is a regex to extract the max RX, TX, and Other queue counts from the
+	// output of `ethtool -l`.
+	ethtoolLRe = regexp.MustCompile(`(?m)Channel parameters for .*:\s*Pre-set maximums:\s*RX:\s*(\d+|n/a)\s*TX:\s*(\d+|n/a)\s*Other:\s*(\d+|n/a)\s*Combined:\s*(\d+|n/a)\s*Current hardware settings:\s*RX:\s*(\d+|n/a)\s*TX:\s*(\d+|n/a)\s*Other:\s*(\d+|n/a)\s*Combined:\s*(\d+|n/a)`)
 )
 
 // NetworkInterface represents a network interface in the Metadata Server.
@@ -307,4 +311,79 @@ func CreateMachineWithNetworks(t *imagetest.TestWorkflow, o *CreateMachineWithNe
 	}
 
 	return m, nil
+}
+
+// EthtoolQueueCounts contains the queue counts for an interface as returned by `ethtool -l`.
+// Fields should be set to -1 if the value is "n/a".
+type EthtoolQueueCounts struct {
+	MaxRXQueues       int
+	MaxTXQueues       int
+	MaxOtherQueues    int
+	MaxCombinedQueues int
+
+	CurrentTXQueues       int
+	CurrentRXQueues       int
+	CurrentOtherQueues    int
+	CurrentCombinedQueues int
+}
+
+// ParseEthtoolLOutput parses the output of `ethtool -l` and returns an EthtoolQueueCounts
+// object. Populates fields with -1 if the value is "n/a", returns an error if the output
+// cannot be parsed.
+func ParseEthtoolLOutput(output string) (*EthtoolQueueCounts, error) {
+	matches := ethtoolLRe.FindStringSubmatch(output)
+	if len(matches) != 9 {
+		return nil, fmt.Errorf("parsing ethtool -l output: expected 9 matches, got %d", len(matches))
+	}
+
+	parseQueueCount := func(s string) (int, error) {
+		if s == "n/a" {
+			return -1, nil
+		}
+		return strconv.Atoi(s)
+	}
+
+	maxRXQueues, err := parseQueueCount(matches[1])
+	if err != nil {
+		return nil, fmt.Errorf("parsing max RX queues: %v", err)
+	}
+	maxTXQueues, err := parseQueueCount(matches[2])
+	if err != nil {
+		return nil, fmt.Errorf("parsing max TX queues: %v", err)
+	}
+	maxOtherQueues, err := parseQueueCount(matches[3])
+	if err != nil {
+		return nil, fmt.Errorf("parsing max Other queues: %v", err)
+	}
+	maxCombinedQueues, err := parseQueueCount(matches[4])
+	if err != nil {
+		return nil, fmt.Errorf("parsing max Combined queues: %v", err)
+	}
+	currentRXQueues, err := parseQueueCount(matches[5])
+	if err != nil {
+		return nil, fmt.Errorf("parsing current RX queues: %v", err)
+	}
+	currentTXQueues, err := parseQueueCount(matches[6])
+	if err != nil {
+		return nil, fmt.Errorf("parsing current TX queues: %v", err)
+	}
+	currentOtherQueues, err := parseQueueCount(matches[7])
+	if err != nil {
+		return nil, fmt.Errorf("parsing current Other queues: %v", err)
+	}
+	currentCombinedQueues, err := parseQueueCount(matches[8])
+	if err != nil {
+		return nil, fmt.Errorf("parsing current Combined queues: %v", err)
+	}
+
+	return &EthtoolQueueCounts{
+		MaxRXQueues:           maxRXQueues,
+		MaxTXQueues:           maxTXQueues,
+		MaxOtherQueues:        maxOtherQueues,
+		MaxCombinedQueues:     maxCombinedQueues,
+		CurrentRXQueues:       currentRXQueues,
+		CurrentTXQueues:       currentTXQueues,
+		CurrentOtherQueues:    currentOtherQueues,
+		CurrentCombinedQueues: currentCombinedQueues,
+	}, nil
 }
