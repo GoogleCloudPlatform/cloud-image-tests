@@ -79,6 +79,8 @@ import (
 	"github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	computeAlpha "google.golang.org/api/compute/v0.alpha"
 )
 
 var (
@@ -109,6 +111,7 @@ var (
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
+	allImageFamilies = flag.String("all_image_families", "", "Image project to run tests on")
 
 	// zonesRoundRobinIdx points to an index in the list of zones.
 	// This is used to distribute tests across the list of zones in a round robin fashion,
@@ -228,8 +231,8 @@ func displayZone() string {
 
 func main() {
 	flag.Parse()
-	if *project == "" || (*zone == "" && len(zones) == 0) || *images == "" {
-		log.Fatal("Must provide project, zone (or zones) and images arguments")
+	if *project == "" || (*zone == "" && len(zones) == 0) || (*images == "" && *allImageFamilies == "") {
+		log.Fatal("Must provide project, zone (or zones) and images or projects arguments")
 		return
 	}
 	var testProjectsReal []string
@@ -479,75 +482,138 @@ func main() {
 		if excludeRegex != nil && excludeRegex.MatchString(testPackage.name) {
 			continue
 		}
-		// If the image is a family, we need to find the project of the image.
-		for _, image := range strings.Split(*images, ",") {
-			// Ignore empty strings.
-			if image == "" {
-				log.Print("Skipping empty image")
-				continue
+
+		if *allImageFamilies != "" {
+			projectName := *allImageFamilies
+
+			// Initialize Compute Alpha client for API calls
+			var computeAlphaClient *computeAlpha.Service
+			if *computeEndpointOverride != "" {
+				log.Printf("Using compute endpoint %q", *computeEndpointOverride)
+				computeAlphaClient, err = computeAlpha.NewService(ctx, option.WithEndpoint(*computeEndpointOverride))
+			} else {
+				computeAlphaClient, err = computeAlpha.NewService(ctx)
 			}
-			if !strings.Contains(image, "/") {
-				// Find the project of the image.
-				project := ""
-				for _, k := range imageKeys {
-					if utils.IsSAP(k) {
-						// sap follows a slightly different naming convention.
-						imageName := strings.Split(k, "-")[0]
-						if strings.HasPrefix(image, imageName) && utils.IsSAP(image) {
+			if err != nil {
+				log.Fatalf("Could not create compute alpha client: %v", err)
+			}
+
+			// Fetch active image family names from projects
+			var families []string
+			err = computeAlphaClient.Images.List(projectName).Pages(ctx, func(page *computeAlpha.ImageList) error {
+				for _, projectImage := range page.Items {
+					if projectImage.Family != "" {
+						if projectImage.Deprecated == nil || (projectImage.Deprecated.State != "OBSOLETE" && projectImage.Deprecated.State != "DELETED" && projectImage.Deprecated.State != "DEPRECATED") {
+							f := fmt.Sprintf("projects/%s/global/images/family/%s", projectName, projectImage.Family)
+							families = append(families, f)
+						}
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				log.Fatalf("failed compute API call: %v", err)
+			}
+
+			for _, imageFamily := range families {
+				log.Printf("Add test workflow for test %s on image %s", testPackage.name, imageFamily)
+				rZones := rotatedZones()
+				test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
+					Client:                  computeclient,
+					ComputeEndpointOverride: *computeEndpointOverride,
+					Name:                    testPackage.name,
+					Image:                   imageFamily,
+					Timeout:                 *timeout,
+					Project:                 projectName,
+					Zone:                    rZones[0],
+					Zones:                   rZones,
+					ExcludeFilter:           *testExcludeFilter,
+					X86Shape:                *x86Shape,
+					ARM64Shape:              *arm64Shape,
+					UseReservations:         *useReservations,
+					ReservationURLs:         reservationURLSlice,
+					AcceleratorType:         *acceleratorType,
+					ArgZoneOverride:         *argZoneOverride,
+				}, testPackage.setupFunc)
+				if err != nil {
+					log.Fatalf("Failed to create test workflow: %v", err)
+				}
+				testWorkflows = append(testWorkflows, test)
+				if err := test.SetupFunc(test); err != nil {
+					log.Fatalf("%s.TestSetup for %s failed: %v", testPackage.name, imageFamily, err)
+				}
+			}
+		} else {
+			// If the image is a family, we need to find the project of the image.
+			for _, image := range strings.Split(*images, ",") {
+				// Ignore empty strings.
+				if image == "" {
+					log.Print("Skipping empty image")
+					continue
+				}
+				if !strings.Contains(image, "/") {
+					// Find the project of the image.
+					project := ""
+					for _, k := range imageKeys {
+						if utils.IsSAP(k) {
+							// sap follows a slightly different naming convention.
+							imageName := strings.Split(k, "-")[0]
+							if strings.HasPrefix(image, imageName) && utils.IsSAP(image) {
+								project = projectMap[k]
+								break
+							}
+						}
+						imageRegex, err := regexp.Compile(k)
+						if err != nil {
+							log.Fatalf("failed regex: %v", err)
+						}
+						if imageRegex.MatchString(image) {
 							project = projectMap[k]
 							break
 						}
 					}
-					imageRegex, err := regexp.Compile(k)
+					if project == "" {
+						log.Fatalf("unknown image %q", image)
+					}
+
+					// Check whether the image is an image family or a specific image version.
+					isMatch, err := regexp.MatchString(".*v([0-9]+)", image)
 					if err != nil {
 						log.Fatalf("failed regex: %v", err)
 					}
-					if imageRegex.MatchString(image) {
-						project = projectMap[k]
-						break
+					if isMatch {
+						image = fmt.Sprintf("projects/%s/global/images/%s", project, image)
+					} else {
+						image = fmt.Sprintf("projects/%s/global/images/family/%s", project, image)
 					}
 				}
-				if project == "" {
-					log.Fatalf("unknown image %q", image)
-				}
 
-				// Check whether the image is an image family or a specific image version.
-				isMatch, err := regexp.MatchString(".*v([0-9]+)", image)
+				log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
+				rZones := rotatedZones()
+				test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
+					Client:                  computeclient,
+					ComputeEndpointOverride: *computeEndpointOverride,
+					Name:                    testPackage.name,
+					Image:                   image,
+					Timeout:                 *timeout,
+					Project:                 *project,
+					Zone:                    rZones[0],
+					Zones:                   rZones,
+					ExcludeFilter:           *testExcludeFilter,
+					X86Shape:                *x86Shape,
+					ARM64Shape:              *arm64Shape,
+					UseReservations:         *useReservations,
+					ReservationURLs:         reservationURLSlice,
+					AcceleratorType:         *acceleratorType,
+					ArgZoneOverride:         *argZoneOverride,
+				}, testPackage.setupFunc)
 				if err != nil {
-					log.Fatalf("failed regex: %v", err)
+					log.Fatalf("Failed to create test workflow: %v", err)
 				}
-				if isMatch {
-					image = fmt.Sprintf("projects/%s/global/images/%s", project, image)
-				} else {
-					image = fmt.Sprintf("projects/%s/global/images/family/%s", project, image)
+				testWorkflows = append(testWorkflows, test)
+				if err := test.SetupFunc(test); err != nil {
+					log.Fatalf("%s.TestSetup for %s failed: %v", testPackage.name, image, err)
 				}
-			}
-
-			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
-			rZones := rotatedZones()
-			test, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
-				Client:                  computeclient,
-				ComputeEndpointOverride: *computeEndpointOverride,
-				Name:                    testPackage.name,
-				Image:                   image,
-				Timeout:                 *timeout,
-				Project:                 *project,
-				Zone:                    rZones[0],
-				Zones:                   rZones,
-				ExcludeFilter:           *testExcludeFilter,
-				X86Shape:                *x86Shape,
-				ARM64Shape:              *arm64Shape,
-				UseReservations:         *useReservations,
-				ReservationURLs:         reservationURLSlice,
-				AcceleratorType:         *acceleratorType,
-				ArgZoneOverride:         *argZoneOverride,
-			}, testPackage.setupFunc)
-			if err != nil {
-				log.Fatalf("Failed to create test workflow: %v", err)
-			}
-			testWorkflows = append(testWorkflows, test)
-			if err := test.SetupFunc(test); err != nil {
-				log.Fatalf("%s.TestSetup for %s failed: %v", testPackage.name, image, err)
 			}
 		}
 	}
