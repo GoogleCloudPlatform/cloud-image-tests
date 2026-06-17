@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
-	"github.com/GoogleCloudPlatform/compute-daisy"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 	"google.golang.org/api/compute/v1"
 )
 
@@ -38,13 +38,28 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 }
 
 func createMachine(t *imagetest.TestWorkflow, machineType string, zone string) (*imagetest.TestVM, error) {
+	instanceName := "machine"
+	nicTypes, err := networkutils.ExpandNICTypes(*networkutils.NICTypesFlag)
+	if err != nil {
+		return nil, fmt.Errorf("expanding NIC types: %w", err)
+	}
+
 	disk := compute.Disk{
-		Name: "machine",
+		Name: instanceName,
 		Type: imagetest.DiskTypeNeeded(machineType),
 		Zone: zone,
 	}
 
-	instance := &daisy.Instance{}
+	instance, err := networkutils.CreateMachineWithNetworks(t, &networkutils.CreateMachineWithNetworksOptions{
+		MachineName: instanceName,
+		MachineType: machineType,
+		NicTypes:    nicTypes,
+		Project:     t.Project.Name,
+		Zone:        zone,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating machine with networks: %w", err)
+	}
 
 	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&disk}, instance)
 	if err != nil {

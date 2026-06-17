@@ -18,6 +18,7 @@ package networkutils
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -25,7 +26,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 const (
@@ -42,6 +46,9 @@ const (
 )
 
 var (
+	// NICTypesFlag is the flag to specify the NIC types to use in the test.
+	NICTypesFlag = flag.String("networkutils_nic_types", "GVNIC:1", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
+
 	// EthtoolDriverRe is a regex to extract the driver name from the `ethtool -i` output.
 	EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
 
@@ -167,4 +174,137 @@ func ExpandNICTypes(condensedNicTypes string) ([]string, error) {
 	}
 
 	return nicTypes, nil
+}
+
+func daisyNetworkForGeneralPurposeNIC(index int) *daisy.Network {
+	return &daisy.Network{
+		Network: compute.Network{
+			Name: fmt.Sprintf("network-%d", index),
+			Mtu:  int64(imagetest.JumboFramesMTU),
+		},
+		AutoCreateSubnetworks: new(bool),
+	}
+}
+
+func daisyNetworkForIRDMANIC(index int, project string, zone string, isMetal bool) *daisy.Network {
+	return &daisy.Network{
+		Network: compute.Network{
+			Name:           fmt.Sprintf("irdma-network-%d", index),
+			Mtu:            int64(imagetest.JumboFramesMTU),
+			NetworkProfile: fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/global/networkProfiles/%s-vpc-falcon", project, zone),
+		},
+		AutoCreateSubnetworks: new(bool),
+	}
+}
+
+func daisyNetworkForMRDMANIC(index int, project string, zone string, isMetal bool) *daisy.Network {
+	networkProfile := fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/global/networkProfiles/%s-vpc-roce", project, zone)
+	if isMetal {
+		networkProfile += "-metal"
+	}
+	return &daisy.Network{
+		Network: compute.Network{
+			Name:           fmt.Sprintf("mrdma-network-%d", index),
+			Mtu:            int64(imagetest.JumboFramesMTU),
+			NetworkProfile: networkProfile,
+		},
+		AutoCreateSubnetworks: new(bool),
+	}
+}
+
+func daisyNetworkForNIC(nicType string, index int, project string, zone string, isMetal bool) (*daisy.Network, error) {
+	switch nicType {
+	case NICTypeVIRTIONET:
+		return daisyNetworkForGeneralPurposeNIC(index), nil
+	case NICTypeGVNIC:
+		return daisyNetworkForGeneralPurposeNIC(index), nil
+	case NICTypeIDPF:
+		return daisyNetworkForGeneralPurposeNIC(index), nil
+	case NICTypeIRDMA:
+		return daisyNetworkForIRDMANIC(index, project, zone, isMetal), nil
+	case NICTypeMRDMA:
+		return daisyNetworkForMRDMANIC(index, project, zone, isMetal), nil
+	default:
+		return nil, fmt.Errorf("unsupported NIC type: %q", nicType)
+	}
+}
+
+func subnetPrefix(index int) (string, error) {
+	if index < 0 || index > 255 {
+		return "", fmt.Errorf("index out of range [0, 255] is not supported, got %d", index)
+	}
+	return fmt.Sprintf("10.0.%d.0/24", index), nil
+}
+
+func regionFromZone(zone string) (string, error) {
+	parts := strings.Split(zone, "-")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("failed to parse region from zone %q", zone)
+	}
+	return strings.Join(parts[:2], "-"), nil
+}
+
+func daisySubnet(index int, zone string) (*daisy.Subnetwork, error) {
+	netPrefix, err := subnetPrefix(index)
+	if err != nil {
+		return nil, err
+	}
+
+	region, err := regionFromZone(zone)
+	if err != nil {
+		return nil, err
+	}
+
+	return &daisy.Subnetwork{
+		Subnetwork: compute.Subnetwork{
+			Name:        fmt.Sprintf("subnet-%d", index),
+			IpCidrRange: netPrefix,
+			Region:      region,
+		},
+	}, nil
+}
+
+// CreateMachineWithNetworksOptions contains the options for creating a machine with multiple
+// network interfaces.
+type CreateMachineWithNetworksOptions struct {
+	MachineName string
+	MachineType string
+	NicTypes    []string
+	Project     string
+	Zone        string
+}
+
+// CreateMachineWithNetworks creates a daisy instance with the given network interfaces.
+// It registers the networks and subnetwork creations with the test workflow.
+func CreateMachineWithNetworks(t *imagetest.TestWorkflow, o *CreateMachineWithNetworksOptions) (*daisy.Instance, error) {
+	m := &daisy.Instance{}
+
+	for nicIndex, nicType := range o.NicTypes {
+		daisyNetwork, err := daisyNetworkForNIC(nicType, nicIndex, o.Project, o.Zone, imagetest.IsMetal(o.MachineType))
+		if err != nil {
+			return nil, fmt.Errorf("building daisy network: %w", err)
+		}
+
+		daisySubnet, err := daisySubnet(nicIndex, o.Zone)
+		if err != nil {
+			return nil, fmt.Errorf("building daisy subnetwork: %w", err)
+		}
+
+		citNetwork, err := t.CreateNetworkFromDaisyNetwork(daisyNetwork)
+		if err != nil {
+			return nil, fmt.Errorf("creating network: %w", err)
+		}
+
+		if _, err = citNetwork.CreateSubnetworkFromDaisySubnetwork(daisySubnet); err != nil {
+			return nil, fmt.Errorf("creating subnetwork: %w", err)
+		}
+
+		m.NetworkInterfaces = append(m.NetworkInterfaces, &compute.NetworkInterface{
+			NicType:    nicType,
+			Network:    daisyNetwork.Name,
+			Subnetwork: daisySubnet.Name,
+		})
+	}
+
+	return m, nil
 }

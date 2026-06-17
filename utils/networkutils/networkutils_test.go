@@ -21,7 +21,10 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/GoogleCloudPlatform/compute-daisy"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/api/compute/v1"
 )
 
 // makeRange returns a slice of integers from low to high, inclusive.
@@ -320,6 +323,175 @@ func TestExpandNICTypes(t *testing.T) {
 
 			if !cmp.Equal(got, tc.want) {
 				t.Errorf("ExpandNICTypes(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func diffDaisy(a any, b any) string {
+	return cmp.Diff(a, b, cmpopts.IgnoreUnexported(daisy.Resource{}))
+}
+
+func TestDaisyNetworkForNIC(t *testing.T) {
+	cases := []struct {
+		name    string
+		nicType string
+		index   int
+		project string
+		zone    string
+		isMetal bool
+		want    *daisy.Network
+	}{
+		{
+			name:    "VIRTIO NIC",
+			nicType: NICTypeVIRTIONET,
+			index:   0,
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name: "network-0",
+					Mtu:  8896,
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+		{
+			name:    "GVNIC NIC",
+			nicType: NICTypeGVNIC,
+			index:   0,
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name: "network-0",
+					Mtu:  8896,
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+		{
+			name:    "IDPF NIC",
+			nicType: NICTypeIDPF,
+			index:   0,
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name: "network-0",
+					Mtu:  8896,
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+		{
+			name:    "IRDMA NIC",
+			nicType: NICTypeIRDMA,
+			index:   0,
+			project: "test-project",
+			zone:    "us-central1-a",
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name:           "irdma-network-0",
+					Mtu:            8896,
+					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/us-central1-a-vpc-falcon",
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+		{
+			name:    "MRDMA virtual NIC",
+			nicType: NICTypeMRDMA,
+			index:   0,
+			project: "test-project",
+			zone:    "europe-central2-a",
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name:           "mrdma-network-0",
+					Mtu:            8896,
+					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/europe-central2-a-vpc-roce",
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+		{
+			name:    "MRDMA metal NIC",
+			nicType: NICTypeMRDMA,
+			index:   0,
+			project: "test-project",
+			zone:    "asia-southeast2-b",
+			isMetal: true,
+			want: &daisy.Network{
+				Network: compute.Network{
+					Name:           "mrdma-network-0",
+					Mtu:            8896,
+					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/asia-southeast2-b-vpc-roce-metal",
+				},
+				AutoCreateSubnetworks: new(bool),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := daisyNetworkForNIC(tc.nicType, tc.index, tc.project, tc.zone, tc.isMetal)
+			if err != nil {
+				t.Fatalf("daisyNetworkForNIC(%q, %d, %q, %q, %t) failed: %v", tc.nicType, tc.index, tc.project, tc.zone, tc.isMetal, err)
+			}
+			if diff := diffDaisy(got, tc.want); diff != "" {
+				t.Errorf("daisyNetworkForNIC(%q, %d, %q, %q, %t) = doesn't match expectations: diff (-got +want):\n%s", tc.nicType, tc.index, tc.project, tc.zone, tc.isMetal, diff)
+			}
+		})
+	}
+}
+
+func TestDaisySubnet(t *testing.T) {
+	cases := []struct {
+		name    string
+		index   int
+		zone    string
+		want    *daisy.Subnetwork
+		wantErr bool
+	}{
+		{
+			name:  "index 0",
+			index: 0,
+			zone:  "us-central1-a",
+			want: &daisy.Subnetwork{
+				Subnetwork: compute.Subnetwork{
+					Name:        "subnet-0",
+					IpCidrRange: "10.0.0.0/24",
+					Region:      "us-central1",
+				},
+			},
+		},
+		{
+			name:  "index 1",
+			index: 1,
+			zone:  "europe-west1-b",
+			want: &daisy.Subnetwork{
+				Subnetwork: compute.Subnetwork{
+					Name:        "subnet-1",
+					IpCidrRange: "10.0.1.0/24",
+					Region:      "europe-west1",
+				},
+			},
+		},
+		{
+			name:    "index too low",
+			index:   -1,
+			wantErr: true,
+		},
+		{
+			name:    "index too high",
+			index:   256,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := daisySubnet(tc.index, tc.zone)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("daisySubnet(%d, %q) returned error %v, wantErr %t", tc.index, tc.zone, err, tc.wantErr)
+				return
+			}
+			if diff := diffDaisy(got, tc.want); diff != "" {
+				t.Errorf("daisySubnet(%d, %q) = doesn't match expectations: diff (-got +want):\n%s", tc.index, tc.zone, diff)
 			}
 		})
 	}
