@@ -979,3 +979,50 @@ func TestIsMetal(t *testing.T) {
 		})
 	}
 }
+
+func TestMachineMaintenancePolicy(t *testing.T) {
+	cases := []struct {
+		name        string
+		machineType string
+		want        string
+	}{
+		{
+			name:        "regular machine",
+			machineType: "c3-highcpu-176",
+			want:        "MIGRATE",
+		},
+		{
+			name:        "metal machine",
+			machineType: "c3-highcpu-192-metal",
+			want:        "TERMINATE",
+		},
+		{
+			name:        "accelerator machine",
+			machineType: "a2-highgpu-1g",
+			want:        "TERMINATE",
+		},
+		{
+			name:        "h4d special case",
+			machineType: "h4d-standard-4",
+			want:        "TERMINATE",
+		},
+		{
+			name:        "z3 special case",
+			machineType: "z3-highmem-176-standardlssd",
+			want:        "TERMINATE",
+		},
+		{
+			name:        "unknown machine",
+			machineType: "unknown-machine",
+			want:        "MIGRATE",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.machineType, func(t *testing.T) {
+			got := MachineMaintenancePolicy(tc.machineType)
+			if got != tc.want {
+				t.Errorf("MachineMaintenancePolicy(%q) = %v, want %v", tc.machineType, got, tc.want)
+			}
+		})
+	}
+}

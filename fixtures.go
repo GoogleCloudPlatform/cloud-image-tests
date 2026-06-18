@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -51,6 +52,24 @@ const (
 
 	// DefaultMachineType is the default machine type when machine type isn't specified.
 	DefaultMachineType = "n1-standard-1"
+)
+
+var (
+	// knownTerminateOnlyMachineRegexes is a list of regexes for machine types that must use the
+	// TERMINATE maintenance policy.
+	knownTerminateOnlyMachineRegexes = []*regexp.Regexp{
+		// Accelerator families.
+		regexp.MustCompile(`^a\d+[x]?-.*`),
+		regexp.MustCompile(`^g\d+-.*`),
+
+		// TPU families.
+		regexp.MustCompile(`^ct\d.*`),
+		regexp.MustCompile(`^tpu\d.*`),
+
+		// Special cases.
+		regexp.MustCompile(`^h4d-.*`),
+		regexp.MustCompile(`^z3-.*`),
+	}
 )
 
 // TestVM is a test VM.
@@ -145,6 +164,23 @@ func DiskTypeNeeded(machineType string) string {
 		}
 	}
 	return HyperdiskBalanced
+}
+
+// MachineMaintenancePolicy returns the recommended maintenance policy for the given machine type.
+// For instance, metal and accelerator machines must use TERMINATE, while most others can use
+// MIGRATE.
+func MachineMaintenancePolicy(machineType string) string {
+	if IsMetal(machineType) {
+		return "TERMINATE"
+	}
+
+	for _, regex := range knownTerminateOnlyMachineRegexes {
+		if regex.MatchString(machineType) {
+			return "TERMINATE"
+		}
+	}
+
+	return "MIGRATE"
 }
 
 // CreateTestVM adds the necessary steps to create a VM with the specified
