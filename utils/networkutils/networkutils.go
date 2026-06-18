@@ -49,6 +49,10 @@ var (
 	// NICTypesFlag is the flag to specify the NIC types to use in the test.
 	NICTypesFlag = flag.String("networkutils_nic_types", "GVNIC:1", "NIC types. Comma separated list of <NIC_TYPE>:<COUNT>. e.g. \"GVNIC:2\" or \"GVNIC:2,MRDMA:8\". If unspecified, defaults to a single GVNIC.")
 
+	// ProvisioningModelFlag is the flag to specify the provisioning model to use when creating
+	// instances.
+	ProvisioningModelFlag = flag.String("networkutils_provisioning_model", "STANDARD", "Provisioning model to use when creating instances. One of [STANDARD, SPOT]. See https://docs.cloud.google.com/compute/docs/instances/provisioning-models.")
+
 	// EthtoolDriverRe is a regex to extract the driver name from the `ethtool -i` output.
 	EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
 
@@ -268,6 +272,16 @@ func daisySubnet(index int, zone string) (*daisy.Subnetwork, error) {
 	}, nil
 }
 
+func accessConfigsForNIC(nicType string) []*compute.AccessConfig {
+	if nicType == NICTypeIRDMA || nicType == NICTypeMRDMA {
+		return []*compute.AccessConfig{}
+	}
+	return []*compute.AccessConfig{&compute.AccessConfig{
+		Name: "External NAT",
+		Type: "ONE_TO_ONE_NAT",
+	}}
+}
+
 // CreateMachineWithNetworksOptions contains the options for creating a machine with multiple
 // network interfaces.
 type CreateMachineWithNetworksOptions struct {
@@ -304,10 +318,16 @@ func CreateMachineWithNetworks(t *imagetest.TestWorkflow, o *CreateMachineWithNe
 		}
 
 		m.NetworkInterfaces = append(m.NetworkInterfaces, &compute.NetworkInterface{
-			NicType:    nicType,
-			Network:    daisyNetwork.Name,
-			Subnetwork: daisySubnet.Name,
+			NicType:       nicType,
+			Network:       daisyNetwork.Name,
+			Subnetwork:    daisySubnet.Name,
+			AccessConfigs: accessConfigsForNIC(nicType),
 		})
+	}
+
+	m.Scheduling = &compute.Scheduling{
+		OnHostMaintenance: imagetest.MachineMaintenancePolicy(o.MachineType),
+		ProvisioningModel: *ProvisioningModelFlag,
 	}
 
 	return m, nil
