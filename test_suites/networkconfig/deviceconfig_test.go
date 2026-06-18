@@ -38,9 +38,18 @@ import (
 )
 
 var (
-	virtioRxIRQRe = regexp.MustCompile(`virtio\d+-input\.(\d+)`)
-	virtioTxIRQRe = regexp.MustCompile(`virtio\d+-output\.(\d+)`)
-	txQueueRe     = regexp.MustCompile(`tx-(\d+)`)
+	virtioRXIRQRe = regexp.MustCompile(`virtio\d+-input\.(\d+)`)
+	virtioTXIRQRe = regexp.MustCompile(`virtio\d+-output\.(\d+)`)
+
+	// GVE IRQ names are different across different kernel versions, so check for both.
+	//
+	// Additionally, note that the decimal value doesn't directly map to the queue index generally.
+	// The TX queues are directly mapped, but the RX queues are mapped after the last TX queue as
+	// a function of total notify blocks.
+	gveNotifyIRQRe      = regexp.MustCompile(`gve-ntfy-blk(\d+)@.*`)
+	gveOlderNotifyIRQRe = regexp.MustCompile(`.*-ntfy-block\.(\d+)`)
+
+	txQueueRe = regexp.MustCompile(`tx-(\d+)`)
 )
 
 //go:embed config_expectations.textproto
@@ -154,30 +163,108 @@ func findFileWithRegex(dirPath string, r *regexp.Regexp) (string, error) {
 	return ret, nil
 }
 
-// rxQueueIndex returns the index of the RX queue for the given IRQ path.
-// Returns -1 if no RX queue is found, or an error if the walk fails.
-func rxQueueIndex(irqPath string) (int, error) {
-	fileName, err := findFileWithRegex(irqPath, virtioRxIRQRe)
+func virtioRXQueueIndex(irqPath string) (found bool, index int, err error) {
+	fileName, err := findFileWithRegex(irqPath, virtioRXIRQRe)
 	if err != nil {
-		return 0, err
+		return
 	}
 	if fileName == "" {
-		return -1, nil
+		return
 	}
-	return strconv.Atoi(fileName)
+	index, err = strconv.Atoi(fileName)
+	if err != nil {
+		return
+	}
+
+	found = true
+	return
+}
+
+func virtioTXQueueIndex(irqPath string) (bool, int, error) {
+	fileName, err := findFileWithRegex(irqPath, virtioTXIRQRe)
+	if err != nil {
+		return false, 0, err
+	}
+	if fileName == "" {
+		return false, 0, nil
+	}
+	index, err := strconv.Atoi(fileName)
+	if err != nil {
+		return false, 0, err
+	}
+	return true, index, nil
+}
+
+func gveQueueIndex(irqPath string, isRX bool, queueCounts *networkutils.EthtoolQueueCounts) (bool, int, error) {
+	candidateRegexes := []*regexp.Regexp{gveNotifyIRQRe, gveOlderNotifyIRQRe}
+	var fileName string
+	for _, re := range candidateRegexes {
+		if f, err := findFileWithRegex(irqPath, re); err != nil {
+			return false, 0, err
+		} else if f != "" {
+			fileName = f
+			break
+		}
+	}
+	if fileName == "" {
+		return false, 0, nil
+	}
+	index, err := strconv.Atoi(fileName)
+	if err != nil {
+		return false, 0, err
+	}
+
+	// Mathematically inverse the GVE driver's logic, which is roughly:
+	//   gve_tx_idx_to_ntfy(queue_index) = queue_index
+	//   gve_rx_idx_to_ntfy(queue_index) = (num_ntfy_blks / 2) + queue_index
+	//
+	// Note that the number of notify blocks is based on the maximum number of queues, not
+	// the currently configured number.
+	if isRX && index >= queueCounts.MaxTXQueues {
+		index -= queueCounts.MaxTXQueues
+		return true, index, nil
+	}
+	if !isRX && index < queueCounts.MaxTXQueues {
+		return true, index, nil
+	}
+
+	return false, 0, nil
+}
+
+// rxQueueIndex returns the index of the RX queue for the given IRQ path.
+// Returns -1 if no RX queue is found, or an error if the calculation fails unexpectedly.
+func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) (int, error) {
+	if found, index, err := virtioRXQueueIndex(irqPath); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
+	}
+
+	if found, index, err := gveQueueIndex(irqPath, true /*isRX*/, queueCounts); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
+	}
+
+	return -1, nil
 }
 
 // txQueueIndex returns the index of the TX queue for the given IRQ path.
-// Returns -1 if no TX queue is found, or an error if the walk fails.
-func txQueueIndex(irqPath string) (int, error) {
-	fileName, err := findFileWithRegex(irqPath, virtioTxIRQRe)
-	if err != nil {
-		return 0, err
+// Returns -1 if no TX queue is found, or an error if the calculation fails unexpectedly.
+func txQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) (int, error) {
+	if found, index, err := virtioTXQueueIndex(irqPath); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
 	}
-	if fileName == "" {
-		return -1, nil
+
+	if found, index, err := gveQueueIndex(irqPath, false /*isRX*/, queueCounts); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
 	}
-	return strconv.Atoi(fileName)
+
+	return -1, nil
 }
 
 type irqCPULists struct {
@@ -185,7 +272,7 @@ type irqCPULists struct {
 	txIRQAffinity map[int]string
 }
 
-func queueIndexToIRQs(irqs []int) (*irqCPULists, error) {
+func queueIndexToIRQs(irqs []int, queueCounts *networkutils.EthtoolQueueCounts) (*irqCPULists, error) {
 	irqCPUListsMap := &irqCPULists{
 		rxIRQAffinity: make(map[int]string),
 		txIRQAffinity: make(map[int]string),
@@ -210,11 +297,11 @@ func queueIndexToIRQs(irqs []int) (*irqCPULists, error) {
 		}
 		cpuListStr := cpuset.ListString()
 
-		rxQueueIndex, err := rxQueueIndex(path)
+		rxQueueIndex, err := rxQueueIndex(path, queueCounts)
 		if err != nil {
 			return nil, err
 		}
-		txQueueIndex, err := txQueueIndex(path)
+		txQueueIndex, err := txQueueIndex(path, queueCounts)
 		if err != nil {
 			return nil, err
 		}
@@ -259,6 +346,8 @@ func deviceNICType(ifaceName string) (string, error) {
 			}
 			return networkutils.NICTypeIDPF, nil
 		}
+	case "mlx5_core":
+		return networkutils.NICTypeMRDMA, nil
 	default:
 		return "", fmt.Errorf("unknown driver type %q", driver)
 	}
@@ -307,6 +396,64 @@ func queueIndexToXPS(nicName string) (map[int]string, error) {
 	return txQueueToXPS, nil
 }
 
+func queueCountsForInterface(ifaceName string) (*networkutils.EthtoolQueueCounts, error) {
+	cmd := exec.Command("ethtool", "-l", ifaceName)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run `ethtool -l %q`: %w", ifaceName, err)
+	}
+	return networkutils.ParseEthtoolLOutput(string(out))
+}
+
+func buildQueuesXPSOnly(txQueueToXPS map[int]string) ([]*pb.TxQueue, error) {
+	var txQueues []*pb.TxQueue
+	for txQueueIndex, xpsCPUListStr := range txQueueToXPS {
+		txQueues = append(txQueues, pb.TxQueue_builder{
+			Index:      proto.Int32(int32(txQueueIndex)),
+			XpsCpulist: proto.String(xpsCPUListStr),
+		}.Build())
+	}
+	return txQueues, nil
+}
+
+func buildQueues(nicType string, irqCPULists *irqCPULists, txQueueToXPS map[int]string) ([]*pb.TxQueue, []*pb.RxQueue, error) {
+	// The guest environment don't configure IRQs for IRDMA and MRDMA.
+	// We may wish to assert on this in the future (i.e. values from the driver), but for now we
+	// ignore it.
+	switch nicType {
+	case networkutils.NICTypeIRDMA, networkutils.NICTypeMRDMA:
+		txQueues, err := buildQueuesXPSOnly(txQueueToXPS)
+		if err != nil {
+			return nil, nil, err
+		}
+		return txQueues, nil, nil
+	default:
+		// continue
+	}
+
+	if len(irqCPULists.txIRQAffinity) != len(txQueueToXPS) {
+		return nil, nil, fmt.Errorf("number of tx queues in IRQs (%d) does not match number of tx queues in XPS (%d)", len(irqCPULists.txIRQAffinity), len(txQueueToXPS))
+	}
+
+	var txQueues []*pb.TxQueue
+	for txQueueIndex, irqList := range irqCPULists.txIRQAffinity {
+		txQueues = append(txQueues, pb.TxQueue_builder{
+			Index:      proto.Int32(int32(txQueueIndex)),
+			IrqCpulist: proto.String(irqList),
+			XpsCpulist: proto.String(txQueueToXPS[txQueueIndex]),
+		}.Build())
+	}
+
+	var rxQueues []*pb.RxQueue
+	for rxQueueIndex, irqList := range irqCPULists.rxIRQAffinity {
+		rxQueues = append(rxQueues, pb.RxQueue_builder{
+			Index:      proto.Int32(int32(rxQueueIndex)),
+			IrqCpulist: proto.String(irqList),
+		}.Build())
+	}
+	return txQueues, rxQueues, nil
+}
+
 func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConfig, error) {
 	var nics []*pb.NicExpectation
 	for _, mdsIface := range mdsIfaces {
@@ -321,11 +468,16 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("getting NIC type for %q: %w", nicName, err)
 		}
 
+		queueCounts, err := queueCountsForInterface(nicName)
+		if err != nil {
+			return nil, fmt.Errorf("parsing ethtool -l output for %q: %w", nicName, err)
+		}
+
 		irqs, err := deviceIRQs(nicName)
 		if err != nil {
 			return nil, fmt.Errorf("getting device IRQs for %q: %w", nicName, err)
 		}
-		queueToIRQs, err := queueIndexToIRQs(irqs)
+		queueToIRQs, err := queueIndexToIRQs(irqs, queueCounts)
 		if err != nil {
 			return nil, fmt.Errorf("converting IRQs to queue index to IRQs for %q: %w", nicName, err)
 		}
@@ -335,25 +487,9 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("getting XPS for %q: %w", nicName, err)
 		}
 
-		if len(queueToIRQs.txIRQAffinity) != len(txQueueToXPS) {
-			return nil, fmt.Errorf("number of tx queues in IRQs (%d) does not match number of tx queues in XPS (%d)", len(queueToIRQs.txIRQAffinity), len(txQueueToXPS))
-		}
-
-		var txQueues []*pb.TxQueue
-		for txQueueIndex, irqList := range queueToIRQs.txIRQAffinity {
-			txQueues = append(txQueues, pb.TxQueue_builder{
-				Index:      proto.Int32(int32(txQueueIndex)),
-				IrqCpulist: proto.String(irqList),
-				XpsCpulist: proto.String(txQueueToXPS[txQueueIndex]),
-			}.Build())
-		}
-
-		var rxQueues []*pb.RxQueue
-		for rxQueueIndex, irqList := range queueToIRQs.rxIRQAffinity {
-			rxQueues = append(rxQueues, pb.RxQueue_builder{
-				Index:      proto.Int32(int32(rxQueueIndex)),
-				IrqCpulist: proto.String(irqList),
-			}.Build())
+		txQueues, rxQueues, err := buildQueues(nicType, queueToIRQs, txQueueToXPS)
+		if err != nil {
+			return nil, fmt.Errorf("building queues for %q: %w", nicName, err)
 		}
 
 		nic := pb.NicExpectation_builder{
@@ -398,17 +534,16 @@ func TestDeviceConfig(t *testing.T) {
 
 	wantSystemConfig, err := expectedConfigForMachine(&configExpectations, machineType, nicTypes)
 	if err != nil {
-		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v) = err %v want nil", machineType, nicTypes, err)
+		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v) = err: %v, want nil", machineType, nicTypes, err)
 	}
 
 	gotSystemConfig, err := thisSystemConfig(mdsIfaces)
 	if err != nil {
-		t.Fatalf("thisSystemConfig(mdsIfaces) = err %v want nil", err)
+		t.Fatalf("thisSystemConfig(mdsIfaces) = err: %v, want nil", err)
 	}
 
 	if diff := cmp.Diff(wantSystemConfig, gotSystemConfig,
 		protocmp.Transform(),
-		protocmp.SortRepeatedFields(&pb.SystemConfig{}, "nics"),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "tx_queues"),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "rx_queues"),
 		protocmp.IgnoreFields(&pb.SystemConfig{}, "description", "machine_type"),

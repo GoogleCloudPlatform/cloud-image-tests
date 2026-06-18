@@ -25,23 +25,24 @@ import (
 )
 
 var (
-	validGeneralPurposeRegex = regexp.MustCompile(`^(eth|ens)\d+$`)
-	validIRDMARegex          = regexp.MustCompile(`^rdma\d+$`)
-	validMRDMARegex          = regexp.MustCompile(`^gpu\d+-rdma\d+$`)
+	// e.g.: eth0, ens3, enp0s19
+	validGeneralPurposeRe = regexp.MustCompile(`^((eth|ens)\d+|(enp\d+[sp]\d+))$`)
+	validIRDMARe          = regexp.MustCompile(`^rdma\d+$`)
+	validMRDMARe          = regexp.MustCompile(`^gpu\d+rdma\d+$`)
 )
 
 func expectedNICRegex(nicType string) (*regexp.Regexp, error) {
 	switch nicType {
 	case networkutils.NICTypeVIRTIONET:
-		return validGeneralPurposeRegex, nil
+		return validGeneralPurposeRe, nil
 	case networkutils.NICTypeGVNIC:
-		return validGeneralPurposeRegex, nil
+		return validGeneralPurposeRe, nil
 	case networkutils.NICTypeIDPF:
-		return validGeneralPurposeRegex, nil
+		return validGeneralPurposeRe, nil
 	case networkutils.NICTypeIRDMA:
-		return validIRDMARegex, nil
+		return validIRDMARe, nil
 	case networkutils.NICTypeMRDMA:
-		return validMRDMARegex, nil
+		return validMRDMARe, nil
 	default:
 		return nil, fmt.Errorf("unknown/unsupported NIC type: %q", nicType)
 	}
