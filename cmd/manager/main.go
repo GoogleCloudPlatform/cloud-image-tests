@@ -45,7 +45,6 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/hostnamevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/hotattach"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/imageboot"
-	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/imagebuilder"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/licensevalidation"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/livemigrate"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/loadbalancer"
@@ -352,10 +351,6 @@ func main() {
 		{
 			imageboot.Name,
 			imageboot.TestSetup,
-		},
-		{
-			imagebuilder.Name,
-			imagebuilder.TestSetup,
 		},
 		{
 			licensevalidation.Name,
