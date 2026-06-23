@@ -19,7 +19,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-ini/ini"
+	"gopkg.in/ini.v1"
 )
 
 const (
