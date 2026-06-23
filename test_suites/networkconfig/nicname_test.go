@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	// e.g.: eth0, ens3, enp0s19
-	validGeneralPurposeRe = regexp.MustCompile(`^((eth|ens)\d+|(enp\d+[sp]\d+))$`)
+	// e.g.: eth0, ens3, enp0s19, enp6s0f0
+	validGeneralPurposeRe = regexp.MustCompile(`^((eth|ens)\d+|(enp\d+[sp]\d+(f\d+)?))$`)
 	validIRDMARe          = regexp.MustCompile(`^rdma\d+$`)
 	validMRDMARe          = regexp.MustCompile(`^gpu\d+rdma\d+$`)
 )

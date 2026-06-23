@@ -306,10 +306,10 @@ func queueIndexToIRQs(irqs []int, queueCounts *networkutils.EthtoolQueueCounts) 
 			return nil, err
 		}
 
-		if rxQueueIndex >= 0 {
+		if rxQueueIndex >= 0 && rxQueueIndex < queueCounts.CurrentRXQueues {
 			irqCPUListsMap.rxIRQAffinity[rxQueueIndex] = cpuListStr
 		}
-		if txQueueIndex >= 0 {
+		if txQueueIndex >= 0 && txQueueIndex < queueCounts.CurrentTXQueues {
 			irqCPUListsMap.txIRQAffinity[txQueueIndex] = cpuListStr
 		}
 	}

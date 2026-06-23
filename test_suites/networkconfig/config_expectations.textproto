@@ -182,6 +182,197 @@ config_expectations: {
   }
 }
 config_expectations: {
+  description: "A3 Mega with 9 GVNICs"
+  machine_type: "a3-megagpu-8g"
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-12" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "13-25" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "26-38" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "39-51" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "104-116" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "117-129" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "130-142" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "143-155" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "52-64" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "65-77" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "78-90" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "91-103" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "156-168" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "169-181" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "182-194" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "195-207" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "17" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "18" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "19" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "20" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "21" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "22" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "23" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "24" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "17" }
+    rx_queues: { index: 1 irq_cpulist: "18" }
+    rx_queues: { index: 2 irq_cpulist: "19" }
+    rx_queues: { index: 3 irq_cpulist: "20" }
+    rx_queues: { index: 4 irq_cpulist: "21" }
+    rx_queues: { index: 5 irq_cpulist: "22" }
+    rx_queues: { index: 6 irq_cpulist: "23" }
+    rx_queues: { index: 7 irq_cpulist: "24" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "33" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "34" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "35" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "36" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "37" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "38" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "39" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "40" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "33" }
+    rx_queues: { index: 1 irq_cpulist: "34" }
+    rx_queues: { index: 2 irq_cpulist: "35" }
+    rx_queues: { index: 3 irq_cpulist: "36" }
+    rx_queues: { index: 4 irq_cpulist: "37" }
+    rx_queues: { index: 5 irq_cpulist: "38" }
+    rx_queues: { index: 6 irq_cpulist: "39" }
+    rx_queues: { index: 7 irq_cpulist: "40" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "49" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "50" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "51" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "104" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "105" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "106" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "107" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "108" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "49" }
+    rx_queues: { index: 1 irq_cpulist: "50" }
+    rx_queues: { index: 2 irq_cpulist: "51" }
+    rx_queues: { index: 3 irq_cpulist: "104" }
+    rx_queues: { index: 4 irq_cpulist: "105" }
+    rx_queues: { index: 5 irq_cpulist: "106" }
+    rx_queues: { index: 6 irq_cpulist: "107" }
+    rx_queues: { index: 7 irq_cpulist: "108" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "117" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "118" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "119" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "120" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "121" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "122" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "123" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "124" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "117" }
+    rx_queues: { index: 1 irq_cpulist: "118" }
+    rx_queues: { index: 2 irq_cpulist: "119" }
+    rx_queues: { index: 3 irq_cpulist: "120" }
+    rx_queues: { index: 4 irq_cpulist: "121" }
+    rx_queues: { index: 5 irq_cpulist: "122" }
+    rx_queues: { index: 6 irq_cpulist: "123" }
+    rx_queues: { index: 7 irq_cpulist: "124" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "52" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "53" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "54" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "55" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "56" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "57" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "58" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "59" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "52" }
+    rx_queues: { index: 1 irq_cpulist: "53" }
+    rx_queues: { index: 2 irq_cpulist: "54" }
+    rx_queues: { index: 3 irq_cpulist: "55" }
+    rx_queues: { index: 4 irq_cpulist: "56" }
+    rx_queues: { index: 5 irq_cpulist: "57" }
+    rx_queues: { index: 6 irq_cpulist: "58" }
+    rx_queues: { index: 7 irq_cpulist: "59" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "68" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "69" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "70" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "71" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "72" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "73" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "74" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "75" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "68" }
+    rx_queues: { index: 1 irq_cpulist: "69" }
+    rx_queues: { index: 2 irq_cpulist: "70" }
+    rx_queues: { index: 3 irq_cpulist: "71" }
+    rx_queues: { index: 4 irq_cpulist: "72" }
+    rx_queues: { index: 5 irq_cpulist: "73" }
+    rx_queues: { index: 6 irq_cpulist: "74" }
+    rx_queues: { index: 7 irq_cpulist: "75" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "84" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "85" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "86" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "87" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "88" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "89" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "90" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "91" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "84" }
+    rx_queues: { index: 1 irq_cpulist: "85" }
+    rx_queues: { index: 2 irq_cpulist: "86" }
+    rx_queues: { index: 3 irq_cpulist: "87" }
+    rx_queues: { index: 4 irq_cpulist: "88" }
+    rx_queues: { index: 5 irq_cpulist: "89" }
+    rx_queues: { index: 6 irq_cpulist: "90" }
+    rx_queues: { index: 7 irq_cpulist: "91" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "100" xps_cpulist: "0-25" }
+    tx_queues: { index: 1 irq_cpulist: "101" xps_cpulist: "26-51" }
+    tx_queues: { index: 2 irq_cpulist: "102" xps_cpulist: "104-129" }
+    tx_queues: { index: 3 irq_cpulist: "103" xps_cpulist: "130-155" }
+    tx_queues: { index: 4 irq_cpulist: "156" xps_cpulist: "52-77" }
+    tx_queues: { index: 5 irq_cpulist: "157" xps_cpulist: "78-103" }
+    tx_queues: { index: 6 irq_cpulist: "158" xps_cpulist: "156-181" }
+    tx_queues: { index: 7 irq_cpulist: "159" xps_cpulist: "182-207" }
+    rx_queues: { index: 0 irq_cpulist: "100" }
+    rx_queues: { index: 1 irq_cpulist: "101" }
+    rx_queues: { index: 2 irq_cpulist: "102" }
+    rx_queues: { index: 3 irq_cpulist: "103" }
+    rx_queues: { index: 4 irq_cpulist: "156" }
+    rx_queues: { index: 5 irq_cpulist: "157" }
+    rx_queues: { index: 6 irq_cpulist: "158" }
+    rx_queues: { index: 7 irq_cpulist: "159" }
+  }
+}
+config_expectations: {
   description: "A3 Ultra machine with all NICs present"
   machine_type: "a3-ultragpu-8g"
   nics: {
