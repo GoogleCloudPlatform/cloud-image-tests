@@ -1,7 +1,7 @@
 # proto-file: third_party/golang/github_com/GoogleCloudPlatform/cloud_image_tests/test_suites/networkconfig/config_expectations.proto
 # proto-message: ConfigExpectations
 
-# go/keep-sorted start block=yes by_regex=machine_type.*
+# go/keep-sorted start block=yes by_regex=machine_type.*;description.*
 config_expectations: {
   description: "A3 High machine with 5 GVNICs"
   machine_type: "a3-highgpu-8g"
@@ -627,6 +627,87 @@ config_expectations: {
     rx_queues: { index: 29 irq_cpulist: "29" }
     rx_queues: { index: 30 irq_cpulist: "30" }
     rx_queues: { index: 31 irq_cpulist: "31" }
+  }
+}
+config_expectations: {
+  description: "n2-32 with single GVNIC"
+  machine_type: "n2-highcpu-32"
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "6-7" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "8-9" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "10-11" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "12-13" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "14-15" }
+    tx_queues: { index: 8 irq_cpulist: "8" xps_cpulist: "16-17" }
+    tx_queues: { index: 9 irq_cpulist: "9" xps_cpulist: "18-19" }
+    tx_queues: { index: 10 irq_cpulist: "10" xps_cpulist: "20-21" }
+    tx_queues: { index: 11 irq_cpulist: "11" xps_cpulist: "22-23" }
+    tx_queues: { index: 12 irq_cpulist: "12" xps_cpulist: "24-25" }
+    tx_queues: { index: 13 irq_cpulist: "13" xps_cpulist: "26-27" }
+    tx_queues: { index: 14 irq_cpulist: "14" xps_cpulist: "28-29" }
+    tx_queues: { index: 15 irq_cpulist: "15" xps_cpulist: "30-31" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+    rx_queues: { index: 8 irq_cpulist: "8" }
+    rx_queues: { index: 9 irq_cpulist: "9" }
+    rx_queues: { index: 10 irq_cpulist: "10" }
+    rx_queues: { index: 11 irq_cpulist: "11" }
+    rx_queues: { index: 12 irq_cpulist: "12" }
+    rx_queues: { index: 13 irq_cpulist: "13" }
+    rx_queues: { index: 14 irq_cpulist: "14" }
+    rx_queues: { index: 15 irq_cpulist: "15" }
+  }
+}
+config_expectations: {
+  description: "n2-32 with two GVNICs"
+  machine_type: "n2-highcpu-32"
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "3" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "4" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "5" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "6" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "7" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "3" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "4" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "5" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "6" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "7" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
   }
 }
 # go/keep-sorted end
