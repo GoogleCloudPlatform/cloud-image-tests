@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math/big"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -86,10 +85,10 @@ func ListMDSIfaces(ctx context.Context) ([]NetworkInterface, error) {
 
 // Cpuset represents a set of CPUs on a system.
 type Cpuset struct {
-	cpus []int
+	cpus *big.Int
 }
 
-// ParseCpusetMask returns a Cpuset object parsed from a cpuset "Mark format" string.
+// ParseCpusetMask returns a Cpuset object parsed from a cpuset "Mask format" string.
 // See https://man7.org/linux/man-pages/man7/cpuset.7.html#FORMATS for details.
 func ParseCpusetMask(maskStr string) (*Cpuset, error) {
 	maskStr = strings.TrimSpace(maskStr)
@@ -99,30 +98,76 @@ func ParseCpusetMask(maskStr string) (*Cpuset, error) {
 		return &Cpuset{}, nil
 	}
 
-	var i big.Int
-	if _, ok := i.SetString(maskStr, 16); !ok {
+	cpus := big.NewInt(0)
+	if _, ok := cpus.SetString(maskStr, 16); !ok {
 		return nil, fmt.Errorf("failed to parse hex mask %q", maskStr)
 	}
 
-	var cpus []int
-	for cpu := 0; cpu < i.BitLen(); cpu++ {
-		if i.Bit(cpu) != 0 {
-			cpus = append(cpus, cpu)
+	return &Cpuset{cpus: cpus}, nil
+}
+
+// ParseCpusetList returns a Cpuset object parsed from a cpuset "List format" string.
+// See https://man7.org/linux/man-pages/man7/cpuset.7.html#FORMATS for details.
+func ParseCpusetList(listStr string) (*Cpuset, error) {
+	if listStr == "" {
+		return &Cpuset{}, nil
+	}
+
+	cpus := big.NewInt(0)
+	ranges := strings.Split(listStr, ",")
+	for _, cpuRange := range ranges {
+		cpuRange = strings.TrimSpace(cpuRange)
+		if cpuRange == "" {
+			continue
+		}
+
+		var start, end int
+		var err error
+		if strings.Contains(cpuRange, "-") {
+			cpuRangeParts := strings.Split(cpuRange, "-")
+			if len(cpuRangeParts) != 2 {
+				return nil, fmt.Errorf("failed to parse range %q", cpuRange)
+			}
+			start, err = strconv.Atoi(cpuRangeParts[0])
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse range start %q: %v", cpuRangeParts[0], err)
+			}
+			end, err = strconv.Atoi(cpuRangeParts[1])
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse range end %q: %v", cpuRangeParts[1], err)
+			}
+		} else {
+			start, err = strconv.Atoi(cpuRange)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse cpu %q: %v", cpuRange, err)
+			}
+			end = start
+		}
+
+		if start > end {
+			return nil, fmt.Errorf("non-monotonic range %q", cpuRange)
+		}
+		for cpu := start; cpu <= end; cpu++ {
+			cpus.SetBit(cpus, cpu, 1)
 		}
 	}
+
 	return &Cpuset{cpus: cpus}, nil
 }
 
 // ListString returns a cpuset "List format" as a string  from the given slice of integers.
 // See https://man7.org/linux/man-pages/man7/cpuset.7.html#FORMATS for details.
 func (c *Cpuset) ListString() string {
-	if len(c.cpus) == 0 {
+	if c.cpus == nil || c.cpus.BitLen() == 0 {
 		return ""
 	}
 
-	sortedCPUs := make([]int, len(c.cpus))
-	copy(sortedCPUs, c.cpus)
-	sort.Ints(sortedCPUs)
+	var sortedCPUs []int
+	for i := 0; i < c.cpus.BitLen(); i++ {
+		if c.cpus.Bit(i) == 1 {
+			sortedCPUs = append(sortedCPUs, i)
+		}
+	}
 
 	type rng struct {
 		start int

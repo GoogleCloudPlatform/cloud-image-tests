@@ -16,6 +16,7 @@ package networkutils
 
 import (
 	"context"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -36,85 +37,182 @@ func makeRange(low int, high int) []int {
 	return result
 }
 
-func TestParseCpusetMask(t *testing.T) {
+func TestParseCpusetMaskToList(t *testing.T) {
 	tests := []struct {
 		name    string
 		mask    string
-		want    *Cpuset
+		want    string
 		wantErr bool
 	}{
 		{
 			name:    "invalid hex",
 			mask:    "invalid",
-			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "empty mask",
 			mask: "",
-			want: &Cpuset{},
+			want: "",
 		},
 		{
 			name: "single cpu 0",
 			mask: "1",
-			want: &Cpuset{cpus: []int{0}},
+			want: "0",
 		},
 		{
 			name: "single cpu 1",
 			mask: "2",
-			want: &Cpuset{cpus: []int{1}},
+			want: "1",
 		},
 		{
 			name: "single cpu 3",
 			mask: "8",
-			want: &Cpuset{cpus: []int{3}},
+			want: "3",
 		},
 		{
 			name: "multiple cpus 0 and 1",
 			mask: "3",
-			want: &Cpuset{cpus: []int{0, 1}},
+			want: "0-1",
 		},
 		{
 			name: "multiple cpus 0, 1, 2, 3",
 			mask: "f",
-			want: &Cpuset{cpus: []int{0, 1, 2, 3}},
+			want: "0-3",
 		},
 		{
 			name: "comma separated mask low bits",
 			mask: "00000000,00000003",
-			want: &Cpuset{cpus: []int{0, 1}},
+			want: "0-1",
 		},
 		{
 			name: "comma separated mask high bits",
 			mask: "00000003,00000000",
-			want: &Cpuset{cpus: []int{32, 33}},
+			want: "32-33",
 		},
 		{
 			name: "spaces trimmed",
 			mask: "  f  ",
-			want: &Cpuset{cpus: []int{0, 1, 2, 3}},
+			want: "0-3",
 		},
 		{
 			name: "real config, a3 half cpus",
 			mask: "0000,00000000,0fffffff,ffffff00,00000000,000fffff,ffffffff",
-			want: &Cpuset{cpus: append(makeRange(0, 51), makeRange(104, 155)...)},
+			want: "0-51,104-155",
 		},
 		{
 			name: "real config, a4 high cpus",
 			mask: "ffffe000,00000000,00000000,00000000,00000000,00000000,00000000",
-			want: &Cpuset{cpus: makeRange(205, 223)},
+			want: "205-223",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := ParseCpusetMask(tc.mask)
+			gotSet, err := ParseCpusetMask(tc.mask)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseHexMask(%q) returned error %v, wantErr %t", tc.mask, err, tc.wantErr)
 				return
 			}
-			if diff := cmp.Diff(got, tc.want, cmp.AllowUnexported(Cpuset{})); diff != "" {
-				t.Errorf("parseHexMask(%q) doesn't match expectations: diff (-got +want):\n%s", tc.mask, diff)
+			if tc.wantErr {
+				return
+			}
+			got := gotSet.ListString()
+			if tc.want != got {
+				t.Errorf("parseHexMask(%q) = %q, want %q", tc.mask, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseCpusetList(t *testing.T) {
+	tests := []struct {
+		name     string
+		in       string
+		wantCPUs []int
+		wantErr  bool
+	}{
+		{
+			name:     "empty",
+			in:       "",
+			wantCPUs: []int{},
+		},
+		{
+			name:     "single",
+			in:       "1",
+			wantCPUs: []int{1},
+		},
+		{
+			name:     "trim spaces",
+			in:       "    1 ,  5-8   ",
+			wantCPUs: []int{1, 5, 6, 7, 8},
+		},
+		{
+			name:     "contiguous range",
+			in:       "0-2",
+			wantCPUs: []int{0, 1, 2},
+		},
+		{
+			name:     "disjoint ranges",
+			in:       "0-1,4-5",
+			wantCPUs: []int{0, 1, 4, 5},
+		},
+		{
+			name:     "mixed contiguous and single",
+			in:       "0-1,3,5-6",
+			wantCPUs: []int{0, 1, 3, 5, 6},
+		},
+		{
+			name:     "overlapping ranges",
+			in:       "0-2,1-3",
+			wantCPUs: []int{0, 1, 2, 3},
+		},
+		{
+			name:    "incomplete range",
+			in:      "0-",
+			wantErr: true,
+		},
+		{
+			name:    "nonmonotonic range",
+			in:      "5-2",
+			wantErr: true,
+		},
+		{
+			name:    "too many parts range",
+			in:      "1-2-3",
+			wantErr: true,
+		},
+		{
+			name:    "nonnumeric single",
+			in:      "a",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseCpusetList(tc.in)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("parseCpusetList(%q) returned error %v, wantErr %t", tc.in, err, tc.wantErr)
+				return
+			}
+			if tc.wantErr {
+				return
+			}
+			want := &Cpuset{}
+			if len(tc.wantCPUs) > 0 {
+				want.cpus = big.NewInt(0)
+				for _, cpu := range tc.wantCPUs {
+					want.cpus.SetBit(want.cpus, cpu, 1)
+				}
+			}
+			bigIntComparer := cmp.Comparer(func(x, y *big.Int) bool {
+				if x == nil || y == nil {
+					return x == y
+				}
+				return x.Cmp(y) == 0
+			})
+			if diff := cmp.Diff(got, want, cmp.AllowUnexported(Cpuset{}), bigIntComparer); diff != "" {
+				t.Errorf("parseCpusetList(%q) doesn't match expectations: diff (-got +want):\n%s", tc.in, diff)
 			}
 		})
 	}
@@ -127,33 +225,28 @@ func TestCpusetString(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "empty",
+			name:   "nil cpus",
 			cpuset: &Cpuset{},
 			want:   "",
 		},
 		{
 			name:   "single",
-			cpuset: &Cpuset{cpus: []int{1}},
+			cpuset: &Cpuset{cpus: big.NewInt(2)},
 			want:   "1",
 		},
 		{
 			name:   "contiguous range",
-			cpuset: &Cpuset{cpus: []int{0, 1, 2}},
+			cpuset: &Cpuset{cpus: big.NewInt(7)},
 			want:   "0-2",
 		},
 		{
 			name:   "disjoint ranges",
-			cpuset: &Cpuset{cpus: []int{0, 1, 4, 5}},
+			cpuset: &Cpuset{cpus: big.NewInt(51)},
 			want:   "0-1,4-5",
 		},
 		{
 			name:   "mixed contiguous and single",
-			cpuset: &Cpuset{cpus: []int{0, 1, 3, 5, 6}},
-			want:   "0-1,3,5-6",
-		},
-		{
-			name:   "unsorted input",
-			cpuset: &Cpuset{cpus: []int{5, 0, 6, 3, 1}},
+			cpuset: &Cpuset{cpus: big.NewInt(107)},
 			want:   "0-1,3,5-6",
 		},
 	}
