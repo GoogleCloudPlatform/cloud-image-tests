@@ -16,7 +16,7 @@ edition = "2024";
 
 package github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig;
 
-option go_package = "./test_suites/networkconfig/config_expectations";
+option go_package = "./test_suites/networkconfig/config_expectations_proto";
 
 // To learn more about the cpuset "List Format", refer to
 // https://man7.org/linux/man-pages/man7/cpuset.7.html.

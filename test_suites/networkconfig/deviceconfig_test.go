@@ -34,7 +34,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	pb "github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkconfig/config_expectations"
+	pb "github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkconfig/config_expectations_proto"
 )
 
 var (
@@ -52,7 +52,7 @@ var (
 	txQueueRe = regexp.MustCompile(`tx-(\d+)`)
 )
 
-//go:embed config_expectations.textproto
+//go:embed config_expectations/config_expectations.textproto
 var configExpectationsBytes []byte
 
 type systemKey struct {

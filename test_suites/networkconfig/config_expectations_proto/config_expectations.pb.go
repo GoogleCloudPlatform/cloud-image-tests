@@ -16,9 +16,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.35.1
-// source: test_suites/networkconfig/config_expectations.proto
+// source: test_suites/networkconfig/config_expectations/config_expectations.proto
 
-package config_expectations
+package config_expectations_proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -43,7 +43,7 @@ type ConfigExpectations struct {
 
 func (x *ConfigExpectations) Reset() {
 	*x = ConfigExpectations{}
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[0]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55,7 +55,7 @@ func (x *ConfigExpectations) String() string {
 func (*ConfigExpectations) ProtoMessage() {}
 
 func (x *ConfigExpectations) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[0]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -108,7 +108,7 @@ type SystemConfig struct {
 
 func (x *SystemConfig) Reset() {
 	*x = SystemConfig{}
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[1]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +120,7 @@ func (x *SystemConfig) String() string {
 func (*SystemConfig) ProtoMessage() {}
 
 func (x *SystemConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[1]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +240,7 @@ type NicExpectation struct {
 
 func (x *NicExpectation) Reset() {
 	*x = NicExpectation{}
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[2]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -252,7 +252,7 @@ func (x *NicExpectation) String() string {
 func (*NicExpectation) ProtoMessage() {}
 
 func (x *NicExpectation) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[2]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +353,7 @@ type RxQueue struct {
 
 func (x *RxQueue) Reset() {
 	*x = RxQueue{}
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[3]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +365,7 @@ func (x *RxQueue) String() string {
 func (*RxQueue) ProtoMessage() {}
 
 func (x *RxQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[3]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +465,7 @@ type TxQueue struct {
 
 func (x *TxQueue) Reset() {
 	*x = TxQueue{}
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[4]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -477,7 +477,7 @@ func (x *TxQueue) String() string {
 func (*TxQueue) ProtoMessage() {}
 
 func (x *TxQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_proto_msgTypes[4]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -598,11 +598,11 @@ func (b0 TxQueue_builder) Build() *TxQueue {
 	return m0
 }
 
-var File_test_suites_networkconfig_config_expectations_proto protoreflect.FileDescriptor
+var File_test_suites_networkconfig_config_expectations_config_expectations_proto protoreflect.FileDescriptor
 
-const file_test_suites_networkconfig_config_expectations_proto_rawDesc = "" +
+const file_test_suites_networkconfig_config_expectations_config_expectations_proto_rawDesc = "" +
 	"\n" +
-	"3test_suites/networkconfig/config_expectations.proto\x12Jgithub_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig\"\xa0\x01\n" +
+	"Gtest_suites/networkconfig/config_expectations/config_expectations.proto\x12Jgithub_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig\"\xa0\x01\n" +
 	"\x12ConfigExpectations\x12\x89\x01\n" +
 	"\x13config_expectations\x18\x01 \x03(\v2X.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfigR\x12configExpectations\"\xc3\x01\n" +
 	"\fSystemConfig\x12 \n" +
@@ -622,17 +622,17 @@ const file_test_suites_networkconfig_config_expectations_proto_rawDesc = "" +
 	"\virq_cpulist\x18\x02 \x01(\tR\n" +
 	"irqCpulist\x12\x1f\n" +
 	"\vxps_cpulist\x18\x03 \x01(\tR\n" +
-	"xpsCpulistB1Z/./test_suites/networkconfig/config_expectationsb\beditionsp\xe9\a"
+	"xpsCpulistB7Z5./test_suites/networkconfig/config_expectations_protob\beditionsp\xe9\a"
 
-var file_test_suites_networkconfig_config_expectations_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_test_suites_networkconfig_config_expectations_proto_goTypes = []any{
+var file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_test_suites_networkconfig_config_expectations_config_expectations_proto_goTypes = []any{
 	(*ConfigExpectations)(nil), // 0: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.ConfigExpectations
 	(*SystemConfig)(nil),       // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
 	(*NicExpectation)(nil),     // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
 	(*RxQueue)(nil),            // 3: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueue
 	(*TxQueue)(nil),            // 4: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
 }
-var file_test_suites_networkconfig_config_expectations_proto_depIdxs = []int32{
+var file_test_suites_networkconfig_config_expectations_config_expectations_proto_depIdxs = []int32{
 	1, // 0: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.ConfigExpectations.config_expectations:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
 	2, // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig.nics:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
 	4, // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation.tx_queues:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
@@ -644,26 +644,26 @@ var file_test_suites_networkconfig_config_expectations_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_test_suites_networkconfig_config_expectations_proto_init() }
-func file_test_suites_networkconfig_config_expectations_proto_init() {
-	if File_test_suites_networkconfig_config_expectations_proto != nil {
+func init() { file_test_suites_networkconfig_config_expectations_config_expectations_proto_init() }
+func file_test_suites_networkconfig_config_expectations_config_expectations_proto_init() {
+	if File_test_suites_networkconfig_config_expectations_config_expectations_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_test_suites_networkconfig_config_expectations_proto_rawDesc), len(file_test_suites_networkconfig_config_expectations_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_test_suites_networkconfig_config_expectations_config_expectations_proto_rawDesc), len(file_test_suites_networkconfig_config_expectations_config_expectations_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_test_suites_networkconfig_config_expectations_proto_goTypes,
-		DependencyIndexes: file_test_suites_networkconfig_config_expectations_proto_depIdxs,
-		MessageInfos:      file_test_suites_networkconfig_config_expectations_proto_msgTypes,
+		GoTypes:           file_test_suites_networkconfig_config_expectations_config_expectations_proto_goTypes,
+		DependencyIndexes: file_test_suites_networkconfig_config_expectations_config_expectations_proto_depIdxs,
+		MessageInfos:      file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes,
 	}.Build()
-	File_test_suites_networkconfig_config_expectations_proto = out.File
-	file_test_suites_networkconfig_config_expectations_proto_goTypes = nil
-	file_test_suites_networkconfig_config_expectations_proto_depIdxs = nil
+	File_test_suites_networkconfig_config_expectations_config_expectations_proto = out.File
+	file_test_suites_networkconfig_config_expectations_config_expectations_proto_goTypes = nil
+	file_test_suites_networkconfig_config_expectations_config_expectations_proto_depIdxs = nil
 }
