@@ -78,6 +78,8 @@ import (
 	"github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	computev1 "google.golang.org/api/compute/v1"
 )
 
 var (
@@ -108,6 +110,7 @@ var (
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
+	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
 
 	// zonesRoundRobinIdx points to an index in the list of zones.
 	// This is used to distribute tests across the list of zones in a round robin fashion,
@@ -232,9 +235,26 @@ func displayZone() string {
 
 func main() {
 	flag.Parse()
-	if *project == "" || (*zone == "" && len(zones) == 0) || *images == "" {
-		log.Fatal("Must provide project, zone (or zones) and images arguments")
+	if *project == "" || (*zone == "" && len(zones) == 0) || (*images == "" && *allImageFamilies == "") {
+		log.Fatal("Must provide project, zone(s), and one of images or all_image_families arguments")
 		return
+	}
+	if *images != "" && *allImageFamilies != "" {
+		log.Fatal("Must provide one of images or all_image_families arguments, not both")
+		return
+	}
+	if *allImageFamilies != "" {
+		valid := false
+		for _, v := range projectMap {
+			if v == *allImageFamilies {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			log.Fatalf("Project %s is not a valid image project", *allImageFamilies)
+			return
+		}
 	}
 	var testProjectsReal []string
 	if *testProjects == "" {
@@ -473,6 +493,43 @@ func main() {
 		log.Fatalf("Could not create compute client:%v", err)
 	}
 
+	// Initialize the Compute API client
+	var computev1Client *computev1.Service
+	if *computeEndpointOverride != "" {
+		log.Printf("Using compute endpoint %q", *computeEndpointOverride)
+		computev1Client, err = computev1.NewService(ctx, option.WithEndpoint(*computeEndpointOverride))
+	} else {
+		computev1Client, err = computev1.NewService(ctx)
+	}
+	if err != nil {
+		log.Fatalf("Could not create compute v1 client: %v", err)
+	}
+
+	// Fetch active image families from the project
+	var imageList []string
+	if *allImageFamilies != "" {
+		projectName := *allImageFamilies
+		uniqueImageList := make(map[string]bool)
+
+		err := computev1Client.Images.List(projectName).Context(ctx).Pages(ctx, func(page *computev1.ImageList) error {
+			for _, projectImage := range page.Items {
+				if projectImage.Family != "" && !uniqueImageList[projectImage.Family] {
+					if projectImage.Deprecated == nil || (projectImage.Deprecated.State != "DEPRECATED" && projectImage.Deprecated.State != "OBSOLETE" && projectImage.Deprecated.State != "DELETED") {
+						uniqueImageList[projectImage.Family] = true
+						image := fmt.Sprintf("projects/%s/global/images/family/%s", projectName, projectImage.Family)
+						imageList = append(imageList, image)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			log.Fatalf("Failed Compute API call: %v", err)
+		}
+
+		*images = strings.Join(imageList, ",")
+	}
+
 	var testWorkflows []*imagetest.TestWorkflow
 	for _, testPackage := range testPackages {
 		if filterRegex != nil && !filterRegex.MatchString(testPackage.name) {
@@ -481,7 +538,10 @@ func main() {
 		if excludeRegex != nil && excludeRegex.MatchString(testPackage.name) {
 			continue
 		}
-		// If the image is a family, we need to find the project of the image.
+		if testPackage.name == "" || testPackage.setupFunc == nil {
+			continue
+		}
+
 		for _, image := range strings.Split(*images, ",") {
 			// Ignore empty strings.
 			if image == "" {
@@ -514,11 +574,11 @@ func main() {
 				}
 
 				// Check whether the image is an image family or a specific image version.
-				isMatch, err := regexp.MatchString(".*v([0-9]+)", image)
+				vRegex, err := regexp.Compile(".*v([0-9]+)")
 				if err != nil {
 					log.Fatalf("failed regex: %v", err)
 				}
-				if isMatch {
+				if vRegex.MatchString(image) {
 					image = fmt.Sprintf("projects/%s/global/images/%s", project, image)
 				} else {
 					image = fmt.Sprintf("projects/%s/global/images/family/%s", project, image)
