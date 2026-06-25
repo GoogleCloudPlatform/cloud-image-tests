@@ -23,7 +23,10 @@ import (
 )
 
 // Name is the name of the test package. It must match the directory name.
-const Name = "guestagent"
+const (
+	Name        = "guestagent"
+	mwlidVMName = "mwlid" // Name of the VM used for mwlid tests.
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -83,5 +86,63 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady")
 	}
 
+	// This section is for testing MWLID. It is only run on non-Windows images and guest-agent derived images.
+	if strings.Contains(t.Image.Name, "guest-agent") {
+		project := t.Project.Name
+		zone := t.Zone.Name
+		projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
+		machineType := t.MachineType.Name
+
+		poolID := "cic-pool1"
+		namespaceID := "cic-ns"
+		managedIdentityID := "cic-mi-sa-email1"
+
+		workloadIdentity := strings.Join([]string{
+			poolID, ".global.", projectNumber, ".workload.id.goog/ns/", namespaceID, "/sa/", managedIdentityID,
+		}, "")
+
+		mwlidInst := &daisy.Instance{}
+		mwlidInst.Name = mwlidVMName // Use the constant name
+		mwlidInst.MachineType = "projects/" + project + "/zones/" + zone + "/machineTypes/" + machineType
+		mwlidInst.WorkloadIdentityConfig = &compute.WorkloadIdentityConfig{
+			Identity:                   workloadIdentity,
+			IdentityCertificateEnabled: true,
+		}
+		mwlidInst.ServiceAccounts = []*compute.ServiceAccount{
+			{
+				Email:  "default",
+				Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
+			},
+		}
+		mwlidInst.Tags = &compute.Tags{
+			Items: []string{
+				"vmexp-enable-shared-centralized-issuance-configs",
+				"vmexp-enable-s2a",
+			},
+		}
+		mwlidInst.Metadata = map[string]string{
+			"vmDnsSetting": "ZonalOnly",
+		}
+		mwlidInst.NetworkInterfaces = []*compute.NetworkInterface{
+			{
+				Network: "projects/" + project + "/global/networks/default",
+				AccessConfigs: []*compute.AccessConfig{
+					{
+						Type: "ONE_TO_ONE_NAT",
+						Name: "External NAT",
+					},
+				},
+			},
+		}
+
+		// When disks are defined in mwlidInst.Disks with InitializeParams,
+		// the first argument to CreateTestVMMultipleDisks (additional disks) can be nil.
+		mwlidVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: mwlidVMName, Type: diskType}}, mwlidInst)
+		if err != nil {
+			return fmt.Errorf("failed to create MWLID test VM: %v", err)
+		}
+
+		mwlidVM.RunTests("TestMWLIDCredentials")
+	}
 	return nil
 }
