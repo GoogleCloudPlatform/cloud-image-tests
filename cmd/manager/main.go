@@ -111,6 +111,7 @@ var (
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
+	architectureType        = flag.String("architecture_type", "", "Specific architecture to test on. Accepts one of x86 or arm64.")
 
 	// zonesRoundRobinIdx points to an index in the list of zones.
 	// This is used to distribute tests across the list of zones in a round robin fashion,
@@ -258,6 +259,12 @@ func main() {
 			return
 		}
 	}
+
+	if *architectureType != "" && (*architectureType != "x86" && *architectureType != "arm64") {
+		log.Fatal("architecture_type must be blank, x86, or arm64")
+		return
+	}
+
 	var testProjectsReal []string
 	if *testProjects == "" {
 		testProjectsReal = append(testProjectsReal, *project)
@@ -532,6 +539,15 @@ func main() {
 		*images = strings.Join(imageList, ",")
 	}
 
+	// Filter by architecture type if applicable
+	if *architectureType != "" {
+		filteredImages, err := filterByArchitecture(computeclient, *images, *architectureType)
+		if err != nil {
+			log.Fatalf("Failed to filter images by architecture: %v", err)
+		}
+		*images = filteredImages
+	}
+
 	var testWorkflows []*imagetest.TestWorkflow
 	for _, testPackage := range testPackages {
 		if filterRegex != nil && !filterRegex.MatchString(testPackage.name) {
@@ -550,41 +566,11 @@ func main() {
 				log.Print("Skipping empty image")
 				continue
 			}
-			if !strings.Contains(image, "/") {
-				// Find the project of the image.
-				project := ""
-				for _, k := range imageKeys {
-					if utils.IsSAP(k) {
-						// sap follows a slightly different naming convention.
-						imageName := strings.Split(k, "-")[0]
-						if strings.HasPrefix(image, imageName) && utils.IsSAP(image) {
-							project = projectMap[k]
-							break
-						}
-					}
-					imageRegex, err := regexp.Compile(k)
-					if err != nil {
-						log.Fatalf("failed regex: %v", err)
-					}
-					if imageRegex.MatchString(image) {
-						project = projectMap[k]
-						break
-					}
-				}
-				if project == "" {
-					log.Fatalf("unknown image %q", image)
-				}
 
-				// Check whether the image is an image family or a specific image version.
-				vRegex, err := regexp.Compile(".*v([0-9]+)")
-				if err != nil {
-					log.Fatalf("failed regex: %v", err)
-				}
-				if vRegex.MatchString(image) {
-					image = fmt.Sprintf("projects/%s/global/images/%s", project, image)
-				} else {
-					image = fmt.Sprintf("projects/%s/global/images/family/%s", project, image)
-				}
+			var err error
+			image, err = formatImageName(image)
+			if err != nil {
+				log.Fatalf("Failed to reformat image path: %v", err)
 			}
 
 			log.Printf("Add test workflow for test %s on image %s", testPackage.name, image)
@@ -743,4 +729,87 @@ func downloadFolder(ctx context.Context, client *storage.Client, bucket, folder,
 	}
 
 	return nil
+}
+
+// Reformat image path into valid URI
+func formatImageName(image string) (string, error) {
+	if strings.Contains(image, "/") {
+		return image, nil
+	}
+
+	// Find the project of the image.
+	project := ""
+	for _, k := range imageKeys {
+		if utils.IsSAP(k) {
+			// sap follows a slightly different naming convention.
+			imageName := strings.Split(k, "-")[0]
+			if strings.HasPrefix(image, imageName) && utils.IsSAP(image) {
+				project = projectMap[k]
+				break
+			}
+		}
+		imageRegex, err := regexp.Compile(k)
+		if err != nil {
+			log.Fatalf("failed regex: %v", err)
+		}
+		if imageRegex.MatchString(image) {
+			project = projectMap[k]
+			break
+		}
+	}
+	if project == "" {
+		log.Fatalf("unknown image %q", image)
+	}
+
+	// Check whether the image is an image family or a specific image version.
+	vRegex, err := regexp.Compile(".*v([0-9]+)")
+	if err != nil {
+		return "", fmt.Errorf("failed regex: %v", err)
+	}
+	if vRegex.MatchString(image) {
+		return fmt.Sprintf("projects/%s/global/images/%s", project, image), nil
+	}
+	return fmt.Sprintf("projects/%s/global/images/family/%s", project, image), nil
+}
+
+// Filter images list by architecture type
+func filterByArchitecture(computeclient compute.Client, images string, arch string) (string, error) {
+	if arch == "" {
+		return images, nil
+	}
+
+	var filteredImages []string
+	for _, image := range strings.Split(images, ",") {
+		if image == "" {
+			continue
+		}
+
+		fmtImage, err := formatImageName(image)
+		if err != nil {
+			return "", err
+		}
+
+		fmtImageComponents := strings.Split(fmtImage, "/")
+		var i *computev1.Image
+		if strings.Contains(fmtImage, "family") {
+			i, err = computeclient.GetImageFromFamily(fmtImageComponents[1], fmtImageComponents[len(fmtImageComponents)-1])
+		} else {
+			i, err = computeclient.GetImage(fmtImageComponents[1], fmtImageComponents[len(fmtImageComponents)-1])
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to get image %q: %w", fmtImage, err)
+		}
+
+		isArm := i.Architecture == "ARM64"
+		if arch == "x86" && isArm {
+			log.Printf("skipping over arm64 image: %s", fmtImage)
+			continue
+		}
+		if arch == "arm64" && !isArm {
+			log.Printf("skipping over x86 image: %s", fmtImage)
+			continue
+		}
+		filteredImages = append(filteredImages, fmtImage)
+	}
+	return strings.Join(filteredImages, ","), nil
 }
