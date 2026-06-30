@@ -123,27 +123,28 @@ var (
 	// When modifying this map, please make sure that the image family prefix is
 	// also added to the imageKeys list.
 	projectMap = map[string]string{
-		"almalinux":          "almalinux-cloud",
-		"centos":             "centos-cloud",
-		"cos":                "cos-cloud",
-		"debian":             "debian-cloud",
-		"fedora-cloud":       "fedora-cloud",
-		"fedora-coreos":      "fedora-coreos-cloud",
-		"opensuse":           "opensuse-cloud",
-		"oracle-linux":       "oracle-linux-cloud",
-		"rhel-(.*-)?byos":    "rhel-byos-cloud",
-		"rhel-(.*-)?eus":     "rhel-cloud",
-		"rhel-(.*-)?lvm":     "rhel-cloud",
-		"rhel-(.*-)?sap":     "rhel-sap-cloud",
-		"rhel":               "rhel-cloud",
-		"rocky-linux":        "rocky-linux-cloud",
-		"sles-(.*-)?sap":     "suse-sap-cloud",
-		"sles":               "suse-cloud",
-		"sql-":               "windows-sql-cloud",
-		"ubuntu-(.*-)?pro":   "ubuntu-os-pro-cloud",
-		"ubuntu-accelerator": "ubuntu-os-accelerator-images",
-		"ubuntu":             "ubuntu-os-cloud",
-		"windows":            "windows-cloud",
+		"almalinux":                    "almalinux-cloud",
+		"centos":                       "centos-cloud",
+		"cos":                          "cos-cloud",
+		"debian":                       "debian-cloud",
+		"fedora-cloud":                 "fedora-cloud",
+		"fedora-coreos":                "fedora-coreos-cloud",
+		"opensuse":                     "opensuse-cloud",
+		"oracle-linux":                 "oracle-linux-cloud",
+		"rhel-(.*-)?byos":              "rhel-byos-cloud",
+		"rhel-(.*-)?eus":               "rhel-cloud",
+		"rhel-(.*-)?lvm":               "rhel-cloud",
+		"rhel-(.*-)?sap":               "rhel-sap-cloud",
+		"rhel":                         "rhel-cloud",
+		"rocky-linux":                  "rocky-linux-cloud",
+		"sles-(.*-)?sap":               "suse-sap-cloud",
+		"sles":                         "suse-cloud",
+		"sql-":                         "windows-sql-cloud",
+		"ubuntu-(.*-)?pro":             "ubuntu-os-pro-cloud",
+		"ubuntu-accelerator":           "ubuntu-os-accelerator-images",
+		"ubuntu":                       "ubuntu-os-cloud",
+		"windows":                      "windows-cloud",
+		"gce-unstable-pkg-test-images": "gce-unstable-pkg-test-images",
 	}
 
 	// An ordered list is required because some image names are substrings of
@@ -171,6 +172,7 @@ var (
 		"ubuntu-accelerator",
 		"ubuntu",
 		"windows",
+		"gce-unstable-pkg-test-images",
 	}
 )
 
