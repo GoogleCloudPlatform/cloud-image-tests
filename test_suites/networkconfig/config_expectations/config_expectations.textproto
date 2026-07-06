@@ -710,4 +710,27 @@ config_expectations: {
     rx_queues: { index: 7 irq_cpulist: "7" }
   }
 }
+config_expectations: {
+  description: "t2a-16 with one GVNIC"
+  machine_type: "t2a-standard-16"
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "3" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "4" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "5" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "6" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "7" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+  }
+}
 # go/keep-sorted end
