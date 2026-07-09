@@ -906,23 +906,41 @@ func RestartAgent(ctx context.Context) error {
 	var ggactl string
 	var wait bool
 	if IsWindows() {
-		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgent")
 		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
-	} else {
-		cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
-		ggactl = "/usr/bin/ggactl_plugin"
-	}
+		serviceName := "GCEAgent"
 
-	if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-		if IsWindows() {
-			cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "Restart-Service", "GCEAgentManager")
-		} else {
-			cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
+		// Determine if we need to escalate to the Manager service
+		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
+			serviceName = "GCEAgentManager"
+			wait = true
 		}
-		wait = true
+
+		// %[1]s reuses the first argument (serviceName) so we don't have to pass it three times
+		psScript := fmt.Sprintf(`
+      Stop-Service -Name '%[1]s' -Force
+      while ((Get-Service '%[1]s').Status -ne 'Stopped') {
+        Start-Sleep -Seconds 1
+      }
+      Start-Service -Name '%[1]s'
+    `, serviceName)
+
+		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "-Command", psScript)
+
+	} else { // Linux
+		ggactl = "/usr/bin/ggactl_plugin"
+
+		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
+			cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
+			wait = true
+		} else {
+			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
+		}
 	}
 
 	output, err := cmd.CombinedOutput()
+	if len(output) > 0 {
+		log.Printf("Restart command output:\n%s", string(output))
+	}
 	if err != nil {
 		return fmt.Errorf("could not restart agent: %w, output: %s", err, string(output))
 	}
@@ -930,20 +948,35 @@ func RestartAgent(ctx context.Context) error {
 	if wait {
 		// Wait for the core plugin to be restarted by plugin manager up until the
 		// timeout.
+		log.Printf("Waiting up to %d seconds for the core plugin to start...", corePluginWaitTimeSeconds)
+
+		processFound := false
 		for i := 0; i < corePluginWaitTimeSeconds; i++ {
 			time.Sleep(time.Second)
+
+			var found bool
+			var checkErr error
+
 			if runtime.GOOS == "windows" {
-				_, found, err := ProcessExistsWindows("CorePlugin")
-				if err == nil && found {
-					break
-				}
+				_, found, checkErr = ProcessExistsWindows("CorePlugin")
 			} else {
-				_, found, err := ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
-				if err == nil && found {
-					break
-				}
+				_, found, checkErr = ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
 			}
+			if checkErr != nil {
+				log.Printf("Attempt %d: Error checking process state: %v", i+1, checkErr)
+				continue
+			}
+			if found {
+				log.Printf("Core plugin process detected successfully after %d seconds.", i+1)
+				processFound = true
+				break
+			}
+			log.Printf("Attempt %d: Core plugin not yet running, waiting...", i+1)
 		}
+		if !processFound {
+			return fmt.Errorf("core plugin process was not detected after waiting %d seconds", corePluginWaitTimeSeconds)
+		}
+		log.Printf("Applying final 1-second stabilization buffer...")
 		time.Sleep(time.Second) // Wait an extra second to make sure it's actually started.
 	}
 	return nil
