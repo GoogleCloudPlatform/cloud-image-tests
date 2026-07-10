@@ -17,7 +17,6 @@ package networkconfig
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
@@ -33,10 +32,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-
-	// We want to give some time for Guest Agent to come up and run configuration.
-	// Ideally, we could wait on some explicit signal if one were to exist.
-	time.Sleep(time.Minute * 1)
 
 	vm.RunTests("TestNICNames|TestDeviceConfig")
 

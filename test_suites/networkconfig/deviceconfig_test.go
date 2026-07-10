@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
@@ -550,4 +551,11 @@ func TestDeviceConfig(t *testing.T) {
 	); diff != "" {
 		t.Errorf("SystemConfig mismatch (-want +got):\n%s", diff)
 	}
+}
+
+func TestMain(m *testing.M) {
+	// We want to give some time for Guest Agent to come up and run configuration.
+	// Ideally, we could wait on some explicit signal if one were to exist.
+	time.Sleep(1 * time.Minute)
+	os.Exit(m.Run())
 }
