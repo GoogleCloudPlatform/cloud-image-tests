@@ -960,7 +960,7 @@ func RestartAgent(ctx context.Context) error {
 			if runtime.GOOS == "windows" {
 				_, found, checkErr = ProcessExistsWindows("CorePlugin")
 			} else {
-				_, found, checkErr = ProcessExistsLinux("/usr/lib/google/guest_agent/core_plugin")
+				_, found, checkErr = ProcessExistsLinux("/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
 			}
 			if checkErr != nil {
 				log.Printf("Attempt %d: Error checking process state: %v", i+1, checkErr)
