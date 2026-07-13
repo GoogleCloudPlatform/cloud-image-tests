@@ -904,7 +904,6 @@ func IsCoreDisabled() bool {
 func RestartAgent(ctx context.Context) error {
 	var cmd *exec.Cmd
 	var ggactl string
-	var wait bool
 	if IsWindows() {
 		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
 		serviceName := "GCEAgent"
@@ -912,7 +911,6 @@ func RestartAgent(ctx context.Context) error {
 		// Determine if we need to escalate to the Manager service
 		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
 			serviceName = "GCEAgentManager"
-			wait = true
 		}
 
 		// %[1]s reuses the first argument (serviceName) so we don't have to pass it three times
@@ -930,8 +928,7 @@ func RestartAgent(ctx context.Context) error {
 		ggactl = "/usr/bin/ggactl_plugin"
 
 		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-			cmd = exec.CommandContext(ctx, ggactl, "coreplugin", "restart")
-			wait = true
+			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
 		} else {
 			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
 		}
@@ -945,40 +942,9 @@ func RestartAgent(ctx context.Context) error {
 		return fmt.Errorf("could not restart agent: %w, output: %s", err, string(output))
 	}
 
-	if wait {
-		// Wait for the core plugin to be restarted by plugin manager up until the
-		// timeout.
-		log.Printf("Waiting up to %d seconds for the core plugin to start...", corePluginWaitTimeSeconds)
+	log.Printf("Applying final 1-second stabilization buffer...")
+	time.Sleep(time.Second)
 
-		processFound := false
-		for i := 0; i < corePluginWaitTimeSeconds; i++ {
-			time.Sleep(time.Second)
-
-			var found bool
-			var checkErr error
-
-			if runtime.GOOS == "windows" {
-				_, found, checkErr = ProcessExistsWindows("CorePlugin")
-			} else {
-				_, found, checkErr = ProcessExistsLinux("/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin")
-			}
-			if checkErr != nil {
-				log.Printf("Attempt %d: Error checking process state: %v", i+1, checkErr)
-				continue
-			}
-			if found {
-				log.Printf("Core plugin process detected successfully after %d seconds.", i+1)
-				processFound = true
-				break
-			}
-			log.Printf("Attempt %d: Core plugin not yet running, waiting...", i+1)
-		}
-		if !processFound {
-			return fmt.Errorf("core plugin process was not detected after waiting %d seconds", corePluginWaitTimeSeconds)
-		}
-		log.Printf("Applying final 1-second stabilization buffer...")
-		time.Sleep(time.Second) // Wait an extra second to make sure it's actually started.
-	}
 	return nil
 }
 
