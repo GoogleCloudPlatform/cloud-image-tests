@@ -86,7 +86,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady")
 	}
 
-	// This section is for testing MWLID. It is only run on non-Windows images and guest-agent derived images.
+	// This section is for testing MWLID. It is only run on guest-agent derived images.
 	if strings.Contains(t.Image.Name, "guest-agent") {
 		project := t.Project.Name
 		zone := t.Zone.Name
