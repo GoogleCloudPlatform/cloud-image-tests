@@ -55,10 +55,10 @@ func mwlidTestPrep(t *testing.T) {
 		t.Fatalf("Failed to restart guest agent: %v", err)
 	}
 	t.Logf("Guest agent restarted successfully")
-	t.Logf("Waiting 10 seconds for credentials refresher job to start")
+	t.Logf("Waiting 30 seconds for credentials refresher job to complete")
 	// Wait for credentials refresher job to complete
-	time.Sleep(10 * time.Second)
-	t.Logf("Slept for 10 seconds")
+	time.Sleep(30 * time.Second)
+	t.Logf("Slept for 30 seconds")
 }
 
 func TestMWLIDCredentials(t *testing.T) {
