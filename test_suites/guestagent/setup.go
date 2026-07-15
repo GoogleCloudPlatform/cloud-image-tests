@@ -87,7 +87,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 
 	// This section is for testing MWLID. It is only run on guest-agent derived images.
-	if strings.Contains(t.Image.Name, "guest-agent") {
+	// TODO(b/534559869): Remove this skip for Windows once the MWLID tests are stable for Windows.
+	if strings.Contains(t.Image.Name, "guest-agent") && !utils.IsWindowsImage(t.Image.Name) {
 		project := t.Project.Name
 		zone := t.Zone.Name
 		projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
