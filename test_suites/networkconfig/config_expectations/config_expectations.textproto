@@ -559,6 +559,344 @@ config_expectations: {
   }
 }
 config_expectations: {
+  description: "A4X Max machine with 2 IDPF and 4 MRDMA NICs"
+  machine_type: "a4x-maxgpu-4g-metal"
+  nics: {
+    type: "IDPF"
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-143" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "0-143" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "0-143" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "0-143" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "0-143" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "0-143" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "0-143" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "0-143" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "0-143" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "0-143" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "0-143" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "0-143" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "0-143" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "0-143" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "0-143" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "0-143" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_queues: { index: 0 irq_cpulist: "72" xps_cpulist: "0-143" }
+    tx_queues: { index: 1 irq_cpulist: "73" xps_cpulist: "0-143" }
+    tx_queues: { index: 2 irq_cpulist: "74" xps_cpulist: "0-143" }
+    tx_queues: { index: 3 irq_cpulist: "75" xps_cpulist: "0-143" }
+    tx_queues: { index: 4 irq_cpulist: "76" xps_cpulist: "0-143" }
+    tx_queues: { index: 5 irq_cpulist: "77" xps_cpulist: "0-143" }
+    tx_queues: { index: 6 irq_cpulist: "78" xps_cpulist: "0-143" }
+    tx_queues: { index: 7 irq_cpulist: "79" xps_cpulist: "0-143" }
+    tx_queues: { index: 8 irq_cpulist: "80" xps_cpulist: "0-143" }
+    tx_queues: { index: 9 irq_cpulist: "81" xps_cpulist: "0-143" }
+    tx_queues: { index: 10 irq_cpulist: "82" xps_cpulist: "0-143" }
+    tx_queues: { index: 11 irq_cpulist: "83" xps_cpulist: "0-143" }
+    tx_queues: { index: 12 irq_cpulist: "84" xps_cpulist: "0-143" }
+    tx_queues: { index: 13 irq_cpulist: "85" xps_cpulist: "0-143" }
+    tx_queues: { index: 14 irq_cpulist: "86" xps_cpulist: "0-143" }
+    tx_queues: { index: 15 irq_cpulist: "87" xps_cpulist: "0-143" }
+    rx_queues: { index: 0 irq_cpulist: "72" }
+    rx_queues: { index: 1 irq_cpulist: "73" }
+    rx_queues: { index: 2 irq_cpulist: "74" }
+    rx_queues: { index: 3 irq_cpulist: "75" }
+    rx_queues: { index: 4 irq_cpulist: "76" }
+    rx_queues: { index: 5 irq_cpulist: "77" }
+    rx_queues: { index: 6 irq_cpulist: "78" }
+    rx_queues: { index: 7 irq_cpulist: "79" }
+    rx_queues: { index: 8 irq_cpulist: "80" }
+    rx_queues: { index: 9 irq_cpulist: "81" }
+    rx_queues: { index: 10 irq_cpulist: "82" }
+    rx_queues: { index: 11 irq_cpulist: "83" }
+    rx_queues: { index: 12 irq_cpulist: "84" }
+    rx_queues: { index: 13 irq_cpulist: "85" }
+    rx_queues: { index: 14 irq_cpulist: "86" }
+    rx_queues: { index: 15 irq_cpulist: "87" }
+  }
+  nics: {
+    type: "MRDMA"
+    tx_queues: { index: 0 xps_cpulist: "0-143" }
+    tx_queues: { index: 1 xps_cpulist: "0-143" }
+    tx_queues: { index: 2 xps_cpulist: "0-143" }
+    tx_queues: { index: 3 xps_cpulist: "0-143" }
+    tx_queues: { index: 4 xps_cpulist: "0-143" }
+    tx_queues: { index: 5 xps_cpulist: "0-143" }
+    tx_queues: { index: 6 xps_cpulist: "0-143" }
+    tx_queues: { index: 7 xps_cpulist: "0-143" }
+    tx_queues: { index: 8 xps_cpulist: "0-143" }
+    tx_queues: { index: 9 xps_cpulist: "0-143" }
+    tx_queues: { index: 10 xps_cpulist: "0-143" }
+    tx_queues: { index: 11 xps_cpulist: "0-143" }
+    tx_queues: { index: 12 xps_cpulist: "0-143" }
+    tx_queues: { index: 13 xps_cpulist: "0-143" }
+    tx_queues: { index: 14 xps_cpulist: "0-143" }
+    tx_queues: { index: 15 xps_cpulist: "0-143" }
+    tx_queues: { index: 16 xps_cpulist: "0-143" }
+    tx_queues: { index: 17 xps_cpulist: "0-143" }
+    tx_queues: { index: 18 xps_cpulist: "0-143" }
+    tx_queues: { index: 19 xps_cpulist: "0-143" }
+    tx_queues: { index: 20 xps_cpulist: "0-143" }
+    tx_queues: { index: 21 xps_cpulist: "0-143" }
+    tx_queues: { index: 22 xps_cpulist: "0-143" }
+    tx_queues: { index: 23 xps_cpulist: "0-143" }
+    tx_queues: { index: 24 xps_cpulist: "0-143" }
+    tx_queues: { index: 25 xps_cpulist: "0-143" }
+    tx_queues: { index: 26 xps_cpulist: "0-143" }
+    tx_queues: { index: 27 xps_cpulist: "0-143" }
+    tx_queues: { index: 28 xps_cpulist: "0-143" }
+    tx_queues: { index: 29 xps_cpulist: "0-143" }
+    tx_queues: { index: 30 xps_cpulist: "0-143" }
+    tx_queues: { index: 31 xps_cpulist: "0-143" }
+    tx_queues: { index: 32 xps_cpulist: "0-143" }
+    tx_queues: { index: 33 xps_cpulist: "0-143" }
+    tx_queues: { index: 34 xps_cpulist: "0-143" }
+    tx_queues: { index: 35 xps_cpulist: "0-143" }
+    tx_queues: { index: 36 xps_cpulist: "0-143" }
+    tx_queues: { index: 37 xps_cpulist: "0-143" }
+    tx_queues: { index: 38 xps_cpulist: "0-143" }
+    tx_queues: { index: 39 xps_cpulist: "0-143" }
+    tx_queues: { index: 40 xps_cpulist: "0-143" }
+    tx_queues: { index: 41 xps_cpulist: "0-143" }
+    tx_queues: { index: 42 xps_cpulist: "0-143" }
+    tx_queues: { index: 43 xps_cpulist: "0-143" }
+    tx_queues: { index: 44 xps_cpulist: "0-143" }
+    tx_queues: { index: 45 xps_cpulist: "0-143" }
+    tx_queues: { index: 46 xps_cpulist: "0-143" }
+    tx_queues: { index: 47 xps_cpulist: "0-143" }
+    tx_queues: { index: 48 xps_cpulist: "0-143" }
+    tx_queues: { index: 49 xps_cpulist: "0-143" }
+    tx_queues: { index: 50 xps_cpulist: "0-143" }
+    tx_queues: { index: 51 xps_cpulist: "0-143" }
+    tx_queues: { index: 52 xps_cpulist: "0-143" }
+    tx_queues: { index: 53 xps_cpulist: "0-143" }
+    tx_queues: { index: 54 xps_cpulist: "0-143" }
+    tx_queues: { index: 55 xps_cpulist: "0-143" }
+    tx_queues: { index: 56 xps_cpulist: "0-143" }
+    tx_queues: { index: 57 xps_cpulist: "0-143" }
+    tx_queues: { index: 58 xps_cpulist: "0-143" }
+    tx_queues: { index: 59 xps_cpulist: "0-143" }
+    tx_queues: { index: 60 xps_cpulist: "0-143" }
+    tx_queues: { index: 61 xps_cpulist: "0-143" }
+    tx_queues: { index: 62 xps_cpulist: "0-143" }
+  }
+  nics: {
+    type: "MRDMA"
+    tx_queues: { index: 0 xps_cpulist: "0-143" }
+    tx_queues: { index: 1 xps_cpulist: "0-143" }
+    tx_queues: { index: 2 xps_cpulist: "0-143" }
+    tx_queues: { index: 3 xps_cpulist: "0-143" }
+    tx_queues: { index: 4 xps_cpulist: "0-143" }
+    tx_queues: { index: 5 xps_cpulist: "0-143" }
+    tx_queues: { index: 6 xps_cpulist: "0-143" }
+    tx_queues: { index: 7 xps_cpulist: "0-143" }
+    tx_queues: { index: 8 xps_cpulist: "0-143" }
+    tx_queues: { index: 9 xps_cpulist: "0-143" }
+    tx_queues: { index: 10 xps_cpulist: "0-143" }
+    tx_queues: { index: 11 xps_cpulist: "0-143" }
+    tx_queues: { index: 12 xps_cpulist: "0-143" }
+    tx_queues: { index: 13 xps_cpulist: "0-143" }
+    tx_queues: { index: 14 xps_cpulist: "0-143" }
+    tx_queues: { index: 15 xps_cpulist: "0-143" }
+    tx_queues: { index: 16 xps_cpulist: "0-143" }
+    tx_queues: { index: 17 xps_cpulist: "0-143" }
+    tx_queues: { index: 18 xps_cpulist: "0-143" }
+    tx_queues: { index: 19 xps_cpulist: "0-143" }
+    tx_queues: { index: 20 xps_cpulist: "0-143" }
+    tx_queues: { index: 21 xps_cpulist: "0-143" }
+    tx_queues: { index: 22 xps_cpulist: "0-143" }
+    tx_queues: { index: 23 xps_cpulist: "0-143" }
+    tx_queues: { index: 24 xps_cpulist: "0-143" }
+    tx_queues: { index: 25 xps_cpulist: "0-143" }
+    tx_queues: { index: 26 xps_cpulist: "0-143" }
+    tx_queues: { index: 27 xps_cpulist: "0-143" }
+    tx_queues: { index: 28 xps_cpulist: "0-143" }
+    tx_queues: { index: 29 xps_cpulist: "0-143" }
+    tx_queues: { index: 30 xps_cpulist: "0-143" }
+    tx_queues: { index: 31 xps_cpulist: "0-143" }
+    tx_queues: { index: 32 xps_cpulist: "0-143" }
+    tx_queues: { index: 33 xps_cpulist: "0-143" }
+    tx_queues: { index: 34 xps_cpulist: "0-143" }
+    tx_queues: { index: 35 xps_cpulist: "0-143" }
+    tx_queues: { index: 36 xps_cpulist: "0-143" }
+    tx_queues: { index: 37 xps_cpulist: "0-143" }
+    tx_queues: { index: 38 xps_cpulist: "0-143" }
+    tx_queues: { index: 39 xps_cpulist: "0-143" }
+    tx_queues: { index: 40 xps_cpulist: "0-143" }
+    tx_queues: { index: 41 xps_cpulist: "0-143" }
+    tx_queues: { index: 42 xps_cpulist: "0-143" }
+    tx_queues: { index: 43 xps_cpulist: "0-143" }
+    tx_queues: { index: 44 xps_cpulist: "0-143" }
+    tx_queues: { index: 45 xps_cpulist: "0-143" }
+    tx_queues: { index: 46 xps_cpulist: "0-143" }
+    tx_queues: { index: 47 xps_cpulist: "0-143" }
+    tx_queues: { index: 48 xps_cpulist: "0-143" }
+    tx_queues: { index: 49 xps_cpulist: "0-143" }
+    tx_queues: { index: 50 xps_cpulist: "0-143" }
+    tx_queues: { index: 51 xps_cpulist: "0-143" }
+    tx_queues: { index: 52 xps_cpulist: "0-143" }
+    tx_queues: { index: 53 xps_cpulist: "0-143" }
+    tx_queues: { index: 54 xps_cpulist: "0-143" }
+    tx_queues: { index: 55 xps_cpulist: "0-143" }
+    tx_queues: { index: 56 xps_cpulist: "0-143" }
+    tx_queues: { index: 57 xps_cpulist: "0-143" }
+    tx_queues: { index: 58 xps_cpulist: "0-143" }
+    tx_queues: { index: 59 xps_cpulist: "0-143" }
+    tx_queues: { index: 60 xps_cpulist: "0-143" }
+    tx_queues: { index: 61 xps_cpulist: "0-143" }
+    tx_queues: { index: 62 xps_cpulist: "0-143" }
+  }
+  nics: {
+    type: "MRDMA"
+    tx_queues: { index: 0 xps_cpulist: "0-143" }
+    tx_queues: { index: 1 xps_cpulist: "0-143" }
+    tx_queues: { index: 2 xps_cpulist: "0-143" }
+    tx_queues: { index: 3 xps_cpulist: "0-143" }
+    tx_queues: { index: 4 xps_cpulist: "0-143" }
+    tx_queues: { index: 5 xps_cpulist: "0-143" }
+    tx_queues: { index: 6 xps_cpulist: "0-143" }
+    tx_queues: { index: 7 xps_cpulist: "0-143" }
+    tx_queues: { index: 8 xps_cpulist: "0-143" }
+    tx_queues: { index: 9 xps_cpulist: "0-143" }
+    tx_queues: { index: 10 xps_cpulist: "0-143" }
+    tx_queues: { index: 11 xps_cpulist: "0-143" }
+    tx_queues: { index: 12 xps_cpulist: "0-143" }
+    tx_queues: { index: 13 xps_cpulist: "0-143" }
+    tx_queues: { index: 14 xps_cpulist: "0-143" }
+    tx_queues: { index: 15 xps_cpulist: "0-143" }
+    tx_queues: { index: 16 xps_cpulist: "0-143" }
+    tx_queues: { index: 17 xps_cpulist: "0-143" }
+    tx_queues: { index: 18 xps_cpulist: "0-143" }
+    tx_queues: { index: 19 xps_cpulist: "0-143" }
+    tx_queues: { index: 20 xps_cpulist: "0-143" }
+    tx_queues: { index: 21 xps_cpulist: "0-143" }
+    tx_queues: { index: 22 xps_cpulist: "0-143" }
+    tx_queues: { index: 23 xps_cpulist: "0-143" }
+    tx_queues: { index: 24 xps_cpulist: "0-143" }
+    tx_queues: { index: 25 xps_cpulist: "0-143" }
+    tx_queues: { index: 26 xps_cpulist: "0-143" }
+    tx_queues: { index: 27 xps_cpulist: "0-143" }
+    tx_queues: { index: 28 xps_cpulist: "0-143" }
+    tx_queues: { index: 29 xps_cpulist: "0-143" }
+    tx_queues: { index: 30 xps_cpulist: "0-143" }
+    tx_queues: { index: 31 xps_cpulist: "0-143" }
+    tx_queues: { index: 32 xps_cpulist: "0-143" }
+    tx_queues: { index: 33 xps_cpulist: "0-143" }
+    tx_queues: { index: 34 xps_cpulist: "0-143" }
+    tx_queues: { index: 35 xps_cpulist: "0-143" }
+    tx_queues: { index: 36 xps_cpulist: "0-143" }
+    tx_queues: { index: 37 xps_cpulist: "0-143" }
+    tx_queues: { index: 38 xps_cpulist: "0-143" }
+    tx_queues: { index: 39 xps_cpulist: "0-143" }
+    tx_queues: { index: 40 xps_cpulist: "0-143" }
+    tx_queues: { index: 41 xps_cpulist: "0-143" }
+    tx_queues: { index: 42 xps_cpulist: "0-143" }
+    tx_queues: { index: 43 xps_cpulist: "0-143" }
+    tx_queues: { index: 44 xps_cpulist: "0-143" }
+    tx_queues: { index: 45 xps_cpulist: "0-143" }
+    tx_queues: { index: 46 xps_cpulist: "0-143" }
+    tx_queues: { index: 47 xps_cpulist: "0-143" }
+    tx_queues: { index: 48 xps_cpulist: "0-143" }
+    tx_queues: { index: 49 xps_cpulist: "0-143" }
+    tx_queues: { index: 50 xps_cpulist: "0-143" }
+    tx_queues: { index: 51 xps_cpulist: "0-143" }
+    tx_queues: { index: 52 xps_cpulist: "0-143" }
+    tx_queues: { index: 53 xps_cpulist: "0-143" }
+    tx_queues: { index: 54 xps_cpulist: "0-143" }
+    tx_queues: { index: 55 xps_cpulist: "0-143" }
+    tx_queues: { index: 56 xps_cpulist: "0-143" }
+    tx_queues: { index: 57 xps_cpulist: "0-143" }
+    tx_queues: { index: 58 xps_cpulist: "0-143" }
+    tx_queues: { index: 59 xps_cpulist: "0-143" }
+    tx_queues: { index: 60 xps_cpulist: "0-143" }
+    tx_queues: { index: 61 xps_cpulist: "0-143" }
+    tx_queues: { index: 62 xps_cpulist: "0-143" }
+  }
+  nics: {
+    type: "MRDMA"
+    tx_queues: { index: 0 xps_cpulist: "0-143" }
+    tx_queues: { index: 1 xps_cpulist: "0-143" }
+    tx_queues: { index: 2 xps_cpulist: "0-143" }
+    tx_queues: { index: 3 xps_cpulist: "0-143" }
+    tx_queues: { index: 4 xps_cpulist: "0-143" }
+    tx_queues: { index: 5 xps_cpulist: "0-143" }
+    tx_queues: { index: 6 xps_cpulist: "0-143" }
+    tx_queues: { index: 7 xps_cpulist: "0-143" }
+    tx_queues: { index: 8 xps_cpulist: "0-143" }
+    tx_queues: { index: 9 xps_cpulist: "0-143" }
+    tx_queues: { index: 10 xps_cpulist: "0-143" }
+    tx_queues: { index: 11 xps_cpulist: "0-143" }
+    tx_queues: { index: 12 xps_cpulist: "0-143" }
+    tx_queues: { index: 13 xps_cpulist: "0-143" }
+    tx_queues: { index: 14 xps_cpulist: "0-143" }
+    tx_queues: { index: 15 xps_cpulist: "0-143" }
+    tx_queues: { index: 16 xps_cpulist: "0-143" }
+    tx_queues: { index: 17 xps_cpulist: "0-143" }
+    tx_queues: { index: 18 xps_cpulist: "0-143" }
+    tx_queues: { index: 19 xps_cpulist: "0-143" }
+    tx_queues: { index: 20 xps_cpulist: "0-143" }
+    tx_queues: { index: 21 xps_cpulist: "0-143" }
+    tx_queues: { index: 22 xps_cpulist: "0-143" }
+    tx_queues: { index: 23 xps_cpulist: "0-143" }
+    tx_queues: { index: 24 xps_cpulist: "0-143" }
+    tx_queues: { index: 25 xps_cpulist: "0-143" }
+    tx_queues: { index: 26 xps_cpulist: "0-143" }
+    tx_queues: { index: 27 xps_cpulist: "0-143" }
+    tx_queues: { index: 28 xps_cpulist: "0-143" }
+    tx_queues: { index: 29 xps_cpulist: "0-143" }
+    tx_queues: { index: 30 xps_cpulist: "0-143" }
+    tx_queues: { index: 31 xps_cpulist: "0-143" }
+    tx_queues: { index: 32 xps_cpulist: "0-143" }
+    tx_queues: { index: 33 xps_cpulist: "0-143" }
+    tx_queues: { index: 34 xps_cpulist: "0-143" }
+    tx_queues: { index: 35 xps_cpulist: "0-143" }
+    tx_queues: { index: 36 xps_cpulist: "0-143" }
+    tx_queues: { index: 37 xps_cpulist: "0-143" }
+    tx_queues: { index: 38 xps_cpulist: "0-143" }
+    tx_queues: { index: 39 xps_cpulist: "0-143" }
+    tx_queues: { index: 40 xps_cpulist: "0-143" }
+    tx_queues: { index: 41 xps_cpulist: "0-143" }
+    tx_queues: { index: 42 xps_cpulist: "0-143" }
+    tx_queues: { index: 43 xps_cpulist: "0-143" }
+    tx_queues: { index: 44 xps_cpulist: "0-143" }
+    tx_queues: { index: 45 xps_cpulist: "0-143" }
+    tx_queues: { index: 46 xps_cpulist: "0-143" }
+    tx_queues: { index: 47 xps_cpulist: "0-143" }
+    tx_queues: { index: 48 xps_cpulist: "0-143" }
+    tx_queues: { index: 49 xps_cpulist: "0-143" }
+    tx_queues: { index: 50 xps_cpulist: "0-143" }
+    tx_queues: { index: 51 xps_cpulist: "0-143" }
+    tx_queues: { index: 52 xps_cpulist: "0-143" }
+    tx_queues: { index: 53 xps_cpulist: "0-143" }
+    tx_queues: { index: 54 xps_cpulist: "0-143" }
+    tx_queues: { index: 55 xps_cpulist: "0-143" }
+    tx_queues: { index: 56 xps_cpulist: "0-143" }
+    tx_queues: { index: 57 xps_cpulist: "0-143" }
+    tx_queues: { index: 58 xps_cpulist: "0-143" }
+    tx_queues: { index: 59 xps_cpulist: "0-143" }
+    tx_queues: { index: 60 xps_cpulist: "0-143" }
+    tx_queues: { index: 61 xps_cpulist: "0-143" }
+    tx_queues: { index: 62 xps_cpulist: "0-143" }
+  }
+}
+config_expectations: {
   description: "Simple n2-32 machine, single VIRTIO"
   machine_type: "n2-highcpu-32"
   nics: {
