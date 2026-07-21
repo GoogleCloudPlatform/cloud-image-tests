@@ -392,6 +392,52 @@ type EthtoolQueueCounts struct {
 	CurrentCombinedQueues int
 }
 
+// EffectiveCurrentRXQueues returns CurrentRXQueues if set, otherwise falling back to
+// CurrentCombinedQueues.
+func (q *EthtoolQueueCounts) EffectiveCurrentRXQueues() int {
+	if q.CurrentRXQueues > 0 {
+		return q.CurrentRXQueues
+	}
+	if q.CurrentCombinedQueues > 0 {
+		return q.CurrentCombinedQueues
+	}
+	return q.CurrentRXQueues
+}
+
+// EffectiveCurrentTXQueues returns CurrentTXQueues if set, otherwise falling back to
+// CurrentCombinedQueues.
+func (q *EthtoolQueueCounts) EffectiveCurrentTXQueues() int {
+	if q.CurrentTXQueues > 0 {
+		return q.CurrentTXQueues
+	}
+	if q.CurrentCombinedQueues > 0 {
+		return q.CurrentCombinedQueues
+	}
+	return q.CurrentTXQueues
+}
+
+// EffectiveMaxRXQueues returns MaxRXQueues if set, otherwise falling back to MaxCombinedQueues.
+func (q *EthtoolQueueCounts) EffectiveMaxRXQueues() int {
+	if q.MaxRXQueues > 0 {
+		return q.MaxRXQueues
+	}
+	if q.MaxCombinedQueues > 0 {
+		return q.MaxCombinedQueues
+	}
+	return q.MaxRXQueues
+}
+
+// EffectiveMaxTXQueues returns MaxTXQueues if set, otherwise falling back to MaxCombinedQueues.
+func (q *EthtoolQueueCounts) EffectiveMaxTXQueues() int {
+	if q.MaxTXQueues > 0 {
+		return q.MaxTXQueues
+	}
+	if q.MaxCombinedQueues > 0 {
+		return q.MaxCombinedQueues
+	}
+	return q.MaxTXQueues
+}
+
 // ParseEthtoolLOutput parses the output of `ethtool -l` and returns an EthtoolQueueCounts
 // object. Populates fields with -1 if the value is "n/a", returns an error if the output
 // cannot be parsed.
