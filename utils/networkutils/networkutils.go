@@ -244,20 +244,20 @@ func daisyNetworkForIRDMANIC(index int, project string, zone string, isMetal boo
 		Network: compute.Network{
 			Name:           fmt.Sprintf("irdma-network-%d", index),
 			Mtu:            int64(imagetest.JumboFramesMTU),
-			NetworkProfile: fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/global/networkProfiles/%s-vpc-falcon", project, zone),
+			NetworkProfile: fmt.Sprintf("projects/%s/global/networkProfiles/%s-vpc-falcon", project, zone),
 		},
 		AutoCreateSubnetworks: new(bool),
 	}
 }
 
 func daisyNetworkForMRDMANIC(index int, project string, zone string, isMetal bool) *daisy.Network {
-	networkProfile := fmt.Sprintf("https://www.googleapis.com/compute/v1/projects/%s/global/networkProfiles/%s-vpc-roce", project, zone)
+	networkProfile := fmt.Sprintf("projects/%s/global/networkProfiles/%s-vpc-roce", project, zone)
 	if isMetal {
 		networkProfile += "-metal"
 	}
 	return &daisy.Network{
 		Network: compute.Network{
-			Name:           fmt.Sprintf("mrdma-network-%d", index),
+			Name:           "mrdma-network",
 			Mtu:            int64(imagetest.JumboFramesMTU),
 			NetworkProfile: networkProfile,
 		},
@@ -297,13 +297,27 @@ func regionFromZone(zone string) (string, error) {
 	return strings.Join(parts[:2], "-"), nil
 }
 
-func daisySubnet(index int, zone string) (*daisy.Subnetwork, error) {
-	netPrefix, err := subnetPrefix(index)
+func daisySubnet(daisyNetwork *daisy.Network, index int, zone string) (*daisy.Subnetwork, error) {
+	region, err := regionFromZone(zone)
 	if err != nil {
 		return nil, err
 	}
 
-	region, err := regionFromZone(zone)
+	if strings.HasSuffix(daisyNetwork.NetworkProfile, "-metal") {
+		return &daisy.Subnetwork{
+			Subnetwork: compute.Subnetwork{
+				Name:           fmt.Sprintf("default-subnet-1-%s", daisyNetwork.Name),
+				StackType:      "IPV6_ONLY",
+				Ipv6AccessType: "INTERNAL",
+				Region:         region,
+			},
+			Resource: daisy.Resource{
+				NoCleanup: true,
+			},
+		}, nil
+	}
+
+	netPrefix, err := subnetPrefix(index)
 	if err != nil {
 		return nil, err
 	}
@@ -341,6 +355,8 @@ type CreateMachineWithNetworksOptions struct {
 // It registers the networks and subnetwork creations with the test workflow.
 func CreateMachineWithNetworks(t *imagetest.TestWorkflow, o *CreateMachineWithNetworksOptions) (*daisy.Instance, error) {
 	m := &daisy.Instance{}
+	createdNetworks := make(map[string]*imagetest.Network)
+	createdSubnetworks := make(map[string]bool)
 
 	for nicIndex, nicType := range o.NicTypes {
 		daisyNetwork, err := daisyNetworkForNIC(nicType, nicIndex, o.Project, o.Zone, imagetest.IsMetal(o.MachineType))
@@ -348,25 +364,34 @@ func CreateMachineWithNetworks(t *imagetest.TestWorkflow, o *CreateMachineWithNe
 			return nil, fmt.Errorf("building daisy network: %w", err)
 		}
 
-		daisySubnet, err := daisySubnet(nicIndex, o.Zone)
+		citNetwork, ok := createdNetworks[daisyNetwork.Name]
+		if !ok {
+			citNetwork, err = t.CreateNetworkFromDaisyNetwork(daisyNetwork)
+			if err != nil {
+				return nil, fmt.Errorf("creating network: %w", err)
+			}
+			createdNetworks[daisyNetwork.Name] = citNetwork
+		}
+
+		daisySub, err := daisySubnet(daisyNetwork, nicIndex, o.Zone)
 		if err != nil {
 			return nil, fmt.Errorf("building daisy subnetwork: %w", err)
 		}
 
-		citNetwork, err := t.CreateNetworkFromDaisyNetwork(daisyNetwork)
-		if err != nil {
-			return nil, fmt.Errorf("creating network: %w", err)
-		}
-
-		if _, err = citNetwork.CreateSubnetworkFromDaisySubnetwork(daisySubnet); err != nil {
-			return nil, fmt.Errorf("creating subnetwork: %w", err)
+		if !createdSubnetworks[daisySub.Name] {
+			if _, err = citNetwork.CreateSubnetworkFromDaisySubnetwork(daisySub); err != nil {
+				return nil, fmt.Errorf("creating subnetwork: %w", err)
+			}
+			createdSubnetworks[daisySub.Name] = true
 		}
 
 		m.NetworkInterfaces = append(m.NetworkInterfaces, &compute.NetworkInterface{
-			NicType:       nicType,
-			Network:       daisyNetwork.Name,
-			Subnetwork:    daisySubnet.Name,
-			AccessConfigs: accessConfigsForNIC(nicType),
+			NicType:        nicType,
+			Network:        daisyNetwork.Name,
+			Subnetwork:     daisySub.Name,
+			StackType:      daisySub.StackType,
+			Ipv6AccessType: daisySub.Ipv6AccessType,
+			AccessConfigs:  accessConfigsForNIC(nicType),
 		})
 	}
 

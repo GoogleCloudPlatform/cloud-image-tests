@@ -481,7 +481,7 @@ func TestDaisyNetworkForNIC(t *testing.T) {
 				Network: compute.Network{
 					Name:           "irdma-network-0",
 					Mtu:            8896,
-					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/us-central1-a-vpc-falcon",
+					NetworkProfile: "projects/test-project/global/networkProfiles/us-central1-a-vpc-falcon",
 				},
 				AutoCreateSubnetworks: new(bool),
 			},
@@ -494,9 +494,9 @@ func TestDaisyNetworkForNIC(t *testing.T) {
 			zone:    "europe-central2-a",
 			want: &daisy.Network{
 				Network: compute.Network{
-					Name:           "mrdma-network-0",
+					Name:           "mrdma-network",
 					Mtu:            8896,
-					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/europe-central2-a-vpc-roce",
+					NetworkProfile: "projects/test-project/global/networkProfiles/europe-central2-a-vpc-roce",
 				},
 				AutoCreateSubnetworks: new(bool),
 			},
@@ -510,9 +510,9 @@ func TestDaisyNetworkForNIC(t *testing.T) {
 			isMetal: true,
 			want: &daisy.Network{
 				Network: compute.Network{
-					Name:           "mrdma-network-0",
+					Name:           "mrdma-network",
 					Mtu:            8896,
-					NetworkProfile: "https://www.googleapis.com/compute/v1/projects/test-project/global/networkProfiles/asia-southeast2-b-vpc-roce-metal",
+					NetworkProfile: "projects/test-project/global/networkProfiles/asia-southeast2-b-vpc-roce-metal",
 				},
 				AutoCreateSubnetworks: new(bool),
 			},
@@ -534,16 +534,18 @@ func TestDaisyNetworkForNIC(t *testing.T) {
 
 func TestDaisySubnet(t *testing.T) {
 	cases := []struct {
-		name    string
-		index   int
-		zone    string
-		want    *daisy.Subnetwork
-		wantErr bool
+		name         string
+		daisyNetwork *daisy.Network
+		index        int
+		zone         string
+		want         *daisy.Subnetwork
+		wantErr      bool
 	}{
 		{
-			name:  "index 0",
-			index: 0,
-			zone:  "us-central1-a",
+			name:         "general purpose subnet",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "net-0"}},
+			index:        0,
+			zone:         "us-central1-a",
 			want: &daisy.Subnetwork{
 				Subnetwork: compute.Subnetwork{
 					Name:        "subnet-0",
@@ -553,9 +555,10 @@ func TestDaisySubnet(t *testing.T) {
 			},
 		},
 		{
-			name:  "index 1",
-			index: 1,
-			zone:  "europe-west1-b",
+			name:         "index 1",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "net-1"}},
+			index:        1,
+			zone:         "europe-west1-b",
 			want: &daisy.Subnetwork{
 				Subnetwork: compute.Subnetwork{
 					Name:        "subnet-1",
@@ -565,26 +568,60 @@ func TestDaisySubnet(t *testing.T) {
 			},
 		},
 		{
-			name:    "index too low",
-			index:   -1,
-			wantErr: true,
+			name:         "MRDMA metal NetworkProfile subnet",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "mrdma-network", NetworkProfile: "projects/p/global/networkProfiles/zone-vpc-roce-metal"}},
+			index:        0,
+			zone:         "us-central1-a",
+			want: &daisy.Subnetwork{
+				Subnetwork: compute.Subnetwork{
+					Name:           "default-subnet-1-mrdma-network",
+					StackType:      "IPV6_ONLY",
+					Ipv6AccessType: "INTERNAL",
+					Region:         "us-central1",
+				},
+				Resource: daisy.Resource{
+					NoCleanup: true,
+				},
+			},
 		},
 		{
-			name:    "index too high",
-			index:   256,
-			wantErr: true,
+			name:         "MRDMA virtual NetworkProfile subnet",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "mrdma-network", NetworkProfile: "projects/p/global/networkProfiles/zone-vpc-roce"}},
+			index:        0,
+			zone:         "us-central1-a",
+			want: &daisy.Subnetwork{
+				Subnetwork: compute.Subnetwork{
+					Name:        "subnet-0",
+					IpCidrRange: "10.0.0.0/24",
+					Region:      "us-central1",
+				},
+			},
+		},
+		{
+			name:         "index too low",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "net-0"}},
+			index:        -1,
+			zone:         "us-central1-a",
+			wantErr:      true,
+		},
+		{
+			name:         "index too high",
+			daisyNetwork: &daisy.Network{Network: compute.Network{Name: "net-0"}},
+			index:        256,
+			zone:         "us-central1-a",
+			wantErr:      true,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := daisySubnet(tc.index, tc.zone)
+			got, err := daisySubnet(tc.daisyNetwork, tc.index, tc.zone)
 			if (err != nil) != tc.wantErr {
-				t.Errorf("daisySubnet(%d, %q) returned error %v, wantErr %t", tc.index, tc.zone, err, tc.wantErr)
+				t.Errorf("daisySubnet(%v, %d, %q) returned error %v, wantErr %t", tc.daisyNetwork, tc.index, tc.zone, err, tc.wantErr)
 				return
 			}
 			if diff := diffDaisy(got, tc.want); diff != "" {
-				t.Errorf("daisySubnet(%d, %q) = doesn't match expectations: diff (-got +want):\n%s", tc.index, tc.zone, diff)
+				t.Errorf("daisySubnet(%v, %d, %q) = doesn't match expectations: diff (-got +want):\n%s", tc.daisyNetwork, tc.index, tc.zone, diff)
 			}
 		})
 	}
