@@ -660,91 +660,60 @@ Combined:	16`,
 		})
 	}
 }
-
-func TestEthtoolQueueCountsEffectiveQueues(t *testing.T) {
+func TestParseEthtoolGOutput(t *testing.T) {
 	cases := []struct {
-		name                   string
-		counts                 *EthtoolQueueCounts
-		wantEffectiveCurrentRX int
-		wantEffectiveCurrentTX int
-		wantEffectiveMaxRX     int
-		wantEffectiveMaxTX     int
+		name    string
+		input   string
+		want    *EthtoolRingSizes
+		wantErr bool
 	}{
 		{
-			name: "separate rx and tx queues set",
-			counts: &EthtoolQueueCounts{
-				CurrentRXQueues:       2,
-				CurrentTXQueues:       4,
-				CurrentCombinedQueues: -1,
-				MaxRXQueues:           16,
-				MaxTXQueues:           32,
-				MaxCombinedQueues:     -1,
+			name: "valid idpf output",
+			input: `Ring parameters for eth0:
+Pre-set maximums:
+RX:			8128
+RX Mini:	n/a
+RX Jumbo:	n/a
+TX:			8160
+TX push buff len:	n/a
+Current hardware settings:
+RX:			512
+RX Mini:	n/a
+RX Jumbo:	n/a
+TX:			512
+RX Buf Len:	n/a
+CQE Size:	n/a
+TX Push:	off
+RX Push:	off
+TX push buff len:	n/a
+TCP data split:	on`,
+			want: &EthtoolRingSizes{
+				MaxRX:          8128,
+				MaxRXMini:      -1,
+				MaxRXJumbo:     -1,
+				MaxTX:          8160,
+				CurrentRX:      512,
+				CurrentRXMini:  -1,
+				CurrentRXJumbo: -1,
+				CurrentTX:      512,
 			},
-			wantEffectiveCurrentRX: 2,
-			wantEffectiveCurrentTX: 4,
-			wantEffectiveMaxRX:     16,
-			wantEffectiveMaxTX:     32,
 		},
 		{
-			name: "combined queues set",
-			counts: &EthtoolQueueCounts{
-				CurrentRXQueues:       -1,
-				CurrentTXQueues:       -1,
-				CurrentCombinedQueues: 8,
-				MaxRXQueues:           -1,
-				MaxTXQueues:           -1,
-				MaxCombinedQueues:     64,
-			},
-			wantEffectiveCurrentRX: 8,
-			wantEffectiveCurrentTX: 8,
-			wantEffectiveMaxRX:     64,
-			wantEffectiveMaxTX:     64,
-		},
-		{
-			name: "neither separate nor combined queues set",
-			counts: &EthtoolQueueCounts{
-				CurrentRXQueues:       -1,
-				CurrentTXQueues:       -1,
-				CurrentCombinedQueues: -1,
-				MaxRXQueues:           -1,
-				MaxTXQueues:           -1,
-				MaxCombinedQueues:     -1,
-			},
-			wantEffectiveCurrentRX: -1,
-			wantEffectiveCurrentTX: -1,
-			wantEffectiveMaxRX:     -1,
-			wantEffectiveMaxTX:     -1,
-		},
-		{
-			name: "separate queues take precedence over combined queues",
-			counts: &EthtoolQueueCounts{
-				CurrentRXQueues:       3,
-				CurrentTXQueues:       5,
-				CurrentCombinedQueues: 12,
-				MaxRXQueues:           15,
-				MaxTXQueues:           25,
-				MaxCombinedQueues:     48,
-			},
-			wantEffectiveCurrentRX: 3,
-			wantEffectiveCurrentTX: 5,
-			wantEffectiveMaxRX:     15,
-			wantEffectiveMaxTX:     25,
+			name:    "invalid output missing section",
+			input:   "Invalid output",
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.counts.EffectiveCurrentRXQueues(); got != tc.wantEffectiveCurrentRX {
-				t.Errorf("EffectiveCurrentRXQueues() = %d, want %d", got, tc.wantEffectiveCurrentRX)
+			got, err := ParseEthtoolGOutput(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ParseEthtoolGOutput(%q) returned error %v, wantErr %t", tc.input, err, tc.wantErr)
+				return
 			}
-			if got := tc.counts.EffectiveCurrentTXQueues(); got != tc.wantEffectiveCurrentTX {
-				t.Errorf("EffectiveCurrentTXQueues() = %d, want %d", got, tc.wantEffectiveCurrentTX)
-			}
-			if got := tc.counts.EffectiveMaxRXQueues(); got != tc.wantEffectiveMaxRX {
-				t.Errorf("EffectiveMaxRXQueues() = %d, want %d", got, tc.wantEffectiveMaxRX)
-			}
-			if got := tc.counts.EffectiveMaxTXQueues(); got != tc.wantEffectiveMaxTX {
-				t.Errorf("EffectiveMaxTXQueues() = %d, want %d", got, tc.wantEffectiveMaxTX)
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("ParseEthtoolGOutput(%q) mismatch (-got +want):\n%s", tc.input, diff)
 			}
 		})
 	}

@@ -498,3 +498,86 @@ func ParseEthtoolLOutput(output string) (*EthtoolQueueCounts, error) {
 		CurrentCombinedQueues: currentCombinedQueues,
 	}, nil
 }
+
+// EthtoolRingSizes contains ring parameters for an interface as returned by `ethtool -g`.
+// Fields are set to -1 if the value is "n/a" or omitted.
+type EthtoolRingSizes struct {
+	MaxRX          int
+	MaxRXMini      int
+	MaxRXJumbo     int
+	MaxTX          int
+	CurrentRX      int
+	CurrentRXMini  int
+	CurrentRXJumbo int
+	CurrentTX      int
+}
+
+// ParseEthtoolGOutput parses the output of `ethtool -g` and returns an EthtoolRingSizes
+// object. Populates fields with -1 if the value is "n/a" or omitted, returns an error if
+// the output cannot be parsed.
+func ParseEthtoolGOutput(output string) (*EthtoolRingSizes, error) {
+	idx := strings.Index(output, "Current hardware settings:")
+	if idx == -1 {
+		return nil, fmt.Errorf("parsing ethtool -g output: missing 'Current hardware settings:'")
+	}
+	preSetSection := output[:idx]
+	currentSection := output[idx:]
+
+	rxRe := regexp.MustCompile(`(?m)^\s*RX:\s*(\d+|n/a)`)
+	rxMiniRe := regexp.MustCompile(`(?m)^\s*RX Mini:\s*(\d+|n/a)`)
+	rxJumboRe := regexp.MustCompile(`(?m)^\s*RX Jumbo:\s*(\d+|n/a)`)
+	txRe := regexp.MustCompile(`(?m)^\s*TX:\s*(\d+|n/a)`)
+
+	parseVal := func(re *regexp.Regexp, s string) (int, error) {
+		m := re.FindStringSubmatch(s)
+		if len(m) < 2 || m[1] == "n/a" {
+			return -1, nil
+		}
+		return strconv.Atoi(m[1])
+	}
+
+	maxRX, err := parseVal(rxRe, preSetSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing max RX: %w", err)
+	}
+	maxRXMini, err := parseVal(rxMiniRe, preSetSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing max RX Mini: %w", err)
+	}
+	maxRXJumbo, err := parseVal(rxJumboRe, preSetSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing max RX Jumbo: %w", err)
+	}
+	maxTX, err := parseVal(txRe, preSetSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing max TX: %w", err)
+	}
+
+	currentRX, err := parseVal(rxRe, currentSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing current RX: %w", err)
+	}
+	currentRXMini, err := parseVal(rxMiniRe, currentSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing current RX Mini: %w", err)
+	}
+	currentRXJumbo, err := parseVal(rxJumboRe, currentSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing current RX Jumbo: %w", err)
+	}
+	currentTX, err := parseVal(txRe, currentSection)
+	if err != nil {
+		return nil, fmt.Errorf("parsing current TX: %w", err)
+	}
+
+	return &EthtoolRingSizes{
+		MaxRX:          maxRX,
+		MaxRXMini:      maxRXMini,
+		MaxRXJumbo:     maxRXJumbo,
+		MaxTX:          maxTX,
+		CurrentRX:      currentRX,
+		CurrentRXMini:  currentRXMini,
+		CurrentRXJumbo: currentRXJumbo,
+		CurrentTX:      currentTX,
+	}, nil
+}
