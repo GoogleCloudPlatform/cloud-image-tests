@@ -50,7 +50,8 @@ var (
 	gveNotifyIRQRe      = regexp.MustCompile(`gve-ntfy-blk(\d+)@.*`)
 	gveOlderNotifyIRQRe = regexp.MustCompile(`.*-ntfy-block\.(\d+)`)
 
-	txQueueRe = regexp.MustCompile(`tx-(\d+)`)
+	txQueueRe     = regexp.MustCompile(`tx-(\d+)`)
+	idpfTxRxIRQRe = regexp.MustCompile(`.*TxRx-(\d+)`)
 )
 
 //go:embed config_expectations/config_expectations.textproto
@@ -123,7 +124,7 @@ func deviceIRQs(ifaceName string) ([]int, error) {
 
 		baseAsInt, err := strconv.Atoi(d.Name())
 		if err != nil {
-			return fmt.Errorf("unexpected non-integer device IRQ name %q: %w", d.Name(), err)
+			return fmt.Errorf("unexpected non-integer device IRQ name %q in %q: %w", d.Name(), deviceIRQsPath, err)
 		}
 
 		allegedProcPath := fmt.Sprintf("/proc/irq/%d", baseAsInt)
@@ -137,6 +138,9 @@ func deviceIRQs(ifaceName string) ([]int, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("walking device IRQs path %q: %w", deviceIRQsPath, err)
+	}
+	if len(irqs) == 0 {
+		return nil, fmt.Errorf("deviceIRQs found no active proc IRQs in %q", deviceIRQsPath)
 	}
 
 	return irqs, nil
@@ -221,15 +225,36 @@ func gveQueueIndex(irqPath string, isRX bool, queueCounts *networkutils.EthtoolQ
 	//
 	// Note that the number of notify blocks is based on the maximum number of queues, not
 	// the currently configured number.
-	if isRX && index >= queueCounts.MaxTXQueues {
-		index -= queueCounts.MaxTXQueues
+	maxTX := queueCounts.EffectiveMaxTXQueues()
+	if isRX && index >= maxTX {
+		index -= maxTX
 		return true, index, nil
 	}
-	if !isRX && index < queueCounts.MaxTXQueues {
+	if !isRX && index < maxTX {
 		return true, index, nil
 	}
 
 	return false, 0, nil
+}
+
+func idpfQueueIndex(irqPath string) (bool, int, error) {
+	fileName, err := findFileWithRegex(irqPath, idpfTxRxIRQRe)
+	if err != nil {
+		return false, 0, err
+	}
+	if fileName == "" {
+		return false, 0, nil
+	}
+	index, err := strconv.Atoi(fileName)
+	if err != nil {
+		return false, 0, err
+	}
+	// Linux idpf driver uses 1-based vector indices (e.g. TxRx-1 .. TxRx-16).
+	// Convert 1-based index (>= 1) to 0-based (index - 1).
+	if index >= 1 {
+		index--
+	}
+	return true, index, nil
 }
 
 // rxQueueIndex returns the index of the RX queue for the given IRQ path.
@@ -242,6 +267,12 @@ func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) 
 	}
 
 	if found, index, err := gveQueueIndex(irqPath, true /*isRX*/, queueCounts); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
+	}
+
+	if found, index, err := idpfQueueIndex(irqPath); err != nil {
 		return -1, err
 	} else if found {
 		return index, nil
@@ -260,6 +291,12 @@ func txQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) 
 	}
 
 	if found, index, err := gveQueueIndex(irqPath, false /*isRX*/, queueCounts); err != nil {
+		return -1, err
+	} else if found {
+		return index, nil
+	}
+
+	if found, index, err := idpfQueueIndex(irqPath); err != nil {
 		return -1, err
 	} else if found {
 		return index, nil
@@ -307,10 +344,10 @@ func queueIndexToIRQs(irqs []int, queueCounts *networkutils.EthtoolQueueCounts) 
 			return nil, err
 		}
 
-		if rxQueueIndex >= 0 && rxQueueIndex < queueCounts.CurrentRXQueues {
+		if rxQueueIndex >= 0 && rxQueueIndex < queueCounts.EffectiveCurrentRXQueues() {
 			irqCPUListsMap.rxIRQAffinity[rxQueueIndex] = cpuListStr
 		}
-		if txQueueIndex >= 0 && txQueueIndex < queueCounts.CurrentTXQueues {
+		if txQueueIndex >= 0 && txQueueIndex < queueCounts.EffectiveCurrentTXQueues() {
 			irqCPUListsMap.txIRQAffinity[txQueueIndex] = cpuListStr
 		}
 	}
@@ -406,6 +443,15 @@ func queueCountsForInterface(ifaceName string) (*networkutils.EthtoolQueueCounts
 	return networkutils.ParseEthtoolLOutput(string(out))
 }
 
+func ringSizesForInterface(ifaceName string) (*networkutils.EthtoolRingSizes, error) {
+	cmd := exec.Command("ethtool", "-g", ifaceName)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run `ethtool -g %q`: %w", ifaceName, err)
+	}
+	return networkutils.ParseEthtoolGOutput(string(out))
+}
+
 func buildQueuesXPSOnly(txQueueToXPS map[int]string) ([]*pb.TxQueue, error) {
 	var txQueues []*pb.TxQueue
 	for txQueueIndex, xpsCPUListStr := range txQueueToXPS {
@@ -474,13 +520,16 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("parsing ethtool -l output for %q: %w", nicName, err)
 		}
 
-		irqs, err := deviceIRQs(nicName)
-		if err != nil {
-			return nil, fmt.Errorf("getting device IRQs for %q: %w", nicName, err)
-		}
-		queueToIRQs, err := queueIndexToIRQs(irqs, queueCounts)
-		if err != nil {
-			return nil, fmt.Errorf("converting IRQs to queue index to IRQs for %q: %w", nicName, err)
+		var queueToIRQs *irqCPULists
+		if nicType != networkutils.NICTypeIRDMA && nicType != networkutils.NICTypeMRDMA {
+			irqs, err := deviceIRQs(nicName)
+			if err != nil {
+				return nil, fmt.Errorf("getting device IRQs for %q: %w", nicName, err)
+			}
+			queueToIRQs, err = queueIndexToIRQs(irqs, queueCounts)
+			if err != nil {
+				return nil, fmt.Errorf("converting IRQs to queue index to IRQs for %q: %w", nicName, err)
+			}
 		}
 
 		txQueueToXPS, err := queueIndexToXPS(nicName)
@@ -493,12 +542,24 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("building queues for %q: %w", nicName, err)
 		}
 
-		nic := pb.NicExpectation_builder{
+		nicBuilder := pb.NicExpectation_builder{
 			Type:     proto.String(nicType),
 			TxQueues: txQueues,
 			RxQueues: rxQueues,
-		}.Build()
-		nics = append(nics, nic)
+		}
+
+		if rings, err := ringSizesForInterface(nicName); err == nil {
+			if rings.CurrentRX >= 0 {
+				nicBuilder.RxRingSize = proto.Int32(int32(rings.CurrentRX))
+			}
+			if rings.CurrentTX >= 0 {
+				nicBuilder.TxRingSize = proto.Int32(int32(rings.CurrentTX))
+			}
+		} else {
+			return nil, fmt.Errorf("getting ring sizes for %q: %w", nicName, err)
+		}
+
+		nics = append(nics, nicBuilder.Build())
 	}
 
 	return pb.SystemConfig_builder{
@@ -541,6 +602,20 @@ func TestDeviceConfig(t *testing.T) {
 	gotSystemConfig, err := thisSystemConfig(mdsIfaces)
 	if err != nil {
 		t.Fatalf("thisSystemConfig(mdsIfaces) = err: %v, want nil", err)
+	}
+
+	// Only assert the ring size if they're set in the expected config.
+	for i, wantNic := range wantSystemConfig.GetNics() {
+		if i >= len(gotSystemConfig.GetNics()) {
+			break
+		}
+		gotNic := gotSystemConfig.GetNics()[i]
+		if !wantNic.HasRxRingSize() {
+			gotNic.ClearRxRingSize()
+		}
+		if !wantNic.HasTxRingSize() {
+			gotNic.ClearTxRingSize()
+		}
 	}
 
 	if diff := cmp.Diff(wantSystemConfig, gotSystemConfig,
