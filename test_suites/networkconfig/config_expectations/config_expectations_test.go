@@ -130,3 +130,19 @@ func TestCPUSets(t *testing.T) {
 		})
 	}
 }
+
+func TestRingSizes(t *testing.T) {
+	c := proto()
+	for _, config := range c.GetConfigExpectations() {
+		t.Run(config.GetDescription(), func(t *testing.T) {
+			for nicIdx, nic := range config.GetNics() {
+				if nic.HasRxRingSize() && nic.GetRxRingSize() <= 0 {
+					t.Errorf("NIC %d: non-positive rx_ring_size %d", nicIdx, nic.GetRxRingSize())
+				}
+				if nic.HasTxRingSize() && nic.GetTxRingSize() <= 0 {
+					t.Errorf("NIC %d: non-positive tx_ring_size %d", nicIdx, nic.GetTxRingSize())
+				}
+			}
+		})
+	}
+}

@@ -50,6 +50,10 @@ message NicExpectation {
 
   // Receive queues for this NIC.
   repeated RxQueue rx_queues = 3;
+
+  // Receive and transmit ring buffer sizes for this NIC.
+  int32 rx_ring_size = 4;
+  int32 tx_ring_size = 5;
 }
 
 message RxQueue {

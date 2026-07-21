@@ -232,6 +232,8 @@ type NicExpectation struct {
 	xxx_hidden_Type        *string                `protobuf:"bytes,1,opt,name=type"`
 	xxx_hidden_TxQueues    *[]*TxQueue            `protobuf:"bytes,2,rep,name=tx_queues,json=txQueues"`
 	xxx_hidden_RxQueues    *[]*RxQueue            `protobuf:"bytes,3,rep,name=rx_queues,json=rxQueues"`
+	xxx_hidden_RxRingSize  int32                  `protobuf:"varint,4,opt,name=rx_ring_size,json=rxRingSize"`
+	xxx_hidden_TxRingSize  int32                  `protobuf:"varint,5,opt,name=tx_ring_size,json=txRingSize"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -291,9 +293,23 @@ func (x *NicExpectation) GetRxQueues() []*RxQueue {
 	return nil
 }
 
+func (x *NicExpectation) GetRxRingSize() int32 {
+	if x != nil {
+		return x.xxx_hidden_RxRingSize
+	}
+	return 0
+}
+
+func (x *NicExpectation) GetTxRingSize() int32 {
+	if x != nil {
+		return x.xxx_hidden_TxRingSize
+	}
+	return 0
+}
+
 func (x *NicExpectation) SetType(v string) {
 	x.xxx_hidden_Type = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
 }
 
 func (x *NicExpectation) SetTxQueues(v []*TxQueue) {
@@ -304,6 +320,16 @@ func (x *NicExpectation) SetRxQueues(v []*RxQueue) {
 	x.xxx_hidden_RxQueues = &v
 }
 
+func (x *NicExpectation) SetRxRingSize(v int32) {
+	x.xxx_hidden_RxRingSize = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+}
+
+func (x *NicExpectation) SetTxRingSize(v int32) {
+	x.xxx_hidden_TxRingSize = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
+}
+
 func (x *NicExpectation) HasType() bool {
 	if x == nil {
 		return false
@@ -311,9 +337,33 @@ func (x *NicExpectation) HasType() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
+func (x *NicExpectation) HasRxRingSize() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *NicExpectation) HasTxRingSize() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
+}
+
 func (x *NicExpectation) ClearType() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Type = nil
+}
+
+func (x *NicExpectation) ClearRxRingSize() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_RxRingSize = 0
+}
+
+func (x *NicExpectation) ClearTxRingSize() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	x.xxx_hidden_TxRingSize = 0
 }
 
 type NicExpectation_builder struct {
@@ -326,6 +376,9 @@ type NicExpectation_builder struct {
 	TxQueues []*TxQueue
 	// Receive queues for this NIC.
 	RxQueues []*RxQueue
+	// Receive and transmit ring buffer sizes for this NIC.
+	RxRingSize *int32
+	TxRingSize *int32
 }
 
 func (b0 NicExpectation_builder) Build() *NicExpectation {
@@ -333,11 +386,19 @@ func (b0 NicExpectation_builder) Build() *NicExpectation {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Type != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
 		x.xxx_hidden_Type = b.Type
 	}
 	x.xxx_hidden_TxQueues = &b.TxQueues
 	x.xxx_hidden_RxQueues = &b.RxQueues
+	if b.RxRingSize != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		x.xxx_hidden_RxRingSize = *b.RxRingSize
+	}
+	if b.TxRingSize != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
+		x.xxx_hidden_TxRingSize = *b.TxRingSize
+	}
 	return m0
 }
 
@@ -608,11 +669,15 @@ const file_test_suites_networkconfig_config_expectations_config_expectations_pro
 	"\fSystemConfig\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12!\n" +
 	"\fmachine_type\x18\x02 \x01(\tR\vmachineType\x12n\n" +
-	"\x04nics\x18\x04 \x03(\v2Z.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectationR\x04nics\"\x88\x02\n" +
+	"\x04nics\x18\x04 \x03(\v2Z.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectationR\x04nics\"\xcc\x02\n" +
 	"\x0eNicExpectation\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12p\n" +
 	"\ttx_queues\x18\x02 \x03(\v2S.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueueR\btxQueues\x12p\n" +
-	"\trx_queues\x18\x03 \x03(\v2S.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueueR\brxQueues\"@\n" +
+	"\trx_queues\x18\x03 \x03(\v2S.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueueR\brxQueues\x12 \n" +
+	"\frx_ring_size\x18\x04 \x01(\x05R\n" +
+	"rxRingSize\x12 \n" +
+	"\ftx_ring_size\x18\x05 \x01(\x05R\n" +
+	"txRingSize\"@\n" +
 	"\aRxQueue\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x1f\n" +
 	"\virq_cpulist\x18\x02 \x01(\tR\n" +
