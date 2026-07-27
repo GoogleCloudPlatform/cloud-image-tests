@@ -25,6 +25,16 @@ message ConfigExpectations {
   repeated SystemConfig config_expectations = 1;
 }
 
+message GuestOsSelector {
+  // The minimum kernel version (inclusive) required for this expectation to
+  // apply, e.g. "6.8.0" or "6.8".
+  string min_kernel_version = 1;
+
+  // The maximum kernel version (inclusive) required for this expectation to
+  // apply, e.g. "6.8.0" or "6.8".
+  string max_kernel_version = 2;
+}
+
 // Configuration for a particular variant of a machine.
 // Keyed on machine type and NIC types.
 message SystemConfig {
@@ -34,6 +44,9 @@ message SystemConfig {
 
   // The GCE machine type e.g. "n2d-standard-2".
   string machine_type = 2;
+
+  // Criteria for matching properties of the VM's guest OS.
+  GuestOsSelector guest_os_selector = 3;
 
   // NICs in the VM. This includes any device expected to be created by the
   // GCE stack, but not any created by the user (e.g. not `lo` or `docker0`).

@@ -755,3 +755,47 @@ TCP data split:	on`,
 		})
 	}
 }
+
+func TestParseKernelVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []int
+	}{
+		{"6.8.0", []int{6, 8, 0}},
+		{"6.8.0-1006-gcp", []int{6, 8, 0, 1006}},
+		{"6.8", []int{6, 8}},
+		{"5.15.0-1040-gcp", []int{5, 15, 0, 1040}},
+		{"", nil},
+		{"abc", nil},
+	}
+	for _, tc := range tests {
+		got := ParseKernelVersion(tc.input)
+		if diff := cmp.Diff(got, tc.want); diff != "" {
+			t.Errorf("ParseKernelVersion(%q) mismatch (-got +want):\n%s", tc.input, diff)
+		}
+	}
+}
+
+func TestCompareKernelVersion(t *testing.T) {
+	tests := []struct {
+		v1   string
+		v2   string
+		want int
+	}{
+		{"6.8", "6.8.0", 0},
+		{"6.8.0-1006-gcp", "6.8", 1},
+		{"6.8.0-1006-gcp", "6.8.0", 1},
+		{"6.6.0-1001-gcp", "6.8.0", -1},
+		{"6.8", "6.6.0-1001-gcp", 1},
+		{"6.7.999", "6.8", -1},
+		{"6.8", "6.8.1", -1},
+		{"6.8.0", "6.8.0.1", -1},
+		{"6.8.0.1", "6.8", 1},
+	}
+	for _, tc := range tests {
+		got := CompareKernelVersion(tc.v1, tc.v2)
+		if got != tc.want {
+			t.Errorf("CompareKernelVersion(%q, %q) = %d, want %d", tc.v1, tc.v2, got, tc.want)
+		}
+	}
+}

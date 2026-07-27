@@ -93,22 +93,138 @@ func (b0 ConfigExpectations_builder) Build() *ConfigExpectations {
 	return m0
 }
 
+type GuestOsSelector struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_MinKernelVersion *string                `protobuf:"bytes,1,opt,name=min_kernel_version,json=minKernelVersion"`
+	xxx_hidden_MaxKernelVersion *string                `protobuf:"bytes,2,opt,name=max_kernel_version,json=maxKernelVersion"`
+	XXX_raceDetectHookData      protoimpl.RaceDetectHookData
+	XXX_presence                [1]uint32
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *GuestOsSelector) Reset() {
+	*x = GuestOsSelector{}
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GuestOsSelector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GuestOsSelector) ProtoMessage() {}
+
+func (x *GuestOsSelector) ProtoReflect() protoreflect.Message {
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GuestOsSelector) GetMinKernelVersion() string {
+	if x != nil {
+		if x.xxx_hidden_MinKernelVersion != nil {
+			return *x.xxx_hidden_MinKernelVersion
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *GuestOsSelector) GetMaxKernelVersion() string {
+	if x != nil {
+		if x.xxx_hidden_MaxKernelVersion != nil {
+			return *x.xxx_hidden_MaxKernelVersion
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *GuestOsSelector) SetMinKernelVersion(v string) {
+	x.xxx_hidden_MinKernelVersion = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *GuestOsSelector) SetMaxKernelVersion(v string) {
+	x.xxx_hidden_MaxKernelVersion = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *GuestOsSelector) HasMinKernelVersion() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *GuestOsSelector) HasMaxKernelVersion() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *GuestOsSelector) ClearMinKernelVersion() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_MinKernelVersion = nil
+}
+
+func (x *GuestOsSelector) ClearMaxKernelVersion() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_MaxKernelVersion = nil
+}
+
+type GuestOsSelector_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The minimum kernel version (inclusive) required for this expectation to
+	// apply, e.g. "6.8.0" or "6.8".
+	MinKernelVersion *string
+	// The maximum kernel version (inclusive) required for this expectation to
+	// apply, e.g. "6.8.0" or "6.8".
+	MaxKernelVersion *string
+}
+
+func (b0 GuestOsSelector_builder) Build() *GuestOsSelector {
+	m0 := &GuestOsSelector{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.MinKernelVersion != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_MinKernelVersion = b.MinKernelVersion
+	}
+	if b.MaxKernelVersion != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_MaxKernelVersion = b.MaxKernelVersion
+	}
+	return m0
+}
+
 // Configuration for a particular variant of a machine.
 // Keyed on machine type and NIC types.
 type SystemConfig struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Description *string                `protobuf:"bytes,1,opt,name=description"`
-	xxx_hidden_MachineType *string                `protobuf:"bytes,2,opt,name=machine_type,json=machineType"`
-	xxx_hidden_Nics        *[]*NicExpectation     `protobuf:"bytes,4,rep,name=nics"`
-	XXX_raceDetectHookData protoimpl.RaceDetectHookData
-	XXX_presence           [1]uint32
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                      protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Description     *string                `protobuf:"bytes,1,opt,name=description"`
+	xxx_hidden_MachineType     *string                `protobuf:"bytes,2,opt,name=machine_type,json=machineType"`
+	xxx_hidden_GuestOsSelector *GuestOsSelector       `protobuf:"bytes,3,opt,name=guest_os_selector,json=guestOsSelector"`
+	xxx_hidden_Nics            *[]*NicExpectation     `protobuf:"bytes,4,rep,name=nics"`
+	XXX_raceDetectHookData     protoimpl.RaceDetectHookData
+	XXX_presence               [1]uint32
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *SystemConfig) Reset() {
 	*x = SystemConfig{}
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +236,7 @@ func (x *SystemConfig) String() string {
 func (*SystemConfig) ProtoMessage() {}
 
 func (x *SystemConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[1]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -151,6 +267,13 @@ func (x *SystemConfig) GetMachineType() string {
 	return ""
 }
 
+func (x *SystemConfig) GetGuestOsSelector() *GuestOsSelector {
+	if x != nil {
+		return x.xxx_hidden_GuestOsSelector
+	}
+	return nil
+}
+
 func (x *SystemConfig) GetNics() []*NicExpectation {
 	if x != nil {
 		if x.xxx_hidden_Nics != nil {
@@ -162,12 +285,16 @@ func (x *SystemConfig) GetNics() []*NicExpectation {
 
 func (x *SystemConfig) SetDescription(v string) {
 	x.xxx_hidden_Description = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
 }
 
 func (x *SystemConfig) SetMachineType(v string) {
 	x.xxx_hidden_MachineType = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
+}
+
+func (x *SystemConfig) SetGuestOsSelector(v *GuestOsSelector) {
+	x.xxx_hidden_GuestOsSelector = v
 }
 
 func (x *SystemConfig) SetNics(v []*NicExpectation) {
@@ -188,6 +315,13 @@ func (x *SystemConfig) HasMachineType() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
+func (x *SystemConfig) HasGuestOsSelector() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_GuestOsSelector != nil
+}
+
 func (x *SystemConfig) ClearDescription() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Description = nil
@@ -198,6 +332,10 @@ func (x *SystemConfig) ClearMachineType() {
 	x.xxx_hidden_MachineType = nil
 }
 
+func (x *SystemConfig) ClearGuestOsSelector() {
+	x.xxx_hidden_GuestOsSelector = nil
+}
+
 type SystemConfig_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -206,6 +344,8 @@ type SystemConfig_builder struct {
 	Description *string
 	// The GCE machine type e.g. "n2d-standard-2".
 	MachineType *string
+	// Criteria for matching properties of the VM's guest OS.
+	GuestOsSelector *GuestOsSelector
 	// NICs in the VM. This includes any device expected to be created by the
 	// GCE stack, but not any created by the user (e.g. not `lo` or `docker0`).
 	Nics []*NicExpectation
@@ -216,13 +356,14 @@ func (b0 SystemConfig_builder) Build() *SystemConfig {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Description != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
 		x.xxx_hidden_Description = b.Description
 	}
 	if b.MachineType != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
 		x.xxx_hidden_MachineType = b.MachineType
 	}
+	x.xxx_hidden_GuestOsSelector = b.GuestOsSelector
 	x.xxx_hidden_Nics = &b.Nics
 	return m0
 }
@@ -242,7 +383,7 @@ type NicExpectation struct {
 
 func (x *NicExpectation) Reset() {
 	*x = NicExpectation{}
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +395,7 @@ func (x *NicExpectation) String() string {
 func (*NicExpectation) ProtoMessage() {}
 
 func (x *NicExpectation) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[2]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -414,7 +555,7 @@ type RxQueue struct {
 
 func (x *RxQueue) Reset() {
 	*x = RxQueue{}
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -426,7 +567,7 @@ func (x *RxQueue) String() string {
 func (*RxQueue) ProtoMessage() {}
 
 func (x *RxQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[3]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -526,7 +667,7 @@ type TxQueue struct {
 
 func (x *TxQueue) Reset() {
 	*x = TxQueue{}
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +679,7 @@ func (x *TxQueue) String() string {
 func (*TxQueue) ProtoMessage() {}
 
 func (x *TxQueue) ProtoReflect() protoreflect.Message {
-	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[4]
+	mi := &file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,10 +806,14 @@ const file_test_suites_networkconfig_config_expectations_config_expectations_pro
 	"\n" +
 	"Gtest_suites/networkconfig/config_expectations/config_expectations.proto\x12Jgithub_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig\"\xa0\x01\n" +
 	"\x12ConfigExpectations\x12\x89\x01\n" +
-	"\x13config_expectations\x18\x01 \x03(\v2X.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfigR\x12configExpectations\"\xc3\x01\n" +
+	"\x13config_expectations\x18\x01 \x03(\v2X.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfigR\x12configExpectations\"m\n" +
+	"\x0fGuestOsSelector\x12,\n" +
+	"\x12min_kernel_version\x18\x01 \x01(\tR\x10minKernelVersion\x12,\n" +
+	"\x12max_kernel_version\x18\x02 \x01(\tR\x10maxKernelVersion\"\xcd\x02\n" +
 	"\fSystemConfig\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12!\n" +
-	"\fmachine_type\x18\x02 \x01(\tR\vmachineType\x12n\n" +
+	"\fmachine_type\x18\x02 \x01(\tR\vmachineType\x12\x87\x01\n" +
+	"\x11guest_os_selector\x18\x03 \x01(\v2[.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.GuestOsSelectorR\x0fguestOsSelector\x12n\n" +
 	"\x04nics\x18\x04 \x03(\v2Z.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectationR\x04nics\"\xcc\x02\n" +
 	"\x0eNicExpectation\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12p\n" +
@@ -689,24 +834,26 @@ const file_test_suites_networkconfig_config_expectations_config_expectations_pro
 	"\vxps_cpulist\x18\x03 \x01(\tR\n" +
 	"xpsCpulistB7Z5./test_suites/networkconfig/config_expectations_protob\beditionsp\xe9\a"
 
-var file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_test_suites_networkconfig_config_expectations_config_expectations_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_test_suites_networkconfig_config_expectations_config_expectations_proto_goTypes = []any{
 	(*ConfigExpectations)(nil), // 0: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.ConfigExpectations
-	(*SystemConfig)(nil),       // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
-	(*NicExpectation)(nil),     // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
-	(*RxQueue)(nil),            // 3: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueue
-	(*TxQueue)(nil),            // 4: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
+	(*GuestOsSelector)(nil),    // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.GuestOsSelector
+	(*SystemConfig)(nil),       // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
+	(*NicExpectation)(nil),     // 3: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
+	(*RxQueue)(nil),            // 4: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueue
+	(*TxQueue)(nil),            // 5: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
 }
 var file_test_suites_networkconfig_config_expectations_config_expectations_proto_depIdxs = []int32{
-	1, // 0: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.ConfigExpectations.config_expectations:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
-	2, // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig.nics:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
-	4, // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation.tx_queues:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
-	3, // 3: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation.rx_queues:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueue
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2, // 0: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.ConfigExpectations.config_expectations:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig
+	1, // 1: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig.guest_os_selector:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.GuestOsSelector
+	3, // 2: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.SystemConfig.nics:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation
+	5, // 3: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation.tx_queues:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueue
+	4, // 4: github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectation.rx_queues:type_name -> github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.RxQueue
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_test_suites_networkconfig_config_expectations_config_expectations_proto_init() }
@@ -720,7 +867,7 @@ func file_test_suites_networkconfig_config_expectations_config_expectations_prot
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_test_suites_networkconfig_config_expectations_config_expectations_proto_rawDesc), len(file_test_suites_networkconfig_config_expectations_config_expectations_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

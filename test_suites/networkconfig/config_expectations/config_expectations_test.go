@@ -146,3 +146,28 @@ func TestRingSizes(t *testing.T) {
 		})
 	}
 }
+
+func TestKernelVersionFormat(t *testing.T) {
+	c := proto()
+	for _, config := range c.GetConfigExpectations() {
+		t.Run(config.GetDescription(), func(t *testing.T) {
+			minVer := config.GetGuestOsSelector().GetMinKernelVersion()
+			if minVer != "" {
+				if len(networkutils.ParseKernelVersion(minVer)) == 0 {
+					t.Errorf("Empty or invalid min_kernel_version string: %q", minVer)
+				}
+			}
+			maxVer := config.GetGuestOsSelector().GetMaxKernelVersion()
+			if maxVer != "" {
+				if len(networkutils.ParseKernelVersion(maxVer)) == 0 {
+					t.Errorf("Empty or invalid max_kernel_version string: %q", maxVer)
+				}
+			}
+			if minVer != "" && maxVer != "" {
+				if networkutils.CompareKernelVersion(minVer, maxVer) > 0 {
+					t.Errorf("min_kernel_version (%q) is greater than max_kernel_version (%q)", minVer, maxVer)
+				}
+			}
+		})
+	}
+}

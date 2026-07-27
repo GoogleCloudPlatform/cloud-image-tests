@@ -630,8 +630,53 @@ config_expectations: {
   }
 }
 config_expectations: {
-  description: "n2-32 with single GVNIC"
+  description: "n2-32 with single GVNIC (with GVE NUMA locality awareness)"
   machine_type: "n2-highcpu-32"
+  guest_os_selector: {
+    min_kernel_version: "6.17"
+  }
+  nics: {
+    type: "GVNIC"
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "3" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "4" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "5" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "6" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "7" }
+    tx_queues: { index: 8 irq_cpulist: "16" xps_cpulist: "8" }
+    tx_queues: { index: 9 irq_cpulist: "17" xps_cpulist: "9" }
+    tx_queues: { index: 10 irq_cpulist: "18" xps_cpulist: "10" }
+    tx_queues: { index: 11 irq_cpulist: "19" xps_cpulist: "11" }
+    tx_queues: { index: 12 irq_cpulist: "20" xps_cpulist: "12" }
+    tx_queues: { index: 13 irq_cpulist: "21" xps_cpulist: "13" }
+    tx_queues: { index: 14 irq_cpulist: "22" xps_cpulist: "14" }
+    tx_queues: { index: 15 irq_cpulist: "23" xps_cpulist: "15" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+    rx_queues: { index: 8 irq_cpulist: "16" }
+    rx_queues: { index: 9 irq_cpulist: "17" }
+    rx_queues: { index: 10 irq_cpulist: "18" }
+    rx_queues: { index: 11 irq_cpulist: "19" }
+    rx_queues: { index: 12 irq_cpulist: "20" }
+    rx_queues: { index: 13 irq_cpulist: "21" }
+    rx_queues: { index: 14 irq_cpulist: "22" }
+    rx_queues: { index: 15 irq_cpulist: "23" }
+  }
+}
+config_expectations: {
+  description: "n2-32 with single GVNIC (without GVE NUMA locality awareness)"
+  machine_type: "n2-highcpu-32"
+  guest_os_selector: {
+    max_kernel_version: "6.16.999"
+  }
   nics: {
     type: "GVNIC"
     tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }

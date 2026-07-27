@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,7 +73,7 @@ func matchKey(a, b *systemKey) bool {
 	return slices.Equal(a.nicTypes, b.nicTypes)
 }
 
-func expectedConfigForMachine(configExpectations *pb.ConfigExpectations, machineType string, nicTypes []string) (*pb.SystemConfig, error) {
+func expectedConfigForMachine(configExpectations *pb.ConfigExpectations, machineType string, nicTypes []string, kernelVersion string) (*pb.SystemConfig, error) {
 	thisSystemKey := &systemKey{machineType: machineType, nicTypes: nicTypes}
 	for _, config := range configExpectations.GetConfigExpectations() {
 		var configNicTypes []string
@@ -84,10 +85,16 @@ func expectedConfigForMachine(configExpectations *pb.ConfigExpectations, machine
 			nicTypes:    configNicTypes,
 		}
 		if matchKey(configSystemKey, thisSystemKey) {
+			if minVer := config.GetGuestOsSelector().GetMinKernelVersion(); minVer != "" && networkutils.CompareKernelVersion(kernelVersion, minVer) < 0 {
+				continue
+			}
+			if maxVer := config.GetGuestOsSelector().GetMaxKernelVersion(); maxVer != "" && networkutils.CompareKernelVersion(kernelVersion, maxVer) > 0 {
+				continue
+			}
 			return config, nil
 		}
 	}
-	return nil, fmt.Errorf("no config expectation found for machine type %q and nic types %v", machineType, nicTypes)
+	return nil, fmt.Errorf("no config expectation found for machine type %q, nic types %v, and kernel version %q", machineType, nicTypes, kernelVersion)
 }
 
 func deviceIRQs(ifaceName string) ([]int, error) {
@@ -594,9 +601,16 @@ func TestDeviceConfig(t *testing.T) {
 		nicTypes = append(nicTypes, mdsIface.NICType)
 	}
 
-	wantSystemConfig, err := expectedConfigForMachine(&configExpectations, machineType, nicTypes)
+	kernelVersionCmd := exec.CommandContext(ctx, "uname", "-r")
+	kernelVersionOut, err := kernelVersionCmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v) = err: %v, want nil", machineType, nicTypes, err)
+		t.Fatalf("error getting kernel version: %v", err)
+	}
+	kernelVersion := strings.TrimSpace(string(kernelVersionOut))
+
+	wantSystemConfig, err := expectedConfigForMachine(&configExpectations, machineType, nicTypes, kernelVersion)
+	if err != nil {
+		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v, %q) = err: %v, want nil", machineType, nicTypes, kernelVersion, err)
 	}
 
 	gotSystemConfig, err := thisSystemConfig(mdsIfaces)
@@ -622,7 +636,7 @@ func TestDeviceConfig(t *testing.T) {
 		protocmp.Transform(),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "tx_queues"),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "rx_queues"),
-		protocmp.IgnoreFields(&pb.SystemConfig{}, "description", "machine_type"),
+		protocmp.IgnoreFields(&pb.SystemConfig{}, "description", "machine_type", "guest_os_selector"),
 	); diff != "" {
 		t.Errorf("SystemConfig mismatch (-want +got):\n%s", diff)
 	}
