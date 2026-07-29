@@ -689,9 +689,6 @@ func TestLocalPlugin(t *testing.T) {
 
 	// With local plugins enabled, check to see that all plugins are running.
 	for _, plugin := range plugins {
-		if strings.Contains(plugin, "GuestTelemetryExtension") { // TODO(b/505402355): Re-enable when local plugins are enabled.
-			continue
-		}
 		if runtime.GOOS == "windows" {
 			// Remove the .exe extension from the plugin name for the verifications.
 			plugin = strings.TrimSuffix(plugin, ".exe")
@@ -700,9 +697,6 @@ func TestLocalPlugin(t *testing.T) {
 			utils.VerifyProcessExistsLinux(t, true, filepath.Join(pluginsDir, plugin))
 		}
 	}
-
-	// TODO(b/489540405): Add test to disable local plugins and verify that all
-	// non-core plugins are not running.
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {
