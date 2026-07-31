@@ -243,12 +243,12 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	if instance == nil {
 		instance = &daisy.Instance{}
 	}
-	if strings.Contains(t.MachineType.Name, "-metal") {
+	if policy := MachineMaintenancePolicy(t.MachineType.Name); policy == "TERMINATE" {
 		if instance.Scheduling == nil {
 			instance.Scheduling = &compute.Scheduling{}
 		}
-		instance.Scheduling.OnHostMaintenance = "TERMINATE"
-		log.Printf("Setting onHostMaintenance to TERMINATE for VM %s (machine type %s)", name, t.MachineType.Name)
+		instance.Scheduling.OnHostMaintenance = policy
+		log.Printf("Setting onHostMaintenance to %s for VM %s (machine type %s)", policy, name, t.MachineType.Name)
 	}
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
@@ -308,12 +308,12 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	if instance == nil {
 		instance = &daisy.InstanceBeta{}
 	}
-	if strings.Contains(t.MachineType.Name, "-metal") {
+	if policy := MachineMaintenancePolicy(t.MachineType.Name); policy == "TERMINATE" {
 		if instance.Scheduling == nil {
 			instance.Scheduling = &computeBeta.Scheduling{}
 		}
-		instance.Scheduling.OnHostMaintenance = "TERMINATE"
-		log.Printf("Setting onHostMaintenance to TERMINATE for VM %s (machine type %s)", name, t.MachineType.Name)
+		instance.Scheduling.OnHostMaintenance = policy
+		log.Printf("Setting onHostMaintenance to %s for VM %s (machine type %s)", policy, name, t.MachineType.Name)
 	}
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
