@@ -57,7 +57,9 @@ func snapshotTestPrep(t *testing.T) {
 		if err := utils.RestartAgent(utils.Context(t)); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(time.Duration(5) * time.Second)
+		// Adds arbitrary buffer time for the agent to run late stage snapshot
+		// module that runs after systemd-notify --ready.
+		time.Sleep(time.Duration(10) * time.Second)
 	}
 }
 

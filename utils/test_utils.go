@@ -927,6 +927,19 @@ func RestartAgent(ctx context.Context) error {
 	} else { // Linux
 		ggactl = "/usr/bin/ggactl_plugin"
 
+		// Kill any existing core_plugin process. Because systemd service is set to
+		// KillMode=process, it seems to leave core_plugin child process running during
+		// stop/restart in some cases, so explicitly kill core_plugin before restarting
+		// the manager to avoid flaky states. In some cases, the manager daemon will
+		// reconnect to the old core_plugin which hasn't read the new configurations
+		// yet which can cause the test to fail.
+		// https://github.com/GoogleCloudPlatform/guest-agent/blob/2d087e9505d94c5b39258878cd84ad26ea405b12/google-guest-agent-manager.service#L13
+		// TODO(b/543916818): Remove this kill command once the bug is fixed.
+		killCmd := exec.CommandContext(ctx, "pkill", "-f", "core_plugin")
+		if killOut, killErr := killCmd.CombinedOutput(); killErr != nil {
+			log.Printf("pkill core_plugin returned: %v, output: %s (ignoring error)", killErr, string(killOut))
+		}
+
 		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
 			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
 		} else {
