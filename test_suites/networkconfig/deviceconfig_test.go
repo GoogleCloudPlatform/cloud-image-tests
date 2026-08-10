@@ -244,7 +244,17 @@ func gveQueueIndex(irqPath string, isRX bool, queueCounts *networkutils.EthtoolQ
 	return false, 0, nil
 }
 
-func idpfQueueIndex(irqPath string) (bool, int, error) {
+func hasIDPFZeroBasedIRQs(irqs []int) bool {
+	for _, irqNumber := range irqs {
+		path := fmt.Sprintf("/proc/irq/%d", irqNumber)
+		if fileName, err := findFileWithRegex(path, idpfTxRxIRQRe); err == nil && fileName == "0" {
+			return true
+		}
+	}
+	return false
+}
+
+func idpfQueueIndex(irqPath string, isZeroBased bool) (bool, int, error) {
 	fileName, err := findFileWithRegex(irqPath, idpfTxRxIRQRe)
 	if err != nil {
 		return false, 0, err
@@ -256,9 +266,9 @@ func idpfQueueIndex(irqPath string) (bool, int, error) {
 	if err != nil {
 		return false, 0, err
 	}
-	// Linux idpf driver uses 1-based vector indices (e.g. TxRx-1 .. TxRx-16).
-	// Convert 1-based index (>= 1) to 0-based (index - 1).
-	if index >= 1 {
+	// Older/downstream Linux idpf drivers use 1-based vector indices (e.g. TxRx-1 .. TxRx-16).
+	// Upstream Linux kernel idpf drivers (e.g. kernel 6.11+) use 0-based vector indices (e.g. TxRx-0 .. TxRx-15).
+	if !isZeroBased && index >= 1 {
 		index--
 	}
 	return true, index, nil
@@ -266,7 +276,7 @@ func idpfQueueIndex(irqPath string) (bool, int, error) {
 
 // rxQueueIndex returns the index of the RX queue for the given IRQ path.
 // Returns -1 if no RX queue is found, or an error if the calculation fails unexpectedly.
-func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) (int, error) {
+func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts, isIDPFZeroBased bool) (int, error) {
 	if found, index, err := virtioRXQueueIndex(irqPath); err != nil {
 		return -1, err
 	} else if found {
@@ -279,7 +289,7 @@ func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) 
 		return index, nil
 	}
 
-	if found, index, err := idpfQueueIndex(irqPath); err != nil {
+	if found, index, err := idpfQueueIndex(irqPath, isIDPFZeroBased); err != nil {
 		return -1, err
 	} else if found {
 		return index, nil
@@ -290,7 +300,7 @@ func rxQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) 
 
 // txQueueIndex returns the index of the TX queue for the given IRQ path.
 // Returns -1 if no TX queue is found, or an error if the calculation fails unexpectedly.
-func txQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) (int, error) {
+func txQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts, isIDPFZeroBased bool) (int, error) {
 	if found, index, err := virtioTXQueueIndex(irqPath); err != nil {
 		return -1, err
 	} else if found {
@@ -303,7 +313,7 @@ func txQueueIndex(irqPath string, queueCounts *networkutils.EthtoolQueueCounts) 
 		return index, nil
 	}
 
-	if found, index, err := idpfQueueIndex(irqPath); err != nil {
+	if found, index, err := idpfQueueIndex(irqPath, isIDPFZeroBased); err != nil {
 		return -1, err
 	} else if found {
 		return index, nil
@@ -322,6 +332,7 @@ func queueIndexToIRQs(irqs []int, queueCounts *networkutils.EthtoolQueueCounts) 
 		rxIRQAffinity: make(map[int]string),
 		txIRQAffinity: make(map[int]string),
 	}
+	isIDPFZeroBased := hasIDPFZeroBasedIRQs(irqs)
 	for _, irqNumber := range irqs {
 		path := fmt.Sprintf("/proc/irq/%d", irqNumber)
 		if !utils.Exists(path, utils.TypeDir) {
@@ -342,11 +353,11 @@ func queueIndexToIRQs(irqs []int, queueCounts *networkutils.EthtoolQueueCounts) 
 		}
 		cpuListStr := cpuset.ListString()
 
-		rxQueueIndex, err := rxQueueIndex(path, queueCounts)
+		rxQueueIndex, err := rxQueueIndex(path, queueCounts, isIDPFZeroBased)
 		if err != nil {
 			return nil, err
 		}
-		txQueueIndex, err := txQueueIndex(path, queueCounts)
+		txQueueIndex, err := txQueueIndex(path, queueCounts, isIDPFZeroBased)
 		if err != nil {
 			return nil, err
 		}
