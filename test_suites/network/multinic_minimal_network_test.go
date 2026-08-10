@@ -89,10 +89,14 @@ func pingTarget(ctx context.Context, source, target string) error {
 	}
 	var resp *http.Response
 	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("context cancelled during ping: %w", err)
+		}
 		resp, err = client.Do(req)
 		if err == nil {
 			break
 		}
+		time.Sleep(2 * time.Second)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
