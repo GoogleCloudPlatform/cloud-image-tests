@@ -652,6 +652,11 @@ func TestACSDisabled(t *testing.T) {
 }
 
 func TestLocalPlugin(t *testing.T) {
+	testLocalPlugin(t)
+}
+
+func testLocalPlugin(t *testing.T) {
+	t.Helper()
 	ggactlCleanupPath(t)
 
 	// Check for local plugins.
@@ -697,6 +702,24 @@ func TestLocalPlugin(t *testing.T) {
 			utils.VerifyProcessExistsLinux(t, true, filepath.Join(pluginsDir, plugin))
 		}
 	}
+}
+
+func TestPluginManagerNoCorePlugin(t *testing.T) {
+	utils.LinuxOnly(t)
+
+	// Make sure the core plugin directory does not exist.
+	if _, err := os.Stat("/usr/lib/google/guest_agent/GuestAgentCorePlugin"); err == nil {
+		t.Fatalf("Core plugin directory exists, but should not exist.")
+	}
+
+	// Verify that all the local plugins are running.
+	testLocalPlugin(t)
+
+	// Double check to make sure there's no core plugin running.
+	verifyCorePluginExists(t, false)
+
+	// Make sure the old guest agent is running.
+	utils.VerifyProcessExistsLinux(t, true, "/usr/bin/google_guest_agent")
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {

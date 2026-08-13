@@ -17,6 +17,8 @@
 package pluginmanager
 
 import (
+	"strings"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 )
 
@@ -31,20 +33,28 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	defaultVM.RunTests("TestPluginCleanup")
 
-	localPluginVM, err := t.CreateTestVM("localplugin")
-	if err != nil {
-		return err
+	if !strings.Contains(t.Image.Name, "guest-agent") && (strings.Contains(t.Image.Name, "sles") || strings.Contains(t.Image.Name, "ubuntu")) {
+		noCorePluginVM, err := t.CreateTestVM("nocoreplugin")
+		if err != nil {
+			return err
+		}
+		noCorePluginVM.RunTests("TestPluginManagerNoCorePlugin")
+	} else {
+		localPluginVM, err := t.CreateTestVM("localplugin")
+		if err != nil {
+			return err
+		}
+		localPluginVM.RunTests("TestLocalPlugin")
+		pluginStopVM, err := t.CreateTestVM("pluginstop")
+		if err != nil {
+			return err
+		}
+		pluginStopVM.RunTests("TestCorePluginStop")
+		disableACSVM, err := t.CreateTestVM("acsdisabled")
+		if err != nil {
+			return err
+		}
+		disableACSVM.RunTests("TestACSDisabled")
 	}
-	localPluginVM.RunTests("TestLocalPlugin")
-	pluginStopVM, err := t.CreateTestVM("pluginstop")
-	if err != nil {
-		return err
-	}
-	pluginStopVM.RunTests("TestCorePluginStop")
-	disableACSVM, err := t.CreateTestVM("acsdisabled")
-	if err != nil {
-		return err
-	}
-	disableACSVM.RunTests("TestACSDisabled")
 	return nil
 }
