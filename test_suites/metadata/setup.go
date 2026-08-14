@@ -187,5 +187,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	startupScriptsMaxLengthVM.RunTests("TestStartupScriptsFailed")
 	startupScriptsDaemonVM.RunTests("TestDaemonScripts")
 
+	startupCustomURLPatterns := &daisy.Instance{}
+	startupCustomURLPatternsVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "startupCustomURLPatterns"}}, startupCustomURLPatterns)
+	if err != nil {
+		return err
+	}
+
+	startupCustomURLPatternsVM.AddScope("https://www.googleapis.com/auth/compute") // Compute scope is needed for setting metadata.
+	startupCustomURLPatternsVM.RunTests("TestCustomURLPatterns")
+
 	return nil
 }
