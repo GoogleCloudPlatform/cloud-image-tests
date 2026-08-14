@@ -57,7 +57,8 @@ func getExecutableList(image string) []string {
 	execList := []string{
 		filepath.Join(cePath, "agent\\GCEWindowsAgent.exe"),
 		filepath.Join(cePath, "agent\\GCEWindowsAgentManager.exe"),
-		filepath.Join(cePath, "agent\\CorePlugin.exe"),
+		filepath.Join(cePath, "agent\\GuestAgentCorePlugin\\CorePlugin.exe"),
+		filepath.Join(cePath, "agent\\GuestTelemetryExtension\\GuestTelemetry.exe"),
 		filepath.Join(cePath, "agent\\GCEMetadataScriptRunner.exe"),
 		filepath.Join(cePath, "agent\\GCEWindowsCompatManager.exe"),
 		filepath.Join(cePath, "agent\\GCECompatMetadataScripts.exe"),
@@ -79,6 +80,13 @@ func getExecutableList(image string) []string {
 			execList,
 			filepath.Join(cePath, "vss\\GoogleVssAgent.exe"),
 			filepath.Join(cePath, "vss\\GoogleVssProvider.dll"),
+		)
+	}
+
+	if strings.Contains(image, "guest-agent") && !strings.Contains(image, "guest-agent-stable") {
+		execList = append(
+			execList,
+			filepath.Join(cePath, "agent\\ManagedWorkloadIdentityExtension\\MwlId.exe"),
 		)
 	}
 	return execList
