@@ -15,6 +15,7 @@
 package imagetest
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"slices"
@@ -1053,5 +1054,229 @@ func TestRecreateTestWorkflow(t *testing.T) {
 	}
 	if recreated.Name != twf.Name {
 		t.Errorf("recreated name = %q, want %q", recreated.Name, twf.Name)
+	}
+}
+
+func TestFinalizeWorkflowsExternalIP(t *testing.T) {
+	testCases := []struct {
+		name       string
+		externalIP string
+		isBeta     bool
+		validate   func(t *testing.T, step *daisy.Step)
+	}{
+		{
+			name:       "none_v1",
+			externalIP: "none",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				if len(inst.Instance.NetworkInterfaces[0].AccessConfigs) != 0 {
+					t.Errorf("expected 0 AccessConfigs for none, got %d", len(inst.Instance.NetworkInterfaces[0].AccessConfigs))
+				}
+			},
+		},
+		{
+			name:       "none_beta",
+			externalIP: "none",
+			isBeta:     true,
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.InstancesBeta[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				if len(inst.Instance.NetworkInterfaces[0].AccessConfigs) != 0 {
+					t.Errorf("expected 0 AccessConfigs for none, got %d", len(inst.Instance.NetworkInterfaces[0].AccessConfigs))
+				}
+			},
+		},
+		{
+			name:       "ephemeral_v1",
+			externalIP: "ephemeral",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				nic := inst.Instance.NetworkInterfaces[0]
+				if len(nic.AccessConfigs) != 1 {
+					t.Fatalf("expected 1 AccessConfig, got %d", len(nic.AccessConfigs))
+				}
+				if nic.AccessConfigs[0].NatIP != "" {
+					t.Errorf("expected empty NatIP for ephemeral, got %q", nic.AccessConfigs[0].NatIP)
+				}
+			},
+		},
+		{
+			name:       "empty_externalIP_v1",
+			externalIP: "",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces != nil && len(inst.Instance.NetworkInterfaces) > 0 {
+					t.Errorf("expected NetworkInterfaces to be nil or empty for empty externalIP, got %v", inst.Instance.NetworkInterfaces)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest(tc.name, "image", "30m")
+			twf.opts = &TestWorkflowOpts{ExternalIP: tc.externalIP}
+
+			step := &daisy.Step{
+				CreateInstances: &daisy.CreateInstances{},
+			}
+
+			if tc.isBeta {
+				step.CreateInstances.InstancesBeta = []*daisy.InstanceBeta{
+					{
+						Instance: computeBeta.Instance{Name: "vm1"},
+					},
+				}
+			} else {
+				step.CreateInstances.Instances = []*daisy.Instance{
+					{
+						Instance: compute.Instance{Name: "vm1"},
+					},
+				}
+			}
+
+			twf.wf.Steps = map[string]*daisy.Step{"create-vms": step}
+
+			err := finalizeWorkflows(context.Background(), []*TestWorkflow{twf}, "gs://bucket", "/tmp")
+			if err != nil {
+				t.Fatalf("finalizeWorkflows failed: %v", err)
+			}
+
+			tc.validate(t, step)
+		})
+	}
+}
+
+func TestFinalizeWorkflowsNetwork(t *testing.T) {
+	testCases := []struct {
+		name             string
+		network          string
+		subnetwork       string
+		isBeta           bool
+		existingNICs     []*compute.NetworkInterface
+		existingNICsBeta []*computeBeta.NetworkInterface
+		validate         func(t *testing.T, step *daisy.Step)
+	}{
+		{
+			name:    "custom_network_v1",
+			network: "global/networks/custom-net",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if len(inst.Instance.NetworkInterfaces) != 1 {
+					t.Fatalf("expected 1 NetworkInterface, got %d", len(inst.Instance.NetworkInterfaces))
+				}
+				if inst.Instance.NetworkInterfaces[0].Network != "global/networks/custom-net" {
+					t.Errorf("expected Network to be %q, got %q", "global/networks/custom-net", inst.Instance.NetworkInterfaces[0].Network)
+				}
+			},
+		},
+		{
+			name:       "custom_subnetwork_v1",
+			subnetwork: "regions/us-central1/subnetworks/custom-subnet",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if len(inst.Instance.NetworkInterfaces) != 1 {
+					t.Fatalf("expected 1 NetworkInterface, got %d", len(inst.Instance.NetworkInterfaces))
+				}
+				if inst.Instance.NetworkInterfaces[0].Subnetwork != "regions/us-central1/subnetworks/custom-subnet" {
+					t.Errorf("expected Subnetwork to be %q, got %q", "regions/us-central1/subnetworks/custom-subnet", inst.Instance.NetworkInterfaces[0].Subnetwork)
+				}
+			},
+		},
+		{
+			name:       "custom_both_v1",
+			network:    "global/networks/custom-net",
+			subnetwork: "regions/us-central1/subnetworks/custom-subnet",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				nic := inst.Instance.NetworkInterfaces[0]
+				if nic.Network != "global/networks/custom-net" {
+					t.Errorf("expected Network to be %q, got %q", "global/networks/custom-net", nic.Network)
+				}
+				if nic.Subnetwork != "regions/us-central1/subnetworks/custom-subnet" {
+					t.Errorf("expected Subnetwork to be %q, got %q", "regions/us-central1/subnetworks/custom-subnet", nic.Subnetwork)
+				}
+			},
+		},
+		{
+			name:    "custom_network_beta",
+			network: "global/networks/custom-net",
+			isBeta:  true,
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.InstancesBeta[0]
+				if len(inst.Instance.NetworkInterfaces) != 1 {
+					t.Fatalf("expected 1 NetworkInterface, got %d", len(inst.Instance.NetworkInterfaces))
+				}
+				if inst.Instance.NetworkInterfaces[0].Network != "global/networks/custom-net" {
+					t.Errorf("expected Network to be %q, got %q", "global/networks/custom-net", inst.Instance.NetworkInterfaces[0].Network)
+				}
+			},
+		},
+		{
+			name:    "pre_configured_nic_v1",
+			network: "global/networks/custom-net",
+			existingNICs: []*compute.NetworkInterface{
+				{Network: "global/networks/existing-net"},
+			},
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if len(inst.Instance.NetworkInterfaces) != 1 {
+					t.Fatalf("expected 1 NetworkInterface, got %d", len(inst.Instance.NetworkInterfaces))
+				}
+				// Should NOT be overwritten by opts.Network
+				if inst.Instance.NetworkInterfaces[0].Network != "global/networks/existing-net" {
+					t.Errorf("expected Network to be %q, got %q", "global/networks/existing-net", inst.Instance.NetworkInterfaces[0].Network)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest(tc.name, "image", "30m")
+			twf.opts = &TestWorkflowOpts{
+				Network: tc.network,
+				Subnet:  tc.subnetwork,
+			}
+
+			step := &daisy.Step{
+				CreateInstances: &daisy.CreateInstances{},
+			}
+
+			if tc.isBeta {
+				inst := &daisy.InstanceBeta{
+					Instance: computeBeta.Instance{Name: "vm1"},
+				}
+				if tc.existingNICsBeta != nil {
+					inst.Instance.NetworkInterfaces = tc.existingNICsBeta
+				}
+				step.CreateInstances.InstancesBeta = []*daisy.InstanceBeta{inst}
+			} else {
+				inst := &daisy.Instance{
+					Instance: compute.Instance{Name: "vm1"},
+				}
+				if tc.existingNICs != nil {
+					inst.Instance.NetworkInterfaces = tc.existingNICs
+				}
+				step.CreateInstances.Instances = []*daisy.Instance{inst}
+			}
+
+			twf.wf.Steps = map[string]*daisy.Step{"create-vms": step}
+
+			err := finalizeWorkflows(context.Background(), []*TestWorkflow{twf}, "gs://bucket", "/tmp")
+			if err != nil {
+				t.Fatalf("finalizeWorkflows failed: %v", err)
+			}
+
+			tc.validate(t, step)
+		})
 	}
 }
