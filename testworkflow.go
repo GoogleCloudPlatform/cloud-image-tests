@@ -104,6 +104,8 @@ type TestWorkflowOpts struct {
 	// true, the zone from the command line will be enforced if the test suite
 	// does specify a zone. If false, the hardcoded zone will be used.
 	ArgZoneOverride bool
+	// ExternalIP is the external IP to use for VMs (ephemeral, none, or specific IP).
+	ExternalIP string
 }
 
 // TestWorkflow defines a test workflow which creates at least one test VM.
@@ -687,6 +689,56 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, lo
 			}
 			if err := twf.wf.AddDependency(createStep, quotaStep); err != nil {
 				return err
+			}
+		}
+
+		if twf.opts.ExternalIP != "" {
+			for _, step := range twf.wf.Steps {
+				if step.CreateInstances != nil {
+					for _, instance := range step.CreateInstances.Instances {
+						if instance.Instance.NetworkInterfaces == nil {
+							instance.Instance.NetworkInterfaces = []*compute.NetworkInterface{{}}
+						}
+					}
+					for _, instance := range step.CreateInstances.InstancesBeta {
+						if instance.Instance.NetworkInterfaces == nil {
+							instance.Instance.NetworkInterfaces = []*computeBeta.NetworkInterface{{}}
+						}
+					}
+
+					if strings.EqualFold(twf.opts.ExternalIP, "none") {
+						daisy.UpdateInstanceNoExternalIP(step)
+					} else {
+						// Ephemeral or Specific IP
+						isEphemeral := strings.EqualFold(twf.opts.ExternalIP, "ephemeral")
+						for _, instance := range step.CreateInstances.Instances {
+							for _, networkInterface := range instance.Instance.NetworkInterfaces {
+								if networkInterface.AccessConfigs == nil {
+									networkInterface.AccessConfigs = []*compute.AccessConfig{{Type: "ONE_TO_ONE_NAT"}}
+								}
+								if isEphemeral && len(networkInterface.AccessConfigs) > 0 {
+									networkInterface.AccessConfigs[0].NatIP = ""
+								}
+								if !isEphemeral && len(networkInterface.AccessConfigs) > 0 {
+									networkInterface.AccessConfigs[0].NatIP = twf.opts.ExternalIP
+								}
+							}
+						}
+						for _, instance := range step.CreateInstances.InstancesBeta {
+							for _, networkInterface := range instance.Instance.NetworkInterfaces {
+								if networkInterface.AccessConfigs == nil {
+									networkInterface.AccessConfigs = []*computeBeta.AccessConfig{{Type: "ONE_TO_ONE_NAT"}}
+								}
+								if isEphemeral && len(networkInterface.AccessConfigs) > 0 {
+									networkInterface.AccessConfigs[0].NatIP = ""
+								}
+								if !isEphemeral && len(networkInterface.AccessConfigs) > 0 {
+									networkInterface.AccessConfigs[0].NatIP = twf.opts.ExternalIP
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 
