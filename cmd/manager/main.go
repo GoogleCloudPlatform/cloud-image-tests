@@ -112,6 +112,7 @@ var (
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
 	architectureType        = flag.String("architecture_type", "", "Specific architecture to test on. Accepts one of x86 or arm64.")
+	externalIP              = flag.String("external_ip", "", "External IP to use for VMs (ephemeral, none, or specific IP)")
 
 	// zonesRoundRobinIdx points to an index in the list of zones.
 	// This is used to distribute tests across the list of zones in a round robin fashion,
@@ -236,6 +237,14 @@ func displayZone() string {
 
 func main() {
 	flag.Parse()
+
+	// If a specific external IP is requested, only one test suite can be tested at a time.
+	// If a test suite uses multiple VMs, IP collisions may occur when creating the VMs.
+	if *externalIP != "" && !strings.EqualFold(*externalIP, "ephemeral") && !strings.EqualFold(*externalIP, "none") {
+		if *parallelCount != 1 {
+			log.Fatal("-parallel_count must be 1 when a specific external IP is requested to prevent IP collisions")
+		}
+	}
 	if *project == "" || (*zone == "" && len(zones) == 0) || (*images == "" && *allImageFamilies == "") {
 		log.Fatal("Must provide project, zone(s), and one of images or all_image_families arguments")
 		return
@@ -576,6 +585,7 @@ func main() {
 				ReservationURLs:         reservationURLSlice,
 				AcceleratorType:         *acceleratorType,
 				ArgZoneOverride:         *argZoneOverride,
+				ExternalIP:              *externalIP,
 			}, testPackage.setupFunc)
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)

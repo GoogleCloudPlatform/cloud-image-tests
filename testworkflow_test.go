@@ -15,6 +15,7 @@
 package imagetest
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"slices"
@@ -1053,5 +1054,110 @@ func TestRecreateTestWorkflow(t *testing.T) {
 	}
 	if recreated.Name != twf.Name {
 		t.Errorf("recreated name = %q, want %q", recreated.Name, twf.Name)
+	}
+}
+
+func TestFinalizeWorkflowsExternalIP(t *testing.T) {
+	testCases := []struct {
+		name       string
+		externalIP string
+		isBeta     bool
+		validate   func(t *testing.T, step *daisy.Step)
+	}{
+		{
+			name:       "none_v1",
+			externalIP: "none",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				if len(inst.Instance.NetworkInterfaces[0].AccessConfigs) != 0 {
+					t.Errorf("expected 0 AccessConfigs for none, got %d", len(inst.Instance.NetworkInterfaces[0].AccessConfigs))
+				}
+			},
+		},
+		{
+			name:       "none_beta",
+			externalIP: "none",
+			isBeta:     true,
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.InstancesBeta[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				if len(inst.Instance.NetworkInterfaces[0].AccessConfigs) != 0 {
+					t.Errorf("expected 0 AccessConfigs for none, got %d", len(inst.Instance.NetworkInterfaces[0].AccessConfigs))
+				}
+			},
+		},
+		{
+			name:       "ephemeral_v1",
+			externalIP: "ephemeral",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				nic := inst.Instance.NetworkInterfaces[0]
+				if len(nic.AccessConfigs) != 1 {
+					t.Fatalf("expected 1 AccessConfig, got %d", len(nic.AccessConfigs))
+				}
+				if nic.AccessConfigs[0].NatIP != "" {
+					t.Errorf("expected empty NatIP for ephemeral, got %q", nic.AccessConfigs[0].NatIP)
+				}
+			},
+		},
+		{
+			name:       "static_ip_v1",
+			externalIP: "1.2.3.4",
+			validate: func(t *testing.T, step *daisy.Step) {
+				inst := step.CreateInstances.Instances[0]
+				if inst.Instance.NetworkInterfaces == nil || len(inst.Instance.NetworkInterfaces) == 0 {
+					t.Fatal("NetworkInterfaces not initialized")
+				}
+				nic := inst.Instance.NetworkInterfaces[0]
+				if len(nic.AccessConfigs) != 1 {
+					t.Fatalf("expected 1 AccessConfig, got %d", len(nic.AccessConfigs))
+				}
+				if nic.AccessConfigs[0].NatIP != "1.2.3.4" {
+					t.Errorf("expected NatIP '1.2.3.4', got %q", nic.AccessConfigs[0].NatIP)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest(tc.name, "image", "30m")
+			twf.opts = &TestWorkflowOpts{ExternalIP: tc.externalIP}
+
+			step := &daisy.Step{
+				CreateInstances: &daisy.CreateInstances{},
+			}
+
+			if tc.isBeta {
+				step.CreateInstances.InstancesBeta = []*daisy.InstanceBeta{
+					{
+						Instance: computeBeta.Instance{Name: "vm1"},
+					},
+				}
+			} else {
+				step.CreateInstances.Instances = []*daisy.Instance{
+					{
+						Instance: compute.Instance{Name: "vm1"},
+					},
+				}
+			}
+
+			twf.wf.Steps = map[string]*daisy.Step{"create-vms": step}
+
+			err := finalizeWorkflows(context.Background(), []*TestWorkflow{twf}, "gs://bucket", "/tmp")
+			if err != nil {
+				t.Fatalf("finalizeWorkflows failed: %v", err)
+			}
+
+			tc.validate(t, step)
+		})
 	}
 }
