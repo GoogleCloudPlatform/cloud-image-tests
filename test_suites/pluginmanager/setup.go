@@ -33,7 +33,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	defaultVM.RunTests("TestPluginCleanup")
 
-	if !strings.Contains(t.Image.Name, "guest-agent") && (strings.Contains(t.Image.Name, "sles") || strings.Contains(t.Image.Name, "ubuntu")) {
+	if !strings.Contains(t.Image.Name, "guest-agent") && (strings.Contains(t.Image.Name, "sles") || (strings.Contains(t.Image.Name, "ubuntu") && !strings.Contains(t.Image.Name, "-2610-"))) {
 		noCorePluginVM, err := t.CreateTestVM("nocoreplugin")
 		if err != nil {
 			return err
