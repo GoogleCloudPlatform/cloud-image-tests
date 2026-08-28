@@ -104,6 +104,12 @@ type TestWorkflowOpts struct {
 	// true, the zone from the command line will be enforced if the test suite
 	// does specify a zone. If false, the hardcoded zone will be used.
 	ArgZoneOverride bool
+	// ExternalIP is the external IP to use for VMs (ephemeral or none).
+	ExternalIP string
+	// Network is the network to use for VMs. This is used for tests that do not configure custom network interfaces.
+	Network string
+	// Subnet is the subnet to use for VMs. This is used for tests that do not configure custom network interfaces.
+	Subnet string
 }
 
 // TestWorkflow defines a test workflow which creates at least one test VM.
@@ -618,6 +624,91 @@ func (t *TestWorkflow) appendCreateSubnetworksStep(subnetwork *daisy.Subnetwork)
 	return createSubnetworksStep, subnetwork, nil
 }
 
+func (t *TestWorkflow) configureNetwork(step *daisy.Step) {
+	if t.opts == nil {
+		return
+	}
+	if t.opts.Network == "" && t.opts.Subnet == "" {
+		return
+	}
+	if step.CreateInstances == nil {
+		return
+	}
+	for _, instance := range step.CreateInstances.Instances {
+		if instance.Instance.NetworkInterfaces == nil || len(instance.Instance.NetworkInterfaces) == 0 {
+			instance.Instance.NetworkInterfaces = []*compute.NetworkInterface{{}}
+			if t.opts.Network != "" {
+				instance.Instance.NetworkInterfaces[0].Network = t.opts.Network
+			}
+			if t.opts.Subnet != "" {
+				instance.Instance.NetworkInterfaces[0].Subnetwork = t.opts.Subnet
+			}
+		}
+	}
+	for _, instance := range step.CreateInstances.InstancesBeta {
+		if instance.Instance.NetworkInterfaces == nil || len(instance.Instance.NetworkInterfaces) == 0 {
+			instance.Instance.NetworkInterfaces = []*computeBeta.NetworkInterface{{}}
+			if t.opts.Network != "" {
+				instance.Instance.NetworkInterfaces[0].Network = t.opts.Network
+			}
+			if t.opts.Subnet != "" {
+				instance.Instance.NetworkInterfaces[0].Subnetwork = t.opts.Subnet
+			}
+		}
+	}
+}
+
+func (t *TestWorkflow) configureExternalIP(step *daisy.Step) {
+	if t.opts == nil {
+		return
+	}
+	if step.CreateInstances == nil {
+		return
+	}
+
+	if t.opts.ExternalIP == "" {
+		return
+	}
+
+	// Ensure NetworkInterfaces is initialized for all instances.
+	for _, instance := range step.CreateInstances.Instances {
+		if instance.Instance.NetworkInterfaces == nil || len(instance.Instance.NetworkInterfaces) == 0 {
+			instance.Instance.NetworkInterfaces = []*compute.NetworkInterface{{}}
+		}
+	}
+	for _, instance := range step.CreateInstances.InstancesBeta {
+		if instance.Instance.NetworkInterfaces == nil || len(instance.Instance.NetworkInterfaces) == 0 {
+			instance.Instance.NetworkInterfaces = []*computeBeta.NetworkInterface{{}}
+		}
+	}
+
+	if strings.EqualFold(t.opts.ExternalIP, "none") {
+		daisy.UpdateInstanceNoExternalIP(step)
+	} else {
+		// Ephemeral or empty
+		for _, instance := range step.CreateInstances.Instances {
+			for _, networkInterface := range instance.Instance.NetworkInterfaces {
+				if networkInterface.AccessConfigs == nil {
+					networkInterface.AccessConfigs = []*compute.AccessConfig{{Type: "ONE_TO_ONE_NAT"}}
+				}
+				if len(networkInterface.AccessConfigs) > 0 {
+					networkInterface.AccessConfigs[0].NatIP = ""
+				}
+			}
+		}
+		for _, instance := range step.CreateInstances.InstancesBeta {
+			for _, networkInterface := range instance.Instance.NetworkInterfaces {
+				if networkInterface.AccessConfigs == nil {
+					networkInterface.AccessConfigs = []*computeBeta.AccessConfig{{Type: "ONE_TO_ONE_NAT"}}
+				}
+				if len(networkInterface.AccessConfigs) > 0 {
+					networkInterface.AccessConfigs[0].NatIP = ""
+				}
+			}
+		}
+	}
+}
+
 func getGCSPrefix(ctx context.Context, storageClient *storage.Client, project, gcsPath string) (string, error) {
 	// Set global client.
 	client = storageClient
@@ -687,6 +778,13 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, lo
 			}
 			if err := twf.wf.AddDependency(createStep, quotaStep); err != nil {
 				return err
+			}
+		}
+
+		for _, step := range twf.wf.Steps {
+			if step.CreateInstances != nil {
+				twf.configureNetwork(step)
+				twf.configureExternalIP(step)
 			}
 		}
 
