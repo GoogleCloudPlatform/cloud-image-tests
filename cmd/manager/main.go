@@ -112,6 +112,9 @@ var (
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
 	architectureType        = flag.String("architecture_type", "", "Specific architecture to test on. Accepts one of x86 or arm64.")
+	externalIP              = flag.String("external_ip", "", "External IP to use for VMs (ephemeral or none). defaults to ephemeral.")
+	networkFlag             = flag.String("network", "", "The network/VPC to use for VMs. Defaults to default network global/networks/default.")
+	subnet                  = flag.String("subnet", "", "The subnet to use for VMs. Defaults to default network global/networks/default. If the network is in auto subnet mode, the subnetwork is optional. If the network is in custom subnet mode, then this flag should be specified.")
 
 	// zonesRoundRobinIdx points to an index in the list of zones.
 	// This is used to distribute tests across the list of zones in a round robin fashion,
@@ -247,6 +250,11 @@ func main() {
 
 	if *architectureType != "" && (*architectureType != "x86" && *architectureType != "arm64") {
 		log.Fatal("architecture_type must be blank, x86, or arm64")
+		return
+	}
+
+	if *externalIP != "" && !strings.EqualFold(*externalIP, "ephemeral") && !strings.EqualFold(*externalIP, "none") {
+		log.Fatal("external_ip must be blank, ephemeral, or none")
 		return
 	}
 
@@ -576,6 +584,9 @@ func main() {
 				ReservationURLs:         reservationURLSlice,
 				AcceleratorType:         *acceleratorType,
 				ArgZoneOverride:         *argZoneOverride,
+				ExternalIP:              *externalIP,
+				Network:                 *networkFlag,
+				Subnet:                  *subnet,
 			}, testPackage.setupFunc)
 			if err != nil {
 				log.Fatalf("Failed to create test workflow: %v", err)
