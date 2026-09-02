@@ -402,7 +402,7 @@ func TestAddWaitStep(t *testing.T) {
 	}
 	guestAttributeSignal := instancesSignal[0].GuestAttribute
 	if guestAttributeSignal == nil {
-		t.Error("no guest attribute wait field was set for wait step")
+		t.Fatal("no guest attribute wait field was set for wait step")
 	}
 	if guestAttributeSignal.Namespace != utils.GuestAttributeTestNamespace {
 		t.Errorf("wrong guest attribute namespace: got %s, expected %s", guestAttributeSignal.Namespace, utils.GuestAttributeTestNamespace)
@@ -444,7 +444,7 @@ func TestAddWaitRebootGAStep(t *testing.T) {
 	}
 	guestAttributeSignal := instancesSignal[0].GuestAttribute
 	if guestAttributeSignal == nil {
-		t.Error("no guest attribute wait field was set for wait step")
+		t.Fatal("no guest attribute wait field was set for wait step")
 	}
 	if guestAttributeSignal.Namespace != utils.GuestAttributeTestNamespace {
 		t.Errorf("wrong guest attribute namespace: got %s, expected %s", guestAttributeSignal.Namespace, utils.GuestAttributeTestNamespace)
@@ -714,6 +714,8 @@ func TestNewTestWorkflow(t *testing.T) {
 		wantReservationAffinity     *compute.ReservationAffinity
 		wantReservationAffinityBeta *computeBeta.ReservationAffinity
 		wantAcceleratorType         string
+		acceleratorCount            int64
+		wantAcceleratorCount        int64
 	}{
 		{
 			name:                "arm",
@@ -774,6 +776,24 @@ func TestNewTestWorkflow(t *testing.T) {
 			wantReservationAffinity:     &compute.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
 			wantReservationAffinityBeta: &computeBeta.ReservationAffinity{ConsumeReservationType: "ANY_RESERVATION"},
 			wantAcceleratorType:         "n2-h200-141gb",
+			acceleratorCount:            2,
+			wantAcceleratorCount:        2,
+		},
+		{
+			name:                 "accelerator_type_default_count",
+			wantDaisyName:        "accelerator-type-default-count",
+			arch:                 "X86_64",
+			image:                "projects/fake-cloud/global/images/family/fakeos",
+			imagename:            "fakeos",
+			project:              "gcp-guest",
+			zone:                 "us-central1-a",
+			x86Shape:             "n1-standard-1",
+			arm64Shape:           "t2a-standard-1",
+			timeout:              "20m",
+			expectedMachineType:  "n1-standard-1",
+			testExcludeFilter:    "",
+			wantAcceleratorType:  "nvidia-tesla-t4",
+			wantAcceleratorCount: 0,
 		},
 		{
 			name:                        "specific_reservation",
@@ -817,18 +837,19 @@ func TestNewTestWorkflow(t *testing.T) {
 			}
 			defer srv.Close()
 			twf, err := NewTestWorkflow(&TestWorkflowOpts{
-				Client:          client,
-				Name:            tc.name,
-				Image:           tc.image,
-				Timeout:         tc.timeout,
-				Project:         tc.project,
-				Zone:            tc.zone,
-				ExcludeFilter:   tc.testExcludeFilter,
-				X86Shape:        tc.x86Shape,
-				ARM64Shape:      tc.arm64Shape,
-				UseReservations: tc.useReservations,
-				ReservationURLs: tc.reservationURLs,
-				AcceleratorType: tc.wantAcceleratorType,
+				Client:           client,
+				Name:             tc.name,
+				Image:            tc.image,
+				Timeout:          tc.timeout,
+				Project:          tc.project,
+				Zone:             tc.zone,
+				ExcludeFilter:    tc.testExcludeFilter,
+				X86Shape:         tc.x86Shape,
+				ARM64Shape:       tc.arm64Shape,
+				UseReservations:  tc.useReservations,
+				ReservationURLs:  tc.reservationURLs,
+				AcceleratorType:  tc.wantAcceleratorType,
+				AcceleratorCount: tc.acceleratorCount,
 			}, nil)
 			if err != nil {
 				t.Fatalf("NewTestWorkflow() failed: %v want nil", err)
@@ -874,6 +895,9 @@ func TestNewTestWorkflow(t *testing.T) {
 			}
 			if twf.AcceleratorType != tc.wantAcceleratorType {
 				t.Errorf("NewTestWorkflow() accelerator type = %s, want %s", twf.AcceleratorType, tc.wantAcceleratorType)
+			}
+			if twf.AcceleratorCount != tc.wantAcceleratorCount {
+				t.Errorf("NewTestWorkflow() accelerator count = %d, want %d", twf.AcceleratorCount, tc.wantAcceleratorCount)
 			}
 		})
 	}

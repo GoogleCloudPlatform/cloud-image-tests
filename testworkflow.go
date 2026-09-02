@@ -100,6 +100,8 @@ type TestWorkflowOpts struct {
 	ReservationURLs []string
 	// AcceleratorType is the accelerator type to be used for accelerator tests, which use GPUs.
 	AcceleratorType string
+	// AcceleratorCount is the number of accelerators to be used for accelerator tests.
+	AcceleratorCount int64
 	// ArgZoneOverride is whether to override the zone from the command line. If
 	// true, the zone from the command line will be enforced if the test suite
 	// does specify a zone. If false, the hardcoded zone will be used.
@@ -143,6 +145,8 @@ type TestWorkflow struct {
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
 	// AcceleratorType is the accelerator type to be used for accelerator tests which use GPUs.
 	AcceleratorType string
+	// AcceleratorCount is the number of accelerators to be used for accelerator tests.
+	AcceleratorCount int64
 	// CreatesLoadBalancers indicates that this test suite creates regional load
 	// balancer resources (forwarding rules, backend services, URL maps, target
 	// HTTP proxies, NEGs, health checks) at runtime. Suites that set this true
@@ -930,8 +934,9 @@ func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error
 		}
 		t.ReservationAffinity = &compute.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
 		t.ReservationAffinityBeta = &computeBeta.ReservationAffinity{ConsumeReservationType: reservationType, Values: opts.ReservationURLs, Key: reservationKey}
-		t.AcceleratorType = opts.AcceleratorType
 	}
+	t.AcceleratorType = opts.AcceleratorType
+	t.AcceleratorCount = opts.AcceleratorCount
 
 	var err error
 	t.Project, err = t.Client.GetProject(opts.Project)

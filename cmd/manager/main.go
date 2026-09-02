@@ -110,6 +110,7 @@ var (
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
+	acceleratorCount        = flag.Int64("accelerator_count", 0, "Accelerator count to be used for accelerator tests")
 	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
 	architectureType        = flag.String("architecture_type", "", "Specific architecture to test on. Accepts one of x86 or arm64.")
 	externalIP              = flag.String("external_ip", "", "External IP to use for VMs (ephemeral or none). defaults to ephemeral.")
@@ -583,6 +584,7 @@ func main() {
 				UseReservations:         *useReservations,
 				ReservationURLs:         reservationURLSlice,
 				AcceleratorType:         *acceleratorType,
+				AcceleratorCount:        *acceleratorCount,
 				ArgZoneOverride:         *argZoneOverride,
 				ExternalIP:              *externalIP,
 				Network:                 *networkFlag,
