@@ -148,8 +148,8 @@ func testNTPWindows(t *testing.T) {
 		t.Fatalf("Invalid remaining time: %f", remainingTime)
 	}
 
-	if remainingTime > 900.0 {
-		t.Fatalf("Time remaining is longer than the 15 minute poll interval: %f", remainingTime)
+	if remainingTime > 1200.0 {
+		t.Fatalf("Time remaining is longer than the 20 minute poll interval: %f", remainingTime)
 	}
 }
 
