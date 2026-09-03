@@ -59,7 +59,7 @@ func snapshotTestPrep(t *testing.T) {
 		}
 		// Adds arbitrary buffer time for the agent to run late stage snapshot
 		// module that runs after systemd-notify --ready.
-		time.Sleep(time.Duration(10) * time.Second)
+		time.Sleep(time.Duration(30) * time.Second)
 	}
 }
 
