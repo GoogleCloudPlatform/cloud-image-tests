@@ -880,6 +880,9 @@ func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Sub
 		}
 		if t.instance.NetworkInterfaces == nil {
 			t.instance.NetworkInterfaces = []*compute.NetworkInterface{&networkInterface}
+		} else if len(t.instance.NetworkInterfaces) == 1 && t.instance.NetworkInterfaces[0].Network == "" {
+			networkInterface.NicType = t.instance.NetworkInterfaces[0].NicType
+			t.instance.NetworkInterfaces[0] = &networkInterface
 		} else {
 			t.instance.NetworkInterfaces = append(t.instance.NetworkInterfaces, &networkInterface)
 		}
@@ -893,6 +896,9 @@ func (t *TestVM) AddCustomNetworkWithStackType(network *Network, subnetwork *Sub
 		}
 		if t.instancebeta.NetworkInterfaces == nil {
 			t.instancebeta.NetworkInterfaces = []*computeBeta.NetworkInterface{&networkInterface}
+		} else if len(t.instancebeta.NetworkInterfaces) == 1 && t.instancebeta.NetworkInterfaces[0].Network == "" {
+			networkInterface.NicType = t.instancebeta.NetworkInterfaces[0].NicType
+			t.instancebeta.NetworkInterfaces[0] = &networkInterface
 		} else {
 			t.instancebeta.NetworkInterfaces = append(t.instancebeta.NetworkInterfaces, &networkInterface)
 		}
