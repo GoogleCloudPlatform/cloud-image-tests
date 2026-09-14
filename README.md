@@ -82,7 +82,7 @@ It can be invoked via Docker as:
 
 ```shell
 images="projects/debian-cloud/global/images/family/debian-11,rhel-9"
-docker run gcr.io/cloud-image-tools/cloud-image-tests --project $PROJECT \
+docker run gcr.io/compute-image-tools/cloud-image-tests --project $PROJECT \
     --zone $ZONE --images $images
 ```
 
