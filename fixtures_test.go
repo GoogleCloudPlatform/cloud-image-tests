@@ -1026,3 +1026,75 @@ func TestMachineMaintenancePolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestAddCustomNetworkGVNICConsolidation(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	net, err := twf.CreateNetwork("custom-net", false)
+	if err != nil {
+		t.Fatalf("failed to create network: %v", err)
+	}
+	subnet, err := net.CreateSubnetwork("custom-subnet", "10.0.0.0/24")
+	if err != nil {
+		t.Fatalf("failed to create subnetwork: %v", err)
+	}
+
+	// Case 1: UseGVNIC then AddCustomNetwork on standard instance
+	tvm1, err := twf.CreateTestVM("vm1")
+	if err != nil {
+		t.Fatalf("failed to create test vm: %v", err)
+	}
+	tvm1.UseGVNIC()
+	if err := tvm1.AddCustomNetwork(net, subnet); err != nil {
+		t.Fatalf("failed to add custom network: %v", err)
+	}
+	if len(tvm1.instance.NetworkInterfaces) != 1 {
+		t.Errorf("expected 1 network interface after UseGVNIC + AddCustomNetwork, got %d", len(tvm1.instance.NetworkInterfaces))
+	}
+	if tvm1.instance.NetworkInterfaces[0].NicType != "GVNIC" {
+		t.Errorf("expected NicType GVNIC, got %q", tvm1.instance.NetworkInterfaces[0].NicType)
+	}
+	if tvm1.instance.NetworkInterfaces[0].Network != "custom-net" {
+		t.Errorf("expected Network custom-net, got %q", tvm1.instance.NetworkInterfaces[0].Network)
+	}
+	if tvm1.instance.NetworkInterfaces[0].Subnetwork != "custom-subnet" {
+		t.Errorf("expected Subnetwork custom-subnet, got %q", tvm1.instance.NetworkInterfaces[0].Subnetwork)
+	}
+
+	// Case 2: AddCustomNetwork then UseGVNIC on standard instance
+	tvm2, err := twf.CreateTestVM("vm2")
+	if err != nil {
+		t.Fatalf("failed to create test vm: %v", err)
+	}
+	if err := tvm2.AddCustomNetwork(net, subnet); err != nil {
+		t.Fatalf("failed to add custom network: %v", err)
+	}
+	tvm2.UseGVNIC()
+	if len(tvm2.instance.NetworkInterfaces) != 1 {
+		t.Errorf("expected 1 network interface after AddCustomNetwork + UseGVNIC, got %d", len(tvm2.instance.NetworkInterfaces))
+	}
+	if tvm2.instance.NetworkInterfaces[0].NicType != "GVNIC" {
+		t.Errorf("expected NicType GVNIC, got %q", tvm2.instance.NetworkInterfaces[0].NicType)
+	}
+	if tvm2.instance.NetworkInterfaces[0].Network != "custom-net" {
+		t.Errorf("expected Network custom-net, got %q", tvm2.instance.NetworkInterfaces[0].Network)
+	}
+
+	// Case 3: UseGVNIC then AddCustomNetwork on beta instance
+	tvmBeta, err := twf.CreateTestVMBeta("vmbeta")
+	if err != nil {
+		t.Fatalf("failed to create test vm beta: %v", err)
+	}
+	tvmBeta.UseGVNIC()
+	if err := tvmBeta.AddCustomNetwork(net, subnet); err != nil {
+		t.Fatalf("failed to add custom network to beta vm: %v", err)
+	}
+	if len(tvmBeta.instancebeta.NetworkInterfaces) != 1 {
+		t.Errorf("expected 1 network interface on beta vm, got %d", len(tvmBeta.instancebeta.NetworkInterfaces))
+	}
+	if tvmBeta.instancebeta.NetworkInterfaces[0].NicType != "GVNIC" {
+		t.Errorf("expected NicType GVNIC on beta vm, got %q", tvmBeta.instancebeta.NetworkInterfaces[0].NicType)
+	}
+	if tvmBeta.instancebeta.NetworkInterfaces[0].Network != "custom-net" {
+		t.Errorf("expected Network custom-net on beta vm, got %q", tvmBeta.instancebeta.NetworkInterfaces[0].Network)
+	}
+}
