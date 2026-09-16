@@ -66,9 +66,13 @@ var (
 		regexp.MustCompile(`^ct\d.*`),
 		regexp.MustCompile(`^tpu\d.*`),
 
+		// Z series.
+		// Note that host maintenance policy for these families is nuanced.
+		// We use TERMINATE for simplicity.
+		regexp.MustCompile(`^z\d+[a-z]*-.*`),
+
 		// Special cases.
 		regexp.MustCompile(`^h4d-.*`),
-		regexp.MustCompile(`^z3-.*`),
 	}
 )
 

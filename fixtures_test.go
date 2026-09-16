@@ -1012,6 +1012,16 @@ func TestMachineMaintenancePolicy(t *testing.T) {
 			want:        "TERMINATE",
 		},
 		{
+			name:        "z4d special case",
+			machineType: "z4d-highmem-384-standardlssd",
+			want:        "TERMINATE",
+		},
+		{
+			name:        "z4m special case",
+			machineType: "z4m-highmem-192",
+			want:        "TERMINATE",
+		},
+		{
 			name:        "unknown machine",
 			machineType: "unknown-machine",
 			want:        "MIGRATE",
