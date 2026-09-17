@@ -15,6 +15,7 @@
 package ssh
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -171,17 +172,22 @@ func TestSSHInstanceKey(t *testing.T) {
 	}
 }
 
-func TestSwitchDefaultConfig(t *testing.T) {
-	_, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "ssh-keys")
-	if err != nil {
-		t.Fatalf("couldn't get ssh public key from metadata")
-	}
-	t.Logf("ssh target boot succesfully at %d", time.Now().UnixNano())
+func switchDeprovisionRemove(t *testing.T) {
+	t.Helper()
 	cfg, err := os.ReadFile("/etc/default/instance_configs.cfg")
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failed to read instance configs: %v", err)
 	}
 	currentCfg := string(cfg)
+	t.Cleanup(func() {
+		if err := os.WriteFile("/etc/default/instance_configs.cfg", []byte(currentCfg), 0644); err != nil {
+			t.Logf("failed to restore instance configs in cleanup: %v", err)
+			return
+		}
+		if err := utils.RestartAgent(utils.Context(t)); err != nil {
+			t.Logf("failed to restart agent in cleanup: %v", err)
+		}
+	})
 	var newCfg string
 	if strings.Contains(currentCfg, "deprovision_remove = false") {
 		newCfg = strings.Replace(string(cfg), "deprovision_remove = false", "deprovision_remove = true", 1)
@@ -191,8 +197,96 @@ func TestSwitchDefaultConfig(t *testing.T) {
 	if err := os.WriteFile("/etc/default/instance_configs.cfg", []byte(newCfg), 0644); err != nil {
 		t.Fatalf("failed to write instance configs: %v", err)
 	}
-	utils.RestartAgent(utils.Context(t))
-	time.Sleep(60 * time.Second)
+	if err := utils.RestartAgent(utils.Context(t)); err != nil {
+		t.Fatalf("failed to restart agent: %v", err)
+	}
+}
+
+func userExistsInPasswd(user string) (bool, error) {
+	data, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, user+":") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func userInSudoGroup(user string) (bool, error) {
+	data, err := os.ReadFile("/etc/group")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "google-sudoers:") {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 4 {
+				for _, u := range strings.Split(parts[3], ",") {
+					if strings.TrimSpace(u) == user {
+						return true, nil
+					}
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+func waitForUserState(t *testing.T, user string, wantInGroup, wantInPasswd bool, timeout time.Duration) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(utils.Context(t), timeout)
+	defer cancel()
+	for {
+		inGroup, err := userInSudoGroup(user)
+		if err != nil {
+			t.Fatalf("failed to check sudo group: %v", err)
+		}
+		inPasswd, err := userExistsInPasswd(user)
+		if err != nil {
+			t.Fatalf("failed to check passwd: %v", err)
+		}
+		if inGroup == wantInGroup && inPasswd == wantInPasswd {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for user %s state (want inGroup=%v, inPasswd=%v; got inGroup=%v, inPasswd=%v)",
+				user, wantInGroup, wantInPasswd, inGroup, inPasswd)
+		case <-time.After(1 * time.Second):
+		}
+	}
+}
+
+func removeUserSSHKey(t *testing.T, vmname, user string) {
+	t.Helper()
+	metadata := utils.GetInstanceMetadata(t, vmname)
+	var foundKey, foundUser bool
+	for _, item := range metadata.Items {
+		if item.Key == "ssh-keys" {
+			foundKey = true
+			var updateKeys []string
+			splitKeys := strings.Split(*item.Value, "\n")
+			for _, key := range splitKeys {
+				if strings.HasPrefix(key, user+":") {
+					foundUser = true
+					continue
+				}
+				updateKeys = append(updateKeys, key)
+			}
+			res := strings.Join(updateKeys, "\n")
+			item.Value = &res
+		}
+	}
+	if !foundKey {
+		t.Fatalf("ssh-keys attribute not found in instance metadata for %s", vmname)
+	}
+	if !foundUser {
+		t.Fatalf("user %s not found in ssh-keys metadata for %s", user, vmname)
+	}
+	utils.SetInstanceMetadata(t, vmname, metadata)
 }
 
 func TestDeleteLocalUser(t *testing.T) {
@@ -204,10 +298,8 @@ func TestDeleteLocalUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
-
 	time.Sleep(60 * time.Second)
 	t.Logf("connect to remote host at %d", time.Now().UnixNano())
-
 	client, err := utils.CreateClient(user, fmt.Sprintf("%s:22", vmname), pembytes)
 	if err != nil {
 		t.Fatalf("user %s failed ssh to target host, %s, err %v", user, vmname, err)
@@ -217,31 +309,11 @@ func TestDeleteLocalUser(t *testing.T) {
 			client.Close()
 		}
 	})
-
 	if err := checkSudoGroup(client, user2); err != nil {
 		t.Fatalf("failed to check local user %s: %v", user2, err)
 	}
-	metadata := utils.GetInstanceMetadata(t, vmname)
-
-	// Remove the user2's public key from the ssh-keys metadata.
-	for _, item := range metadata.Items {
-		var updateKeys []string
-		if item.Key == "ssh-keys" {
-			splitKeys := strings.Split(*item.Value, "\n")
-			for _, key := range splitKeys {
-				if strings.Contains(key, user2) {
-					continue
-				}
-				updateKeys = append(updateKeys, key)
-			}
-			res := strings.Join(updateKeys, "\n")
-			item.Value = &res
-		}
-	}
-
-	utils.SetInstanceMetadata(t, vmname, metadata)
+	removeUserSSHKey(t, vmname, user2)
 	time.Sleep(60 * time.Second)
-
 	if err := checkSudoGroup(client, user2); err == nil {
 		t.Fatalf("user %s still exists in sudo group on target host, %s", user2, vmname)
 	}
@@ -274,27 +346,8 @@ func TestDeleteUserDefault(t *testing.T) {
 	if err := checkSudoGroup(client, user2); err != nil {
 		t.Fatalf("failed to check local user %s: %v", user2, err)
 	}
-	metadata := utils.GetInstanceMetadata(t, vmname)
-
-	// Remove the user2's public key from the ssh-keys metadata.
-	for _, item := range metadata.Items {
-		var updateKeys []string
-		if item.Key == "ssh-keys" {
-			splitKeys := strings.Split(*item.Value, "\n")
-			for _, key := range splitKeys {
-				if strings.Contains(key, user2) {
-					continue
-				}
-				updateKeys = append(updateKeys, key)
-			}
-			res := strings.Join(updateKeys, "\n")
-			item.Value = &res
-		}
-	}
-
-	utils.SetInstanceMetadata(t, vmname, metadata)
+	removeUserSSHKey(t, vmname, user2)
 	time.Sleep(60 * time.Second)
-
 	client2, err := utils.CreateClient(user2, fmt.Sprintf("%s:22", vmname), pembytes)
 	t.Cleanup(func() {
 		if client2 != nil {
@@ -304,7 +357,6 @@ func TestDeleteUserDefault(t *testing.T) {
 	if err == nil {
 		t.Fatalf("user %s successfully ssh to target host, %s", user2, vmname)
 	}
-
 	if err := checkSudoGroup(client, user2); err == nil {
 		t.Fatalf("user %s still exists in sudo group on target host, %s", user2, vmname)
 	}
