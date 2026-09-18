@@ -1243,6 +1243,380 @@ config_expectations: {
   }
 }
 config_expectations: {
+  description: "C4D 384 bare metal machine with 10 IDPF NICs"
+  machine_type: "c4d-standard-384-lssd-metal"
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "17" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "18" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "19" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "20" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "21" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "22" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "23" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "24" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "25" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "26" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "27" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "28" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "29" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "30" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "31" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "32" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "17" }
+    rx_queues: { index: 1 irq_cpulist: "18" }
+    rx_queues: { index: 2 irq_cpulist: "19" }
+    rx_queues: { index: 3 irq_cpulist: "20" }
+    rx_queues: { index: 4 irq_cpulist: "21" }
+    rx_queues: { index: 5 irq_cpulist: "22" }
+    rx_queues: { index: 6 irq_cpulist: "23" }
+    rx_queues: { index: 7 irq_cpulist: "24" }
+    rx_queues: { index: 8 irq_cpulist: "25" }
+    rx_queues: { index: 9 irq_cpulist: "26" }
+    rx_queues: { index: 10 irq_cpulist: "27" }
+    rx_queues: { index: 11 irq_cpulist: "28" }
+    rx_queues: { index: 12 irq_cpulist: "29" }
+    rx_queues: { index: 13 irq_cpulist: "30" }
+    rx_queues: { index: 14 irq_cpulist: "31" }
+    rx_queues: { index: 15 irq_cpulist: "32" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "33" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "34" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "35" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "36" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "37" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "38" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "39" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "40" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "41" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "42" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "43" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "44" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "45" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "46" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "47" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "48" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "33" }
+    rx_queues: { index: 1 irq_cpulist: "34" }
+    rx_queues: { index: 2 irq_cpulist: "35" }
+    rx_queues: { index: 3 irq_cpulist: "36" }
+    rx_queues: { index: 4 irq_cpulist: "37" }
+    rx_queues: { index: 5 irq_cpulist: "38" }
+    rx_queues: { index: 6 irq_cpulist: "39" }
+    rx_queues: { index: 7 irq_cpulist: "40" }
+    rx_queues: { index: 8 irq_cpulist: "41" }
+    rx_queues: { index: 9 irq_cpulist: "42" }
+    rx_queues: { index: 10 irq_cpulist: "43" }
+    rx_queues: { index: 11 irq_cpulist: "44" }
+    rx_queues: { index: 12 irq_cpulist: "45" }
+    rx_queues: { index: 13 irq_cpulist: "46" }
+    rx_queues: { index: 14 irq_cpulist: "47" }
+    rx_queues: { index: 15 irq_cpulist: "48" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "49" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "50" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "51" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "52" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "53" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "54" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "55" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "56" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "57" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "58" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "59" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "60" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "61" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "62" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "63" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "64" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "49" }
+    rx_queues: { index: 1 irq_cpulist: "50" }
+    rx_queues: { index: 2 irq_cpulist: "51" }
+    rx_queues: { index: 3 irq_cpulist: "52" }
+    rx_queues: { index: 4 irq_cpulist: "53" }
+    rx_queues: { index: 5 irq_cpulist: "54" }
+    rx_queues: { index: 6 irq_cpulist: "55" }
+    rx_queues: { index: 7 irq_cpulist: "56" }
+    rx_queues: { index: 8 irq_cpulist: "57" }
+    rx_queues: { index: 9 irq_cpulist: "58" }
+    rx_queues: { index: 10 irq_cpulist: "59" }
+    rx_queues: { index: 11 irq_cpulist: "60" }
+    rx_queues: { index: 12 irq_cpulist: "61" }
+    rx_queues: { index: 13 irq_cpulist: "62" }
+    rx_queues: { index: 14 irq_cpulist: "63" }
+    rx_queues: { index: 15 irq_cpulist: "64" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "65" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "66" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "67" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "68" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "69" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "70" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "71" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "72" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "73" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "74" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "75" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "76" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "77" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "78" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "79" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "80" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "65" }
+    rx_queues: { index: 1 irq_cpulist: "66" }
+    rx_queues: { index: 2 irq_cpulist: "67" }
+    rx_queues: { index: 3 irq_cpulist: "68" }
+    rx_queues: { index: 4 irq_cpulist: "69" }
+    rx_queues: { index: 5 irq_cpulist: "70" }
+    rx_queues: { index: 6 irq_cpulist: "71" }
+    rx_queues: { index: 7 irq_cpulist: "72" }
+    rx_queues: { index: 8 irq_cpulist: "73" }
+    rx_queues: { index: 9 irq_cpulist: "74" }
+    rx_queues: { index: 10 irq_cpulist: "75" }
+    rx_queues: { index: 11 irq_cpulist: "76" }
+    rx_queues: { index: 12 irq_cpulist: "77" }
+    rx_queues: { index: 13 irq_cpulist: "78" }
+    rx_queues: { index: 14 irq_cpulist: "79" }
+    rx_queues: { index: 15 irq_cpulist: "80" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "81" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "82" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "83" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "84" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "85" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "86" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "87" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "88" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "89" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "90" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "91" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "92" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "93" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "94" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "95" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "96" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "81" }
+    rx_queues: { index: 1 irq_cpulist: "82" }
+    rx_queues: { index: 2 irq_cpulist: "83" }
+    rx_queues: { index: 3 irq_cpulist: "84" }
+    rx_queues: { index: 4 irq_cpulist: "85" }
+    rx_queues: { index: 5 irq_cpulist: "86" }
+    rx_queues: { index: 6 irq_cpulist: "87" }
+    rx_queues: { index: 7 irq_cpulist: "88" }
+    rx_queues: { index: 8 irq_cpulist: "89" }
+    rx_queues: { index: 9 irq_cpulist: "90" }
+    rx_queues: { index: 10 irq_cpulist: "91" }
+    rx_queues: { index: 11 irq_cpulist: "92" }
+    rx_queues: { index: 12 irq_cpulist: "93" }
+    rx_queues: { index: 13 irq_cpulist: "94" }
+    rx_queues: { index: 14 irq_cpulist: "95" }
+    rx_queues: { index: 15 irq_cpulist: "96" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "97" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "98" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "99" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "100" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "101" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "102" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "103" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "104" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "105" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "106" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "107" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "108" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "109" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "110" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "111" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "112" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "97" }
+    rx_queues: { index: 1 irq_cpulist: "98" }
+    rx_queues: { index: 2 irq_cpulist: "99" }
+    rx_queues: { index: 3 irq_cpulist: "100" }
+    rx_queues: { index: 4 irq_cpulist: "101" }
+    rx_queues: { index: 5 irq_cpulist: "102" }
+    rx_queues: { index: 6 irq_cpulist: "103" }
+    rx_queues: { index: 7 irq_cpulist: "104" }
+    rx_queues: { index: 8 irq_cpulist: "105" }
+    rx_queues: { index: 9 irq_cpulist: "106" }
+    rx_queues: { index: 10 irq_cpulist: "107" }
+    rx_queues: { index: 11 irq_cpulist: "108" }
+    rx_queues: { index: 12 irq_cpulist: "109" }
+    rx_queues: { index: 13 irq_cpulist: "110" }
+    rx_queues: { index: 14 irq_cpulist: "111" }
+    rx_queues: { index: 15 irq_cpulist: "112" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "113" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "114" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "115" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "116" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "117" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "118" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "119" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "120" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "121" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "122" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "123" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "124" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "125" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "126" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "127" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "128" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "113" }
+    rx_queues: { index: 1 irq_cpulist: "114" }
+    rx_queues: { index: 2 irq_cpulist: "115" }
+    rx_queues: { index: 3 irq_cpulist: "116" }
+    rx_queues: { index: 4 irq_cpulist: "117" }
+    rx_queues: { index: 5 irq_cpulist: "118" }
+    rx_queues: { index: 6 irq_cpulist: "119" }
+    rx_queues: { index: 7 irq_cpulist: "120" }
+    rx_queues: { index: 8 irq_cpulist: "121" }
+    rx_queues: { index: 9 irq_cpulist: "122" }
+    rx_queues: { index: 10 irq_cpulist: "123" }
+    rx_queues: { index: 11 irq_cpulist: "124" }
+    rx_queues: { index: 12 irq_cpulist: "125" }
+    rx_queues: { index: 13 irq_cpulist: "126" }
+    rx_queues: { index: 14 irq_cpulist: "127" }
+    rx_queues: { index: 15 irq_cpulist: "128" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "129" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "130" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "131" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "132" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "133" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "134" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "135" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "136" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "137" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "138" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "139" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "140" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "141" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "142" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "143" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "144" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "129" }
+    rx_queues: { index: 1 irq_cpulist: "130" }
+    rx_queues: { index: 2 irq_cpulist: "131" }
+    rx_queues: { index: 3 irq_cpulist: "132" }
+    rx_queues: { index: 4 irq_cpulist: "133" }
+    rx_queues: { index: 5 irq_cpulist: "134" }
+    rx_queues: { index: 6 irq_cpulist: "135" }
+    rx_queues: { index: 7 irq_cpulist: "136" }
+    rx_queues: { index: 8 irq_cpulist: "137" }
+    rx_queues: { index: 9 irq_cpulist: "138" }
+    rx_queues: { index: 10 irq_cpulist: "139" }
+    rx_queues: { index: 11 irq_cpulist: "140" }
+    rx_queues: { index: 12 irq_cpulist: "141" }
+    rx_queues: { index: 13 irq_cpulist: "142" }
+    rx_queues: { index: 14 irq_cpulist: "143" }
+    rx_queues: { index: 15 irq_cpulist: "144" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "145" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "146" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "147" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "148" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "149" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "150" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "151" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "152" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "153" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "154" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "155" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "156" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "157" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "158" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "159" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "160" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "145" }
+    rx_queues: { index: 1 irq_cpulist: "146" }
+    rx_queues: { index: 2 irq_cpulist: "147" }
+    rx_queues: { index: 3 irq_cpulist: "148" }
+    rx_queues: { index: 4 irq_cpulist: "149" }
+    rx_queues: { index: 5 irq_cpulist: "150" }
+    rx_queues: { index: 6 irq_cpulist: "151" }
+    rx_queues: { index: 7 irq_cpulist: "152" }
+    rx_queues: { index: 8 irq_cpulist: "153" }
+    rx_queues: { index: 9 irq_cpulist: "154" }
+    rx_queues: { index: 10 irq_cpulist: "155" }
+    rx_queues: { index: 11 irq_cpulist: "156" }
+    rx_queues: { index: 12 irq_cpulist: "157" }
+    rx_queues: { index: 13 irq_cpulist: "158" }
+    rx_queues: { index: 14 irq_cpulist: "159" }
+    rx_queues: { index: 15 irq_cpulist: "160" }
+  }
+}
+config_expectations: {
   description: "Simple n2-32 machine, single VIRTIO"
   machine_type: "n2-highcpu-32"
   nics: {
