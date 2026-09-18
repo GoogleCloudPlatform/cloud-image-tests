@@ -16,6 +16,7 @@ package metadata
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -58,8 +59,8 @@ func TestShutdownScripts(t *testing.T) {
 		t.Fatalf("utils.GetMetadata(ctx, instance, image) = err %v want nil", err)
 	}
 
-	// Only perform agent reinstall for non-COS images.
-	if !utils.IsCOS(image) {
+	// Only perform agent reinstall for non-COS images and non-guest-configs images.
+	if !utils.IsCOS(image) && !strings.Contains(image, "guest-configs") {
 		reinstallGuestAgent(ctx, t)
 		testScripts(t, "shutdown", false)
 	}
