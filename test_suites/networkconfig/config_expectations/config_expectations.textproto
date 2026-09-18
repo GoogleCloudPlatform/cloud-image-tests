@@ -1314,6 +1314,266 @@ config_expectations: {
   }
 }
 config_expectations: {
+  description: "Z4D 384 bare metal machine with 2 IDPF NICs"
+  machine_type: "z4d-highmem-384-standardlssd-metal"
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "17" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "18" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "19" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "20" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "21" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "22" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "23" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "24" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "25" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "26" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "27" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "28" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "29" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "30" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "31" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "32" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "17" }
+    rx_queues: { index: 1 irq_cpulist: "18" }
+    rx_queues: { index: 2 irq_cpulist: "19" }
+    rx_queues: { index: 3 irq_cpulist: "20" }
+    rx_queues: { index: 4 irq_cpulist: "21" }
+    rx_queues: { index: 5 irq_cpulist: "22" }
+    rx_queues: { index: 6 irq_cpulist: "23" }
+    rx_queues: { index: 7 irq_cpulist: "24" }
+    rx_queues: { index: 8 irq_cpulist: "25" }
+    rx_queues: { index: 9 irq_cpulist: "26" }
+    rx_queues: { index: 10 irq_cpulist: "27" }
+    rx_queues: { index: 11 irq_cpulist: "28" }
+    rx_queues: { index: 12 irq_cpulist: "29" }
+    rx_queues: { index: 13 irq_cpulist: "30" }
+    rx_queues: { index: 14 irq_cpulist: "31" }
+    rx_queues: { index: 15 irq_cpulist: "32" }
+  }
+}
+config_expectations: {
+  description: "Z4D 384 machine with 2 GVNICs"
+  machine_type: "z4d-highmem-384-standardlssd"
+  nics: {
+    type: "GVNIC"
+    tx_ring_size: 1024
+    rx_ring_size: 1024
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_ring_size: 1024
+    rx_ring_size: 1024
+    tx_queues: { index: 0 irq_cpulist: "17" xps_cpulist: "0-23" }
+    tx_queues: { index: 1 irq_cpulist: "18" xps_cpulist: "24-47" }
+    tx_queues: { index: 2 irq_cpulist: "19" xps_cpulist: "48-71" }
+    tx_queues: { index: 3 irq_cpulist: "20" xps_cpulist: "72-95" }
+    tx_queues: { index: 4 irq_cpulist: "21" xps_cpulist: "192-215" }
+    tx_queues: { index: 5 irq_cpulist: "22" xps_cpulist: "216-239" }
+    tx_queues: { index: 6 irq_cpulist: "23" xps_cpulist: "240-263" }
+    tx_queues: { index: 7 irq_cpulist: "24" xps_cpulist: "264-287" }
+    tx_queues: { index: 8 irq_cpulist: "25" xps_cpulist: "96-119" }
+    tx_queues: { index: 9 irq_cpulist: "26" xps_cpulist: "120-143" }
+    tx_queues: { index: 10 irq_cpulist: "27" xps_cpulist: "144-167" }
+    tx_queues: { index: 11 irq_cpulist: "28" xps_cpulist: "168-191" }
+    tx_queues: { index: 12 irq_cpulist: "29" xps_cpulist: "288-311" }
+    tx_queues: { index: 13 irq_cpulist: "30" xps_cpulist: "312-335" }
+    tx_queues: { index: 14 irq_cpulist: "31" xps_cpulist: "336-359" }
+    tx_queues: { index: 15 irq_cpulist: "32" xps_cpulist: "360-383" }
+    rx_queues: { index: 0 irq_cpulist: "17" }
+    rx_queues: { index: 1 irq_cpulist: "18" }
+    rx_queues: { index: 2 irq_cpulist: "19" }
+    rx_queues: { index: 3 irq_cpulist: "20" }
+    rx_queues: { index: 4 irq_cpulist: "21" }
+    rx_queues: { index: 5 irq_cpulist: "22" }
+    rx_queues: { index: 6 irq_cpulist: "23" }
+    rx_queues: { index: 7 irq_cpulist: "24" }
+    rx_queues: { index: 8 irq_cpulist: "25" }
+    rx_queues: { index: 9 irq_cpulist: "26" }
+    rx_queues: { index: 10 irq_cpulist: "27" }
+    rx_queues: { index: 11 irq_cpulist: "28" }
+    rx_queues: { index: 12 irq_cpulist: "29" }
+    rx_queues: { index: 13 irq_cpulist: "30" }
+    rx_queues: { index: 14 irq_cpulist: "31" }
+    rx_queues: { index: 15 irq_cpulist: "32" }
+  }
+}
+config_expectations: {
+  description: "Z4M 192 machine with 2 GVNICs and 2 IRDMA NICs"
+  machine_type: "z4m-highmem-192"
+  nics: {
+    type: "GVNIC"
+    tx_ring_size: 1024
+    rx_ring_size: 1024
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-11" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "12-23" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "96-107" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "108-119" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "24-35" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "36-47" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "120-131" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "132-143" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "48-59" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "60-71" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "144-155" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "156-167" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "72-83" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "84-95" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "168-179" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "180-191" }
+    rx_queues: { index: 0 irq_cpulist: "1" }
+    rx_queues: { index: 1 irq_cpulist: "2" }
+    rx_queues: { index: 2 irq_cpulist: "3" }
+    rx_queues: { index: 3 irq_cpulist: "4" }
+    rx_queues: { index: 4 irq_cpulist: "5" }
+    rx_queues: { index: 5 irq_cpulist: "6" }
+    rx_queues: { index: 6 irq_cpulist: "7" }
+    rx_queues: { index: 7 irq_cpulist: "8" }
+    rx_queues: { index: 8 irq_cpulist: "9" }
+    rx_queues: { index: 9 irq_cpulist: "10" }
+    rx_queues: { index: 10 irq_cpulist: "11" }
+    rx_queues: { index: 11 irq_cpulist: "12" }
+    rx_queues: { index: 12 irq_cpulist: "13" }
+    rx_queues: { index: 13 irq_cpulist: "14" }
+    rx_queues: { index: 14 irq_cpulist: "15" }
+    rx_queues: { index: 15 irq_cpulist: "16" }
+  }
+  nics: {
+    type: "GVNIC"
+    tx_ring_size: 1024
+    rx_ring_size: 1024
+    tx_queues: { index: 0 irq_cpulist: "17" xps_cpulist: "0-11" }
+    tx_queues: { index: 1 irq_cpulist: "18" xps_cpulist: "12-23" }
+    tx_queues: { index: 2 irq_cpulist: "19" xps_cpulist: "96-107" }
+    tx_queues: { index: 3 irq_cpulist: "20" xps_cpulist: "108-119" }
+    tx_queues: { index: 4 irq_cpulist: "21" xps_cpulist: "24-35" }
+    tx_queues: { index: 5 irq_cpulist: "22" xps_cpulist: "36-47" }
+    tx_queues: { index: 6 irq_cpulist: "23" xps_cpulist: "120-131" }
+    tx_queues: { index: 7 irq_cpulist: "96" xps_cpulist: "132-143" }
+    tx_queues: { index: 8 irq_cpulist: "97" xps_cpulist: "48-59" }
+    tx_queues: { index: 9 irq_cpulist: "98" xps_cpulist: "60-71" }
+    tx_queues: { index: 10 irq_cpulist: "99" xps_cpulist: "144-155" }
+    tx_queues: { index: 11 irq_cpulist: "100" xps_cpulist: "156-167" }
+    tx_queues: { index: 12 irq_cpulist: "101" xps_cpulist: "72-83" }
+    tx_queues: { index: 13 irq_cpulist: "102" xps_cpulist: "84-95" }
+    tx_queues: { index: 14 irq_cpulist: "103" xps_cpulist: "168-179" }
+    tx_queues: { index: 15 irq_cpulist: "104" xps_cpulist: "180-191" }
+    rx_queues: { index: 0 irq_cpulist: "17" }
+    rx_queues: { index: 1 irq_cpulist: "18" }
+    rx_queues: { index: 2 irq_cpulist: "19" }
+    rx_queues: { index: 3 irq_cpulist: "20" }
+    rx_queues: { index: 4 irq_cpulist: "21" }
+    rx_queues: { index: 5 irq_cpulist: "22" }
+    rx_queues: { index: 6 irq_cpulist: "23" }
+    rx_queues: { index: 7 irq_cpulist: "96" }
+    rx_queues: { index: 8 irq_cpulist: "97" }
+    rx_queues: { index: 9 irq_cpulist: "98" }
+    rx_queues: { index: 10 irq_cpulist: "99" }
+    rx_queues: { index: 11 irq_cpulist: "100" }
+    rx_queues: { index: 12 irq_cpulist: "101" }
+    rx_queues: { index: 13 irq_cpulist: "102" }
+    rx_queues: { index: 14 irq_cpulist: "103" }
+    rx_queues: { index: 15 irq_cpulist: "104" }
+  }
+  nics: {
+    type: "IRDMA"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 xps_cpulist: "0-23" }
+    tx_queues: { index: 1 xps_cpulist: "96-119" }
+    tx_queues: { index: 2 xps_cpulist: "24-47" }
+    tx_queues: { index: 3 xps_cpulist: "120-143" }
+    tx_queues: { index: 4 xps_cpulist: "48-71" }
+    tx_queues: { index: 5 xps_cpulist: "144-167" }
+    tx_queues: { index: 6 xps_cpulist: "72-95" }
+    tx_queues: { index: 7 xps_cpulist: "168-191" }
+  }
+  nics: {
+    type: "IRDMA"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 xps_cpulist: "0-23" }
+    tx_queues: { index: 1 xps_cpulist: "96-119" }
+    tx_queues: { index: 2 xps_cpulist: "24-47" }
+    tx_queues: { index: 3 xps_cpulist: "120-143" }
+    tx_queues: { index: 4 xps_cpulist: "48-71" }
+    tx_queues: { index: 5 xps_cpulist: "144-167" }
+    tx_queues: { index: 6 xps_cpulist: "72-95" }
+    tx_queues: { index: 7 xps_cpulist: "168-191" }
+  }
+}
+config_expectations: {
   description: "n2-32 with single GVNIC (with GVE NUMA locality awareness)"
   machine_type: "n2-highcpu-32"
   guest_os_selector: {
