@@ -86,9 +86,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady")
 	}
 
-	// This section is for testing MWLID. It is only run on guest-agent derived images.
-	// TODO(b/534559869): Remove this skip for Windows once the MWLID tests are stable for Windows.
-	if strings.Contains(t.Image.Name, "guest-agent") && !utils.IsWindowsImage(t.Image.Name) {
+	// This section is for testing MWLID. It is only run on guest-agent derived
+	// images and pre-release images with the updated guest-agent.
+	if strings.Contains(t.Image.Name, "guest-agent") || strings.Contains(t.Image.SelfLink, "gce-unstable-pkg-test-images") {
 		project := t.Project.Name
 		zone := t.Zone.Name
 		projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
