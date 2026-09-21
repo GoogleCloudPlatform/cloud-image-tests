@@ -56,6 +56,13 @@ var (
 			Type:    exceptions.Equal,
 		},
 		exceptions.Exception{
+			// TODO(b/564533855): Remove this exception once the issue with dual-stack
+			// VMs not being able to run metadata script runner is fixed.
+			Match:   exceptions.ImageSLES,
+			Version: 15,
+			Type:    exceptions.Equal,
+		},
+		exceptions.Exception{
 			Match:   exceptions.ImageUbuntu,
 			Version: 1604,
 			Type:    exceptions.Equal,
