@@ -89,8 +89,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// This section is for testing MWLID. It is only run on guest-agent derived
 	// images and pre-release images with the updated guest-agent.
 	if strings.Contains(t.Image.Name, "guest-agent") || strings.Contains(t.Image.SelfLink, "gce-unstable-pkg-test-images") {
-		project := t.Project.Name
-		zone := t.Zone.Name
 		projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
 		machineType := t.MachineType.Name
 
@@ -104,7 +102,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 		mwlidInst := &daisy.Instance{}
 		mwlidInst.Name = mwlidVMName // Use the constant name
-		mwlidInst.MachineType = "projects/" + project + "/zones/" + zone + "/machineTypes/" + machineType
+		mwlidInst.MachineType = machineType
 		mwlidInst.WorkloadIdentityConfig = &compute.WorkloadIdentityConfig{
 			Identity:                   workloadIdentity,
 			IdentityCertificateEnabled: true,
@@ -126,7 +124,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 		mwlidInst.NetworkInterfaces = []*compute.NetworkInterface{
 			{
-				Network: "projects/" + project + "/global/networks/default",
+				// Relative partial URL; daisy extends it with the workflow's project.
+				Network: "global/networks/default",
 				AccessConfigs: []*compute.AccessConfig{
 					{
 						Type: "ONE_TO_ONE_NAT",
