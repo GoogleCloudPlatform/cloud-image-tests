@@ -260,18 +260,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 			allMultiVMs = append(allMultiVMs, ipv4dual, ipv4ipv6, dualipv4, dualdual, dualipv6, ipv6ipv4, ipv6dual)
 
-			// TODO(b/486324756): Remove this once the bug is fixed.
-			if !strings.Contains(t.Image.Name, "sles-16") {
-				ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
-				if err != nil {
-					return err
-				}
-
-				ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
-				ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
-
-				allMultiVMs = append(allMultiVMs, ipv6ipv6)
+			ipv6ipv6, err := t.CreateTestVM("ipv6ipv6")
+			if err != nil {
+				return err
 			}
+
+			ipv6ipv6.AddCustomNetworkWithStackType(network1, subnetwork1, "IPV6_ONLY", "EXTERNAL")
+			ipv6ipv6.AddCustomNetworkWithStackType(network2, subnetwork2, "IPV6_ONLY", "INTERNAL")
+
+			allMultiVMs = append(allMultiVMs, ipv6ipv6)
 		}
 		allVMs = append(allVMs, allMultiVMs...)
 		for _, vm := range allMultiVMs {
@@ -281,7 +278,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	for _, vm := range allVMs {
 		vm.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
-		vm.RunTests("TestNICSetup")
+		vm.RunTests("TestNICSetup|TestMetadataHostsCompliance|TestMetadataResolutionAndReachability|TestMDSHostsCorrection")
 	}
 	return nil
 }

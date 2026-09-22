@@ -69,6 +69,12 @@ const (
 	// pingVMPort is the port to listen on for the ping VM. This is chosen
 	// arbitrarily to avoid conflicts with other services.
 	pingVMPort = 1234
+
+	// Metadata server constants.
+	// v4MDS is the IPv4 address of the metadata server.
+	v4MDS = "169.254.169.254 metadata.google.internal"
+	// v6MDS is the IPv6 address of the metadata server.
+	v6MDS = "fd20:ce::254 metadata.google.internal"
 )
 
 var (
