@@ -1002,6 +1002,11 @@ func TestMachineMaintenancePolicy(t *testing.T) {
 			want:        "TERMINATE",
 		},
 		{
+			name:        "c4x special case",
+			machineType: "c4x-standard-192",
+			want:        "TERMINATE",
+		},
+		{
 			name:        "h4d special case",
 			machineType: "h4d-standard-4",
 			want:        "TERMINATE",

@@ -72,6 +72,7 @@ var (
 		regexp.MustCompile(`^z\d+[a-z]*-.*`),
 
 		// Special cases.
+		regexp.MustCompile(`^c4x-.*`),
 		regexp.MustCompile(`^h4d-.*`),
 	}
 )
