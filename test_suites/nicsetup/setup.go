@@ -276,9 +276,14 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		}
 	}
 
+	runTests := "TestNICSetup"
+	if strings.Contains(t.Image.Name, "guest-configs") {
+		runTests += "|TestMetadataHostsCompliance|TestMetadataResolutionAndReachability|TestMDSHostsCorrection"
+	}
+
 	for _, vm := range allVMs {
 		vm.AddMetadata(supportIpv6Key, strconv.FormatBool(supportsIpv6))
-		vm.RunTests("TestNICSetup|TestMetadataHostsCompliance|TestMetadataResolutionAndReachability|TestMDSHostsCorrection")
+		vm.RunTests(runTests)
 	}
 	return nil
 }
