@@ -38,10 +38,10 @@ func testScripts(t *testing.T, stage string, success bool) {
 	expectedContent := fmt.Sprintf("%s_success", stage)
 	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
 	if err != nil {
-		t.Fatalf("failed to read startup script result key: %v", err)
+		t.Fatalf("failed to read %s script result key: %v", stage, err)
 	}
 	if (result == expectedContent) != success {
-		t.Fatalf(`startup script output expected to be success: %t, got %s`, success, result)
+		t.Fatalf(`%s script output expected to be success: %t, got %s`, stage, success, result)
 	}
 
 	// Exceptions for certain Linux images.
@@ -56,6 +56,6 @@ func testScripts(t *testing.T, stage string, success bool) {
 	// Clear the guest attribute for the next test.
 	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", "result"), "")
 	if err != nil {
-		t.Fatalf("failed to clear startup script result: %s", err)
+		t.Fatalf("failed to clear %s script result: %s", stage, err)
 	}
 }
