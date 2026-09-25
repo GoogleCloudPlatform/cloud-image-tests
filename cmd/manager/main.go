@@ -109,6 +109,7 @@ var (
 	setExitStatus           = flag.Bool("set_exit_status", true, "Exit with non-zero exit code if test suites are failing")
 	useReservations         = flag.Bool("use_reservations", false, "Whether to consume reservations when creating VMs. Will consume any reservation if reservation_urls is unspecified.")
 	reservationURLs         = flag.String("reservation_urls", "", "Comma separated list of partial URLs for reservations to consume.")
+	reservationBound        = flag.Bool("reservation_bound", true, "Whether to set provisioningModel=RESERVATION_BOUND when using specific reservations.")
 	acceleratorType         = flag.String("accelerator_type", "", "Accelerator type to be used for accelerator tests")
 	acceleratorCount        = flag.Int64("accelerator_count", 0, "Accelerator count to be used for accelerator tests")
 	allImageFamilies        = flag.String("all_image_families", "", "Single image project to test all image families in.")
@@ -583,6 +584,7 @@ func main() {
 				ARM64Shape:              *arm64Shape,
 				UseReservations:         *useReservations,
 				ReservationURLs:         reservationURLSlice,
+				ReservationBound:        *reservationBound,
 				AcceleratorType:         *acceleratorType,
 				AcceleratorCount:        *acceleratorCount,
 				ArgZoneOverride:         *argZoneOverride,

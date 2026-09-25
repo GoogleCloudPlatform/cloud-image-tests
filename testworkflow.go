@@ -98,6 +98,8 @@ type TestWorkflowOpts struct {
 	UseReservations bool
 	// ReservationURLs is a list of specific reservation URLs to consume.
 	ReservationURLs []string
+	// ReservationBound is whether to set provisioningModel=RESERVATION_BOUND when using specific reservations. Defaults to true for backwards compatibility with calendar/dense reservations.
+	ReservationBound bool
 	// AcceleratorType is the accelerator type to be used for accelerator tests, which use GPUs.
 	AcceleratorType string
 	// AcceleratorCount is the number of accelerators to be used for accelerator tests.
@@ -143,6 +145,8 @@ type TestWorkflow struct {
 	ReservationAffinity *compute.ReservationAffinity
 	// ReservationAffinityBeta is the reservation affinity used for VM creation with the beta API.
 	ReservationAffinityBeta *computeBeta.ReservationAffinity
+	// ReservationBound is whether to set provisioningModel=RESERVATION_BOUND when using specific reservations.
+	ReservationBound bool
 	// AcceleratorType is the accelerator type to be used for accelerator tests which use GPUs.
 	AcceleratorType string
 	// AcceleratorCount is the number of accelerators to be used for accelerator tests.
@@ -233,6 +237,10 @@ func (t *TestWorkflow) addNewVMStep(disks []*compute.Disk, instanceParams *daisy
 	return createVMsStep, instance, nil
 }
 
+func (t *TestWorkflow) matchesWorkflowMachineType(instanceMachineType string) bool {
+	return instanceMachineType == "" || t == nil || t.MachineType == nil || t.MachineType.Name == "" || instanceMachineType == t.MachineType.Name
+}
+
 func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams *daisy.Instance) (*daisy.Step, *daisy.Instance, error) {
 	if len(disks) == 0 || disks[0].Name == "" {
 		return nil, nil, fmt.Errorf("failed to create VM from empty boot disk")
@@ -263,12 +271,14 @@ func (t *TestWorkflow) appendCreateVMStep(disks []*compute.Disk, instanceParams 
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
-	instance.ReservationAffinity = t.ReservationAffinity
-	if t.ReservationAffinity != nil && t.ReservationAffinity.ConsumeReservationType == "SPECIFIC_RESERVATION" {
-		if instance.Scheduling == nil {
-			instance.Scheduling = &compute.Scheduling{}
+	if t.matchesWorkflowMachineType(instance.MachineType) {
+		instance.ReservationAffinity = t.ReservationAffinity
+		if t.ReservationAffinity != nil && t.ReservationAffinity.ConsumeReservationType == "SPECIFIC_RESERVATION" && t.ReservationBound {
+			if instance.Scheduling == nil {
+				instance.Scheduling = &compute.Scheduling{}
+			}
+			instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
 		}
-		instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
 	}
 
 	for _, disk := range disks {
@@ -328,12 +338,14 @@ func (t *TestWorkflow) appendCreateVMStepBeta(disks []*compute.Disk, instance *d
 	instance.StartupScript = fmt.Sprintf("wrapper%s", suffix)
 	instance.Name = name
 	instance.Scopes = append(instance.Scopes, "https://www.googleapis.com/auth/devstorage.read_write")
-	instance.ReservationAffinity = t.ReservationAffinityBeta
-	if t.ReservationAffinityBeta != nil && t.ReservationAffinityBeta.ConsumeReservationType == "SPECIFIC_RESERVATION" {
-		if instance.Scheduling == nil {
-			instance.Scheduling = &computeBeta.Scheduling{}
+	if t.matchesWorkflowMachineType(instance.MachineType) {
+		instance.ReservationAffinity = t.ReservationAffinityBeta
+		if t.ReservationAffinityBeta != nil && t.ReservationAffinityBeta.ConsumeReservationType == "SPECIFIC_RESERVATION" && t.ReservationBound {
+			if instance.Scheduling == nil {
+				instance.Scheduling = &computeBeta.Scheduling{}
+			}
+			instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
 		}
-		instance.Scheduling.ProvisioningModel = "RESERVATION_BOUND"
 	}
 
 	for _, disk := range disks {
@@ -804,6 +816,12 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, lo
 			for _, vm := range createVMsStep.CreateInstances.Instances {
 				if vm.MachineType != "" {
 					log.Printf("VM %s machine type set to %s for test %s\n", vm.Name, vm.MachineType, twf.Name)
+					if !twf.matchesWorkflowMachineType(vm.MachineType) && twf.ReservationAffinity != nil && twf.ReservationAffinity.ConsumeReservationType == "SPECIFIC_RESERVATION" {
+						vm.ReservationAffinity = nil
+						if vm.Scheduling != nil && vm.Scheduling.ProvisioningModel == "RESERVATION_BOUND" {
+							vm.Scheduling.ProvisioningModel = ""
+						}
+					}
 				} else {
 					vm.MachineType = twf.MachineType.Name
 				}
@@ -838,6 +856,19 @@ func finalizeWorkflows(ctx context.Context, tests []*TestWorkflow, gcsPrefix, lo
 							attachedDisk.InitializeParams.DiskType = fmt.Sprintf("zones/%s/diskTypes/%s", vm.Zone, attachedDisk.InitializeParams.DiskType)
 						}
 					}
+				}
+			}
+			for _, vm := range createVMsStep.CreateInstances.InstancesBeta {
+				if vm.MachineType != "" {
+					log.Printf("VM %s machine type set to %s for test %s\n", vm.Name, vm.MachineType, twf.Name)
+					if !twf.matchesWorkflowMachineType(vm.MachineType) && ((twf.ReservationAffinityBeta != nil && twf.ReservationAffinityBeta.ConsumeReservationType == "SPECIFIC_RESERVATION") || (twf.ReservationAffinity != nil && twf.ReservationAffinity.ConsumeReservationType == "SPECIFIC_RESERVATION")) {
+						vm.ReservationAffinity = nil
+						if vm.Scheduling != nil && vm.Scheduling.ProvisioningModel == "RESERVATION_BOUND" {
+							vm.Scheduling.ProvisioningModel = ""
+						}
+					}
+				} else {
+					vm.MachineType = twf.MachineType.Name
 				}
 			}
 		}
@@ -925,6 +956,7 @@ func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error
 	t.argZoneOverride = opts.ArgZoneOverride
 	t.SetupFunc = setupFunc
 
+	t.ReservationBound = opts.ReservationBound
 	if opts.UseReservations {
 		reservationType := "ANY_RESERVATION"
 		var reservationKey string

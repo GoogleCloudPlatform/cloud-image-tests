@@ -1304,3 +1304,152 @@ func TestFinalizeWorkflowsNetwork(t *testing.T) {
 		})
 	}
 }
+
+func TestAppendCreateVMStep_SpecificReservationAndMachineType(t *testing.T) {
+	specificAffV1 := &compute.ReservationAffinity{
+		ConsumeReservationType: "SPECIFIC_RESERVATION",
+		Key:                    "compute.googleapis.com/reservation-name",
+		Values:                 []string{"integration-test-c3-metal"},
+	}
+	specificAffBeta := &computeBeta.ReservationAffinity{
+		ConsumeReservationType: "SPECIFIC_RESERVATION",
+		Key:                    "compute.googleapis.com/reservation-name",
+		Values:                 []string{"integration-test-c3-metal"},
+	}
+
+	t.Run("v1_specific_reservation_with_reservation_bound_false", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = false
+
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vm1"}}, &daisy.Instance{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffV1, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when ReservationBound is false", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("v1_specific_reservation_with_reservation_bound_true", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = true
+
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vm1"}}, &daisy.Instance{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffV1, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling == nil || inst.Scheduling.ProvisioningModel != "RESERVATION_BOUND" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %v, want RESERVATION_BOUND when ReservationBound is true", inst.Scheduling)
+		}
+	})
+
+	t.Run("v1_overridden_machine_type_skips_specific_reservation", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = true
+
+		customInst := &daisy.Instance{}
+		customInst.MachineType = "n1-standard-4"
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vmfallback"}}, customInst)
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil when MachineType differs from workflow MachineType", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when MachineType differs", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("beta_specific_reservation_with_reservation_bound_false", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = false
+
+		_, inst, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vm1"}}, &daisy.InstanceBeta{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStepBeta failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffBeta, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when ReservationBound is false", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("beta_overridden_machine_type_skips_specific_reservation", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = true
+
+		customInst := &daisy.InstanceBeta{}
+		customInst.MachineType = "n1-standard-4"
+		_, inst, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vmfallback"}}, customInst)
+		if err != nil {
+			t.Fatalf("appendCreateVMStepBeta failed: %v", err)
+		}
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil when MachineType differs from workflow MachineType", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when MachineType differs", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("force_machine_type_after_create_test_vm_clears_specific_reservation_in_finalize", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.Image = &compute.Image{Architecture: "X86_64"}
+		twf.MachineType = &compute.MachineType{Name: "c3-standard-192-metal"}
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = true
+
+		vm, err := twf.CreateTestVM("vm1")
+		if err != nil {
+			t.Fatalf("CreateTestVM failed: %v", err)
+		}
+		vm.ForceMachineType("n1-standard-4")
+
+		vmBeta, err := twf.CreateTestVMBeta("vm-beta")
+		if err != nil {
+			t.Fatalf("CreateTestVMBeta failed: %v", err)
+		}
+		vmBeta.ForceMachineType("n1-standard-4")
+
+		if err := finalizeWorkflows(t.Context(), []*TestWorkflow{twf}, "", ""); err != nil {
+			t.Fatalf("finalizeWorkflows failed: %v", err)
+		}
+
+		createVMsStep := twf.wf.Steps[createVMsStepName]
+		inst := createVMsStep.CreateInstances.Instances[0]
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil after ForceMachineType and finalizeWorkflows", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string after ForceMachineType and finalizeWorkflows", inst.Scheduling.ProvisioningModel)
+		}
+
+		instBeta := createVMsStep.CreateInstances.InstancesBeta[0]
+		if instBeta.ReservationAffinity != nil {
+			t.Errorf("instBeta.ReservationAffinity = %+v, want nil after ForceMachineType and finalizeWorkflows", instBeta.ReservationAffinity)
+		}
+		if instBeta.Scheduling != nil && instBeta.Scheduling.ProvisioningModel != "" {
+			t.Errorf("instBeta.Scheduling.ProvisioningModel = %q, want empty string after ForceMachineType and finalizeWorkflows", instBeta.Scheduling.ProvisioningModel)
+		}
+	})
+}
