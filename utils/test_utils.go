@@ -914,11 +914,25 @@ func RestartAgent(ctx context.Context) error {
 		}
 
 		// %[1]s reuses the first argument (serviceName) so we don't have to pass it three times
+
+		// The `Get-CimInstance` block starts an explicit command to kill any existing plugin processes.
+		// Windows does not automatically kill all child processes when the service stops, so the plugin
+		// processes are left running across a stop/restart in some cases. Because of this, the
+		// manager reconnects to the stale plugins with old configurations, causing the test fo fail.
+		// TODO(b/567956441): Remove the Get-CimInstance block once this bug is resolved.
 		psScript := fmt.Sprintf(`
       Stop-Service -Name '%[1]s' -Force
       while ((Get-Service '%[1]s').Status -ne 'Stopped') {
         Start-Sleep -Seconds 1
       }
+
+			Get-CimInstance Win32_Process |
+				Where-Object { $_.ExecutablePath -like 'C:\Program Files\Google\Compute Engine\agent\*\*'} |
+					ForEach-Object {
+						Write-Output "Killing stale plugin $($_.Name) (PID $($_.ProcessId))"
+						Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+					}
+
       Start-Service -Name '%[1]s'
     `, serviceName)
 
