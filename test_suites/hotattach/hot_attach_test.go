@@ -26,9 +26,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"google.golang.org/api/compute/v1"
+)
+
+const (
+	symlinkPollInterval = time.Second
+	symlinkPollTimeout  = 30 * time.Second
 )
 
 func getWindowsDiskNumber(ctx context.Context) (int, error) {
@@ -53,18 +59,34 @@ func getLinuxMountPath(ctx context.Context) (string, error) {
 	symlinkDir := "/dev/disk/by-id/"
 	expectedPrefix := "google-" + diskName
 	foundSymlink := ""
-	entries, err := os.ReadDir(symlinkDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to read %s: %w", symlinkDir, err)
-	}
-	for _, entry := range entries {
-		if entry.Type()&os.ModeSymlink != 0 && strings.HasPrefix(entry.Name(), expectedPrefix) {
-			foundSymlink = filepath.Join(symlinkDir, entry.Name())
+	// udev creates the symlink asynchronously after the guest detects the disk,
+	// which can lag behind the attach operation (notably on bare metal after a
+	// reattach), so poll for it instead of reading the directory only once.
+	deadline := time.Now().Add(symlinkPollTimeout)
+	ticker := time.NewTicker(symlinkPollInterval)
+	defer ticker.Stop()
+	for {
+		entries, err := os.ReadDir(symlinkDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to read %s: %w", symlinkDir, err)
+		}
+		for _, entry := range entries {
+			if entry.Type()&os.ModeSymlink != 0 && strings.HasPrefix(entry.Name(), expectedPrefix) {
+				foundSymlink = filepath.Join(symlinkDir, entry.Name())
+				break
+			}
+		}
+		if foundSymlink != "" {
 			break
 		}
-	}
-	if foundSymlink == "" {
-		return "", fmt.Errorf("symlink with prefix %s not found", expectedPrefix)
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("symlink with prefix %s did not appear in %s within %v", expectedPrefix, symlinkDir, symlinkPollTimeout)
+		}
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("context done while waiting for symlink with prefix %s in %s: %w", expectedPrefix, symlinkDir, ctx.Err())
+		case <-ticker.C:
+		}
 	}
 	return filepath.EvalSymlinks(foundSymlink)
 }
