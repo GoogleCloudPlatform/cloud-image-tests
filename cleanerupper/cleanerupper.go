@@ -243,6 +243,31 @@ func WorkflowPolicy(id string) PolicyFunc {
 	}
 }
 
+// DeprecatePolicy returns a PolicyFunc which indicates to delete any image whose
+// deprecation state is DEPRECATED. Also contains a safeguard against deleting
+// resources with a "do-not-delete" label.
+func DeprecatePolicy() PolicyFunc {
+	return func(resource any) bool {
+		var labels map[string]string
+		var desc, name string
+		switch r := resource.(type) {
+		case *compute.Image:
+			if r == nil || r.Deprecated == nil || r.Deprecated.State != "DEPRECATED" {
+				return false
+			}
+			name = r.Name
+			desc = r.Description
+			labels = r.Labels
+		default:
+			return false
+		}
+		if _, keep := labels[keepLabel]; keep {
+			return false
+		}
+		return !strings.Contains(desc, keepLabel) && !strings.Contains(name, keepLabel)
+	}
+}
+
 // CleanInstances deletes all instances indicated, returning a slice of deleted
 // instance partial URLs and a slice of errors encountered. On dry run, returns
 // what would have been deleted.

@@ -243,6 +243,99 @@ func TestWorkflowPolicy(t *testing.T) {
 	}
 }
 
+func TestDeprecatePolicy(t *testing.T) {
+	testcases := []struct {
+		name string
+
+		resource any
+		output   bool
+	}{
+		{
+			name:     "Unknown Resource",
+			resource: struct{}{},
+			output:   false,
+		},
+		{
+			name:     "Deprecated Image",
+			resource: &compute.Image{Deprecated: &compute.DeprecationStatus{State: "DEPRECATED"}},
+			output:   true,
+		},
+		{
+			name:     "Image with No Deprecation Status",
+			resource: &compute.Image{},
+			output:   false,
+		},
+		{
+			name:     "Deprecated Image with Malformed Timestamp",
+			resource: &compute.Image{Name: "image", Deprecated: &compute.DeprecationStatus{State: "DEPRECATED", Deprecated: "1970-01-01"}},
+			output:   true,
+		},
+		{
+			name:     "Active Image",
+			resource: &compute.Image{Deprecated: &compute.DeprecationStatus{State: "ACTIVE"}},
+			output:   false,
+		},
+		{
+			name:     "Obsolete Image",
+			resource: &compute.Image{Deprecated: &compute.DeprecationStatus{State: "OBSOLETE"}},
+			output:   false,
+		},
+		{
+			name:     "Deleted Image",
+			resource: &compute.Image{Deprecated: &compute.DeprecationStatus{State: "DELETED"}},
+			output:   false,
+		},
+		{
+			name:     "Keep Label in Labels",
+			resource: &compute.Image{Name: "image", Labels: map[string]string{keepLabel: ""}, Deprecated: &compute.DeprecationStatus{State: "DEPRECATED"}},
+			output:   false,
+		},
+		{
+			name:     "Keep Label in Name",
+			resource: &compute.Image{Name: "image-" + keepLabel, Deprecated: &compute.DeprecationStatus{State: "DEPRECATED"}},
+			output:   false,
+		},
+		{
+			name:     "Keep Label in Description",
+			resource: &compute.Image{Name: "image", Description: "image. do-not-delete", Deprecated: &compute.DeprecationStatus{State: "DEPRECATED"}},
+			output:   false,
+		},
+		{
+			name:     "Machine Image",
+			resource: &compute.MachineImage{Name: "machineimage"},
+			output:   false,
+		},
+		{
+			name:     "Disk",
+			resource: &compute.Disk{Name: "disk"},
+			output:   false,
+		},
+		{
+			name:     "Snapshot",
+			resource: &compute.Snapshot{Name: "snapshot"},
+			output:   false,
+		},
+		{
+			name:     "Instance",
+			resource: &compute.Instance{Name: "instance"},
+			output:   false,
+		},
+		{
+			name:     "Network",
+			resource: &compute.Network{Name: "network"},
+			output:   false,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			o := DeprecatePolicy()(tc.resource)
+			if o != tc.output {
+				t.Errorf("Unexpected output from DeprecatePolicy(%v), got %v but want %v", tc.resource, o, tc.output)
+			}
+		})
+	}
+}
+
 func TestCleanInstances(t *testing.T) {
 	_, daisyFake, err := computeDaisy.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.String() == fmt.Sprintf("/projects/%s/aggregated/instances?alt=json&pageToken=&prettyPrint=false", "test-project") {
