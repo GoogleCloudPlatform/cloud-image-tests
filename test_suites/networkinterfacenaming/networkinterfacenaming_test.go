@@ -41,6 +41,11 @@ var (
 		"almalinux-9",
 		"rocky-linux-8",
 		"rocky-linux-9",
+		// Test images built from guest-configs source by its CI pipeline are
+		// named snap-guest-configs-test-<distro>-<build>. The guest-configs
+		// package deliberately renames IDPF NICs to eth<N> via
+		// 75-gce-network.rules and gce-nic-naming, so eth names are expected.
+		"snap-guest-configs",
 	}
 	windowsNICNameRegex = regexp.MustCompile("^Ethernet.*")
 	ethNICNameRegex     = regexp.MustCompile("^eth[0-9]+")
