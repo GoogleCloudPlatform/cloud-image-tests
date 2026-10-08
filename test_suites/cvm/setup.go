@@ -26,11 +26,22 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "cvm"
 
-// cvm machine tyes are only available in us-central1-a.
-var dedicatedZone = "us-central1-a"
+// cvmZones lists the zones that support CVM machine types. Namely, SEV/SEV-SNP on N2D machines
+// (AMD Milan CPU) and Intel TDX on C3 machines (Intel Sapphire Rapids CPU).
+// See https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations
+var cvmZones = map[string]bool{
+	"us-central1-a": true, "us-central1-b": true, "us-central1-c": true,
+	"europe-west4-a": true, "europe-west4-b": true, "europe-west4-c": true,
+	"asia-southeast1-a": true, "asia-southeast1-b": true, "asia-southeast1-c": true,
+}
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	dedicatedZone := t.Zone.Name
+	// Check if CLI zone is a valid CVM zone. If not, fall back to us-central1-a.
+	if !cvmZones[dedicatedZone] {
+		dedicatedZone = "us-central1-a"
+	}
 	for _, feature := range t.ImageBeta.GuestOsFeatures {
 		switch feature.Type {
 		case "SEV_CAPABLE":
