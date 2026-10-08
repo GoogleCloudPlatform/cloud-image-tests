@@ -27,20 +27,22 @@ func TestSuspend(t *testing.T) {
 	if utils.IsWindows() {
 		out, err := utils.RunPowershellCmd(`$TurnOffSettingCount=0;
  $SleepButtonSettingCount=0;
- Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerSettingDataIndex | ForEach-Object {
-   $power_setting = $_ | Get-CimAssociatedInstance -ResultClassName Win32_PowerSetting -OperationTimeoutSec 10;
-   if ($power_setting -and $power_setting.ElementName -eq "Turn off display after") {
-     if ($_.SettingIndexValue -ne 0) {
-       $TurnOffSettingCount=$TurnOffSettingCount+1;
+ Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerSetting | Where-Object { $_.ElementName -in @("Turn off display after", "Sleep button action") } | ForEach-Object {
+   $power_setting = $_;
+   $_ | Get-CimAssociatedInstance -ResultClassName Win32_PowerSettingDataIndex -OperationTimeoutSec 10 | ForEach-Object {
+     if ($power_setting.ElementName -eq "Turn off display after") {
+       if ($_.SettingIndexValue -ne 0) {
+         $TurnOffSettingCount=$TurnOffSettingCount+1;
+       }
      }
-   }
-   if ($power_setting -and $power_setting.ElementName -eq "Sleep button action") {
-     if ($_.SettingIndexValue -ne 1) {
-       $SleepButtonSettingCount=$SleepButtonSettingCount+1;
+     if ($power_setting.ElementName -eq "Sleep button action") {
+       if ($_.SettingIndexValue -ne 1) {
+         $SleepButtonSettingCount=$SleepButtonSettingCount+1;
+       }
      }
    }
  };
- Return "TurnOffDisplay:"+$TurnOffSettingCount+" SleepButton:"+$SleepButtonSettingCount;+""`)
+ Return "TurnOffDisplay:"+$TurnOffSettingCount+" SleepButton:"+$SleepButtonSettingCount`)
 		if err != nil {
 			t.Errorf("could not check power settings: %s %s %v", out.Stdout, out.Stderr, err)
 		}
