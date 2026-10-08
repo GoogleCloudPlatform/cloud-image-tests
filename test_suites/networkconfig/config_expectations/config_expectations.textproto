@@ -2952,6 +2952,84 @@ config_expectations: {
   }
 }
 config_expectations: {
+  description: "C4D 384 bare metal machine with 2 IDPF NICs"
+  machine_type: "c4d-standard-384-lssd-metal"
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "" }
+    tx_queues: { index: 8 irq_cpulist: "8" xps_cpulist: "" }
+    tx_queues: { index: 9 irq_cpulist: "9" xps_cpulist: "" }
+    tx_queues: { index: 10 irq_cpulist: "10" xps_cpulist: "" }
+    tx_queues: { index: 11 irq_cpulist: "11" xps_cpulist: "" }
+    tx_queues: { index: 12 irq_cpulist: "12" xps_cpulist: "" }
+    tx_queues: { index: 13 irq_cpulist: "13" xps_cpulist: "" }
+    tx_queues: { index: 14 irq_cpulist: "14" xps_cpulist: "" }
+    tx_queues: { index: 15 irq_cpulist: "15" xps_cpulist: "" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+    rx_queues: { index: 8 irq_cpulist: "8" }
+    rx_queues: { index: 9 irq_cpulist: "9" }
+    rx_queues: { index: 10 irq_cpulist: "10" }
+    rx_queues: { index: 11 irq_cpulist: "11" }
+    rx_queues: { index: 12 irq_cpulist: "12" }
+    rx_queues: { index: 13 irq_cpulist: "13" }
+    rx_queues: { index: 14 irq_cpulist: "14" }
+    rx_queues: { index: 15 irq_cpulist: "15" }
+  }
+  nics: {
+    type: "IDPF"
+    tx_ring_size: 4096
+    rx_ring_size: 4096
+    tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "" }
+    tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "" }
+    tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "" }
+    tx_queues: { index: 3 irq_cpulist: "3" xps_cpulist: "" }
+    tx_queues: { index: 4 irq_cpulist: "4" xps_cpulist: "" }
+    tx_queues: { index: 5 irq_cpulist: "5" xps_cpulist: "" }
+    tx_queues: { index: 6 irq_cpulist: "6" xps_cpulist: "" }
+    tx_queues: { index: 7 irq_cpulist: "7" xps_cpulist: "" }
+    tx_queues: { index: 8 irq_cpulist: "8" xps_cpulist: "" }
+    tx_queues: { index: 9 irq_cpulist: "9" xps_cpulist: "" }
+    tx_queues: { index: 10 irq_cpulist: "10" xps_cpulist: "" }
+    tx_queues: { index: 11 irq_cpulist: "11" xps_cpulist: "" }
+    tx_queues: { index: 12 irq_cpulist: "12" xps_cpulist: "" }
+    tx_queues: { index: 13 irq_cpulist: "13" xps_cpulist: "" }
+    tx_queues: { index: 14 irq_cpulist: "14" xps_cpulist: "" }
+    tx_queues: { index: 15 irq_cpulist: "15" xps_cpulist: "" }
+    rx_queues: { index: 0 irq_cpulist: "0" }
+    rx_queues: { index: 1 irq_cpulist: "1" }
+    rx_queues: { index: 2 irq_cpulist: "2" }
+    rx_queues: { index: 3 irq_cpulist: "3" }
+    rx_queues: { index: 4 irq_cpulist: "4" }
+    rx_queues: { index: 5 irq_cpulist: "5" }
+    rx_queues: { index: 6 irq_cpulist: "6" }
+    rx_queues: { index: 7 irq_cpulist: "7" }
+    rx_queues: { index: 8 irq_cpulist: "8" }
+    rx_queues: { index: 9 irq_cpulist: "9" }
+    rx_queues: { index: 10 irq_cpulist: "10" }
+    rx_queues: { index: 11 irq_cpulist: "11" }
+    rx_queues: { index: 12 irq_cpulist: "12" }
+    rx_queues: { index: 13 irq_cpulist: "13" }
+    rx_queues: { index: 14 irq_cpulist: "14" }
+    rx_queues: { index: 15 irq_cpulist: "15" }
+  }
+}
+config_expectations: {
   description: "C4D 384 machine with 1 GVNIC"
   machine_type: "c4d-standard-384"
   nics: {
