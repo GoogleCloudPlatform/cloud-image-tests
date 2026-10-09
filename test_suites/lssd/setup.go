@@ -36,10 +36,10 @@ const (
 func TestSetup(t *imagetest.TestWorkflow) error {
 	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
 		lssdMountInst := &daisy.Instance{}
-		lssdMountInst.Zone = "us-central1-a"
+		lssdMountInst.Zone = "us-west1-b"
 		lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-central1-a", Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
+		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: "us-west1-b", Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
 		if err != nil {
 			return err
 		}
