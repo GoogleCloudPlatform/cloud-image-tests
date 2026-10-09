@@ -32,7 +32,11 @@ import (
 	// allowlist:crypto/md5
 )
 
-const gcomment = "# Added by Google"
+const (
+	gcomment         = "# Added by Google"
+	gcommentHost     = "# Added by Google - Hostname"
+	gcommentMetadata = "# Added by Google - MDS"
+)
 
 func testHostnameWindows(shortname string) error {
 	command := "[System.Net.Dns]::GetHostName()"
@@ -361,8 +365,15 @@ func testHostsEntry(t *testing.T, hostname string) {
 	}
 	defer hostsFile.Close()
 
-	targetLineHost := fmt.Sprintf("%s %s  %s", hostname, strings.Split(hostname, ".")[0], gcomment)
-	targetLineMetadata := fmt.Sprintf("%s %s  %s", "169.254.169.254", "metadata.google.internal", gcomment)
+	shortname := strings.Split(hostname, ".")[0]
+	targetHostLines := []string{
+		fmt.Sprintf("%s %s %s", hostname, shortname, gcommentHost),
+		fmt.Sprintf("%s %s  %s", hostname, shortname, gcomment),
+	}
+	targetMetadataLines := []string{
+		fmt.Sprintf("%s %s %s", "169.254.169.254", "metadata.google.internal", gcommentMetadata),
+		fmt.Sprintf("%s %s  %s", "169.254.169.254", "metadata.google.internal", gcomment),
+	}
 
 	scanner := bufio.NewScanner(hostsFile)
 	var gotLines []string
@@ -372,28 +383,35 @@ func testHostsEntry(t *testing.T, hostname string) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		gotLines = append(gotLines, line)
-		if line == targetLineMetadata {
-			foundMetadata = true
-		} else if strings.Contains(line, targetLineHost) {
-			ip := strings.TrimSpace(strings.Replace(line, targetLineHost, "", 1))
-			wantLine := fmt.Sprintf("%s %s", ip, targetLineHost)
-			// Check that the IP is a valid Ipv4/Ipv6 address and that the line is
-			// formatted correctly.
-			if net.ParseIP(ip) != nil && line == wantLine {
-				foundHost = true
+		for _, targetMetadata := range targetMetadataLines {
+			if line == targetMetadata {
+				foundMetadata = true
+				break
 			}
 		}
-
-		if err := scanner.Err(); err != nil {
-			t.Fatalf("scanner.Err() on /etc/hosts = %v, want nil", err)
+		for _, targetHost := range targetHostLines {
+			if strings.Contains(line, targetHost) {
+				ip := strings.TrimSpace(strings.Replace(line, targetHost, "", 1))
+				wantLine := fmt.Sprintf("%s %s", ip, targetHost)
+				// Check that the IP is a valid Ipv4/Ipv6 address and that the line is
+				// formatted correctly.
+				if net.ParseIP(ip) != nil && line == wantLine {
+					foundHost = true
+					break
+				}
+			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner.Err() on /etc/hosts = %v, want nil", err)
 	}
 
 	if !foundHost {
-		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target host line with: <IP> %s", strings.Join(gotLines[:], "\n"), targetLineHost)
+		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target host line with: <IP> %s", strings.Join(gotLines[:], "\n"), targetHostLines[0])
 	}
 
 	if !foundMetadata {
-		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target metadata line: %q", strings.Join(gotLines[:], "\n"), targetLineMetadata)
+		t.Fatalf("os.ReadFile(/etc/hosts) =\n %s \nwant target metadata line: %q", strings.Join(gotLines[:], "\n"), targetMetadataLines[0])
 	}
 }
