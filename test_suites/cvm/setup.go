@@ -26,8 +26,9 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "cvm"
 
-// cvmZones lists the zones that support CVM machine types. Namely, SEV/SEV-SNP on N2D machines
-// (AMD Milan CPU) and Intel TDX on C3 machines (Intel Sapphire Rapids CPU).
+// cvmZones lists the zones that support CVM machine types. Namely, SEV on C3D machines
+// (AMD Genoa CPU), SEV-SNP on N2D machines (AMD Milan CPU), and Intel TDX on C3 machines
+// (Intel Sapphire Rapids CPU).
 // See https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations
 var cvmZones = map[string]bool{
 	"us-central1-a": true, "us-central1-b": true, "us-central1-c": true,
@@ -59,8 +60,8 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			} else {
 				vm.Scheduling = &computeBeta.Scheduling{OnHostMaintenance: "TERMINATE"}
 			}
-			vm.MachineType = "n2d-standard-2"
-			vm.MinCpuPlatform = "AMD Milan"
+			vm.MachineType = "c3d-standard-4"
+			vm.MinCpuPlatform = "AMD Genoa"
 			disks := []*compute.Disk{{Name: vm.Name, Type: imagetest.PdBalanced, Zone: dedicatedZone}}
 			tvm, err := t.CreateTestVMFromInstanceBeta(vm, disks)
 			if err != nil {
