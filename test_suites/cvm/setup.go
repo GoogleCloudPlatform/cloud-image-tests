@@ -16,6 +16,10 @@
 package cvm
 
 import (
+	"log"
+	"math/rand/v2"
+	"slices"
+
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisy "github.com/GoogleCloudPlatform/compute-daisy"
@@ -26,26 +30,34 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "cvm"
 
-// cvmZones lists the zones that support CVM machine types. Namely, SEV on C3D machines
-// (AMD Genoa CPU), SEV-SNP on N2D machines (AMD Milan CPU), and Intel TDX on C3 machines
-// (Intel Sapphire Rapids CPU).
-// See https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations
-var cvmZones = map[string]bool{
-	"us-central1-a": true, "us-central1-b": true, "us-central1-c": true,
-	"europe-west4-a": true, "europe-west4-b": true, "europe-west4-c": true,
-	"asia-southeast1-a": true, "asia-southeast1-b": true, "asia-southeast1-c": true,
+// cvmZones lists the zones that support every CVM type tested here: SEV on C3D
+// machines (AMD Genoa CPU), SEV-SNP on N2D machines (AMD Milan CPU), and Intel TDX
+// on C3 machines (Intel Sapphire Rapids CPU).
+// See https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations#supported-zones
+var cvmZones = []string{
+	"us-central1-a", "us-central1-b", "us-central1-c",
+	"europe-west3-a", "europe-west3-b",
+	"europe-west4-a", "europe-west4-b", "europe-west4-c",
+	"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c",
+}
+
+// pickZone returns zone if it is in cvmZones, and a random zone from cvmZones
+// otherwise. CIT reruns TestSetup with the next -zones entry after a stockout or
+// quota error, so a retry picks again.
+func pickZone(zone string) string {
+	if slices.Contains(cvmZones, zone) {
+		return zone
+	}
+	return cvmZones[rand.IntN(len(cvmZones))]
 }
 
 // TestSetup sets up test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	dedicatedZone := t.Zone.Name
-	// Check if CLI zone is a valid CVM zone. If not, fall back to us-central1-a.
-	if !cvmZones[dedicatedZone] {
-		dedicatedZone = "us-central1-a"
-	}
 	for _, feature := range t.ImageBeta.GuestOsFeatures {
 		switch feature.Type {
 		case "SEV_CAPABLE":
+			zone := pickZone(t.Zone.Name)
+			log.Printf("Using zone %s for SEV test", zone)
 			sevtests := "TestSEVEnabled|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sev"
@@ -62,14 +74,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			}
 			vm.MachineType = "c3d-standard-4"
 			vm.MinCpuPlatform = "AMD Genoa"
-			disks := []*compute.Disk{{Name: vm.Name, Type: imagetest.PdBalanced, Zone: dedicatedZone}}
+			disks := []*compute.Disk{{Name: vm.Name, Type: imagetest.PdBalanced, Zone: zone}}
 			tvm, err := t.CreateTestVMFromInstanceBeta(vm, disks)
 			if err != nil {
 				return err
 			}
-			tvm.ForceZone(dedicatedZone)
+			tvm.ForceZone(zone)
 			tvm.RunTests(sevtests)
 		case "SEV_SNP_CAPABLE":
+			zone := pickZone(t.Zone.Name)
+			log.Printf("Using zone %s for SEV-SNP test", zone)
 			sevsnptests := "TestSEVSNPEnabled|TestSEVSNPAttestation|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "sevsnp"
@@ -81,15 +95,17 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			vm.MachineType = "n2d-standard-2"
 			vm.MinCpuPlatform = "AMD Milan"
 			disks := []*compute.Disk{
-				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: dedicatedZone},
+				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: zone},
 			}
 			tvm, err := t.CreateTestVMFromInstanceBeta(vm, disks)
 			if err != nil {
 				return err
 			}
-			tvm.ForceZone(dedicatedZone)
+			tvm.ForceZone(zone)
 			tvm.RunTests(sevsnptests)
 		case "TDX_CAPABLE":
+			zone := pickZone(t.Zone.Name)
+			log.Printf("Using zone %s for TDX test", zone)
 			tdxtests := "TestTDXEnabled|TestTDXAttestation|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
 			vm.Name = "tdx"
@@ -101,13 +117,13 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			vm.MachineType = "c3-standard-4"
 			vm.MinCpuPlatform = "Intel Sapphire Rapids"
 			disks := []*compute.Disk{
-				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: dedicatedZone},
+				{Name: vm.Name, Type: imagetest.PdBalanced, Zone: zone},
 			}
 			tvm, err := t.CreateTestVMFromInstanceBeta(vm, disks)
 			if err != nil {
 				return err
 			}
-			tvm.ForceZone(dedicatedZone)
+			tvm.ForceZone(zone)
 			tvm.RunTests(tdxtests)
 		}
 	}
