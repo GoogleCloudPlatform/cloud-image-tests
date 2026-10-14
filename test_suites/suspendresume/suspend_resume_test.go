@@ -24,8 +24,32 @@ import (
 )
 
 func TestSuspend(t *testing.T) {
+	ctx := utils.Context(t)
 	if utils.IsWindows() {
-		out, err := utils.RunPowershellCmd(`$TurnOffSettingCount=0;
+		image, err := utils.GetMetadata(ctx, "instance", "image")
+		if err != nil {
+			t.Fatalf("could not get image name: %v", err)
+		}
+		var out utils.ProcessStatus
+		if strings.Contains(image, "-core") {
+			out, err = utils.RunPowershellCmd(`$TurnOffSettingCount=0;
+ $SleepButtonSettingCount=0;
+ Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerSettingDataIndex | ForEach-Object {
+   $power_setting = $_ | Get-CimAssociatedInstance -ResultClassName Win32_PowerSetting -OperationTimeoutSec 10;
+   if ($power_setting -and $power_setting.ElementName -eq "Turn off display after") {
+     if ($_.SettingIndexValue -ne 0) {
+       $TurnOffSettingCount=$TurnOffSettingCount+1;
+     }
+   }
+   if ($power_setting -and $power_setting.ElementName -eq "Sleep button action") {
+     if ($_.SettingIndexValue -ne 1) {
+       $SleepButtonSettingCount=$SleepButtonSettingCount+1;
+     }
+   }
+ };
+ Return "TurnOffDisplay:"+$TurnOffSettingCount+" SleepButton:"+$SleepButtonSettingCount;+""`)
+		} else {
+			out, err = utils.RunPowershellCmd(`$TurnOffSettingCount=0;
  $SleepButtonSettingCount=0;
  Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerSetting | Where-Object { $_.ElementName -in @("Turn off display after", "Sleep button action") } | ForEach-Object {
    $power_setting = $_;
@@ -43,6 +67,7 @@ func TestSuspend(t *testing.T) {
    }
  };
  Return "TurnOffDisplay:"+$TurnOffSettingCount+" SleepButton:"+$SleepButtonSettingCount`)
+		}
 		if err != nil {
 			t.Errorf("could not check power settings: %s %s %v", out.Stdout, out.Stderr, err)
 		}
@@ -63,7 +88,6 @@ func TestSuspend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not mark beginning of suspend testing: %v", err)
 	}
-	ctx := utils.Context(t)
 	prj, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
 		t.Fatalf("could not find project and zone: %v", err)
