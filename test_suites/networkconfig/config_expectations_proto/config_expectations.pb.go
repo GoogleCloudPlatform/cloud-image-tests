@@ -375,6 +375,7 @@ type NicExpectation struct {
 	xxx_hidden_RxQueues    *[]*RxQueue            `protobuf:"bytes,3,rep,name=rx_queues,json=rxQueues"`
 	xxx_hidden_RxRingSize  int32                  `protobuf:"varint,4,opt,name=rx_ring_size,json=rxRingSize"`
 	xxx_hidden_TxRingSize  int32                  `protobuf:"varint,5,opt,name=tx_ring_size,json=txRingSize"`
+	xxx_hidden_NumaNode    int32                  `protobuf:"varint,6,opt,name=numa_node,json=numaNode"`
 	XXX_raceDetectHookData protoimpl.RaceDetectHookData
 	XXX_presence           [1]uint32
 	unknownFields          protoimpl.UnknownFields
@@ -448,9 +449,16 @@ func (x *NicExpectation) GetTxRingSize() int32 {
 	return 0
 }
 
+func (x *NicExpectation) GetNumaNode() int32 {
+	if x != nil {
+		return x.xxx_hidden_NumaNode
+	}
+	return 0
+}
+
 func (x *NicExpectation) SetType(v string) {
 	x.xxx_hidden_Type = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 6)
 }
 
 func (x *NicExpectation) SetTxQueues(v []*TxQueue) {
@@ -463,12 +471,17 @@ func (x *NicExpectation) SetRxQueues(v []*RxQueue) {
 
 func (x *NicExpectation) SetRxRingSize(v int32) {
 	x.xxx_hidden_RxRingSize = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 6)
 }
 
 func (x *NicExpectation) SetTxRingSize(v int32) {
 	x.xxx_hidden_TxRingSize = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 6)
+}
+
+func (x *NicExpectation) SetNumaNode(v int32) {
+	x.xxx_hidden_NumaNode = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 6)
 }
 
 func (x *NicExpectation) HasType() bool {
@@ -492,6 +505,13 @@ func (x *NicExpectation) HasTxRingSize() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
 }
 
+func (x *NicExpectation) HasNumaNode() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
+}
+
 func (x *NicExpectation) ClearType() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
 	x.xxx_hidden_Type = nil
@@ -507,6 +527,11 @@ func (x *NicExpectation) ClearTxRingSize() {
 	x.xxx_hidden_TxRingSize = 0
 }
 
+func (x *NicExpectation) ClearNumaNode() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
+	x.xxx_hidden_NumaNode = 0
+}
+
 type NicExpectation_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -520,6 +545,8 @@ type NicExpectation_builder struct {
 	// Receive and transmit ring buffer sizes for this NIC.
 	RxRingSize *int32
 	TxRingSize *int32
+	// The NUMA node associated with this NIC.
+	NumaNode *int32
 }
 
 func (b0 NicExpectation_builder) Build() *NicExpectation {
@@ -527,18 +554,22 @@ func (b0 NicExpectation_builder) Build() *NicExpectation {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Type != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 6)
 		x.xxx_hidden_Type = b.Type
 	}
 	x.xxx_hidden_TxQueues = &b.TxQueues
 	x.xxx_hidden_RxQueues = &b.RxQueues
 	if b.RxRingSize != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 6)
 		x.xxx_hidden_RxRingSize = *b.RxRingSize
 	}
 	if b.TxRingSize != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 6)
 		x.xxx_hidden_TxRingSize = *b.TxRingSize
+	}
+	if b.NumaNode != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 6)
+		x.xxx_hidden_NumaNode = *b.NumaNode
 	}
 	return m0
 }
@@ -814,7 +845,7 @@ const file_test_suites_networkconfig_config_expectations_config_expectations_pro
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12!\n" +
 	"\fmachine_type\x18\x02 \x01(\tR\vmachineType\x12\x87\x01\n" +
 	"\x11guest_os_selector\x18\x03 \x01(\v2[.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.GuestOsSelectorR\x0fguestOsSelector\x12n\n" +
-	"\x04nics\x18\x04 \x03(\v2Z.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectationR\x04nics\"\xcc\x02\n" +
+	"\x04nics\x18\x04 \x03(\v2Z.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.NicExpectationR\x04nics\"\xe9\x02\n" +
 	"\x0eNicExpectation\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12p\n" +
 	"\ttx_queues\x18\x02 \x03(\v2S.github_com.googlecloudplatform.cloud_image_tests.test_suites.networkconfig.TxQueueR\btxQueues\x12p\n" +
@@ -822,7 +853,8 @@ const file_test_suites_networkconfig_config_expectations_config_expectations_pro
 	"\frx_ring_size\x18\x04 \x01(\x05R\n" +
 	"rxRingSize\x12 \n" +
 	"\ftx_ring_size\x18\x05 \x01(\x05R\n" +
-	"txRingSize\"@\n" +
+	"txRingSize\x12\x1b\n" +
+	"\tnuma_node\x18\x06 \x01(\x05R\bnumaNode\"@\n" +
 	"\aRxQueue\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x1f\n" +
 	"\virq_cpulist\x18\x02 \x01(\tR\n" +

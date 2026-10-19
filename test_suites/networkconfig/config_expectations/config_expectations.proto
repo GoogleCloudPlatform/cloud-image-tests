@@ -67,6 +67,9 @@ message NicExpectation {
   // Receive and transmit ring buffer sizes for this NIC.
   int32 rx_ring_size = 4;
   int32 tx_ring_size = 5;
+
+  // The NUMA node associated with this NIC.
+  int32 numa_node = 6;
 }
 
 message RxQueue {
