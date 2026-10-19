@@ -112,6 +112,27 @@ func (t *TestWorkflow) SkippedMessage() string {
 	return t.skippedMessage
 }
 
+// ShouldRunTests reports whether any test in tests, given in the RunTests
+// format ("TestA|TestB"), is left to run after -exclude_discrete_tests. Suites
+// can use it to avoid creating VMs whose tests are all excluded. tests should
+// list exact test names.
+func (t *TestWorkflow) ShouldRunTests(tests string) bool {
+	// A filter containing "/" only skips subtests, so the tests still run.
+	if t.testExcludeFilter == "" || strings.Contains(t.testExcludeFilter, "/") {
+		return true
+	}
+	exclude, err := regexp.Compile(t.testExcludeFilter)
+	if err != nil {
+		return true
+	}
+	for _, test := range strings.Split(tests, "|") {
+		if !exclude.MatchString(test) {
+			return true
+		}
+	}
+	return false
+}
+
 // LockProject indicates this test modifies project-level data and must have
 // exclusive use of the project.
 func (t *TestWorkflow) LockProject() {

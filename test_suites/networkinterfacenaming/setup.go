@@ -45,8 +45,34 @@ var (
 	supportedZones = []string{"asia-southeast1-a", "asia-southeast1-c", "us-west1-a", "us-west1-b", "us-east1-c", "us-east1-d", "us-east4-a", "us-east4-c", "europe-west1-b", "europe-west1-c"}
 )
 
-// TestSetup sets up the test workflow.
+// TestSetup sets up the test workflow. It doesn't create VMs whose tests are
+// all excluded by -exclude_discrete_tests.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	runNICNaming := t.ShouldRunTests("TestNICNamingScheme")
+	runIDPFNICNaming := t.Image.Architecture == "X86_64" && utils.HasFeature(t.Image, "IDPF") && t.ShouldRunTests("TestIDPFNICNamingScheme")
+	if !runNICNaming && !runIDPFNICNaming {
+		t.Skip("all applicable networkinterfacenaming tests are excluded")
+		return nil
+	}
+
+	if runIDPFNICNaming {
+		zone := c3metalZone()
+		fmt.Printf("Using zone %s for c3-standard-192-metal instance\n", zone)
+		c3metal := &daisy.Instance{}
+		c3metal.MachineType = "c3-standard-192-metal"
+		c3metal.Zone = zone
+		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
+		c3MetalDiskType := imagetest.DiskTypeNeeded(c3metal.MachineType)
+		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: zone}}, c3metal)
+		if err != nil {
+			return err
+		}
+		c3metalVM.RunTests("TestIDPFNICNamingScheme")
+	}
+	if !runNICNaming {
+		return nil
+	}
+
 	network1, err := t.CreateNetwork("network-1", false)
 	if err != nil {
 		return err
@@ -92,21 +118,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		return err
 	}
 	nicnameVM.RunTests("TestNICNamingScheme")
-
-	if t.Image.Architecture == "X86_64" && utils.HasFeature(t.Image, "IDPF") {
-		zone := c3metalZone()
-		fmt.Printf("Using zone %s for c3-standard-192-metal instance\n", zone)
-		c3metal := &daisy.Instance{}
-		c3metal.MachineType = "c3-standard-192-metal"
-		c3metal.Zone = zone
-		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
-		c3MetalDiskType := imagetest.DiskTypeNeeded(c3metal.MachineType)
-		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: zone}}, c3metal)
-		if err != nil {
-			return err
-		}
-		c3metalVM.RunTests("TestIDPFNICNamingScheme")
-	}
 
 	return nil
 }

@@ -1041,3 +1041,26 @@ func TestMachineMaintenancePolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldRunTests(t *testing.T) {
+	tests := []struct {
+		excludeFilter string
+		tests         string
+		want          bool
+	}{
+		{excludeFilter: "", tests: "TestA", want: true},
+		{excludeFilter: "^TestA$", tests: "TestA", want: false},
+		{excludeFilter: "^TestA$", tests: "TestB", want: true},
+		{excludeFilter: "^TestA$", tests: "TestA|TestB", want: true},
+		{excludeFilter: "^(TestA|TestB)$", tests: "TestA|TestB", want: false},
+		{excludeFilter: "TestA/sub", tests: "TestA", want: true},
+		{excludeFilter: "(", tests: "TestA", want: true},
+	}
+	for _, tc := range tests {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.testExcludeFilter = tc.excludeFilter
+		if got := twf.ShouldRunTests(tc.tests); got != tc.want {
+			t.Errorf("ShouldRunTests(%q) with -exclude_discrete_tests=%q = %t, want %t", tc.tests, tc.excludeFilter, got, tc.want)
+		}
+	}
+}
