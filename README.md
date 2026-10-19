@@ -76,6 +76,10 @@ more information.
         Valid values are "both", "single", and "multi". "single" creates only
         single-NIC VMs, "multi" creates only multi-NIC VMs, and "both" creates
         both (default "both")
+    -lssd_metal_machine_type string
+        optional Bare Metal LSSD machine type to provision for Bare Metal LSSD udev naming tests
+    -lssd_metal_zone string
+        optional zone where the Bare Metal LSSD instance is created (defaults to the workflow zone)
 ```
 
 It can be invoked via Docker as:
