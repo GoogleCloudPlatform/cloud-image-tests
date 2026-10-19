@@ -147,6 +147,19 @@ func TestRingSizes(t *testing.T) {
 	}
 }
 
+func TestNumaNode(t *testing.T) {
+	c := proto()
+	for _, config := range c.GetConfigExpectations() {
+		t.Run(config.GetDescription(), func(t *testing.T) {
+			for nicIdx, nic := range config.GetNics() {
+				if nic.HasNumaNode() && nic.GetNumaNode() < 0 {
+					t.Errorf("NIC %d: negative numa_node %d", nicIdx, nic.GetNumaNode())
+				}
+			}
+		})
+	}
+}
+
 func TestKernelVersionFormat(t *testing.T) {
 	c := proto()
 	for _, config := range c.GetConfigExpectations() {
