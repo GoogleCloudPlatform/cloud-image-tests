@@ -470,6 +470,22 @@ func ringSizesForInterface(ifaceName string) (*networkutils.EthtoolRingSizes, er
 	return networkutils.ParseEthtoolGOutput(string(out))
 }
 
+func numaNodeForInterface(ifaceName string) (*int32, error) {
+	numaNodeFile := filepath.Join("/sys/class/net", ifaceName, "device/numa_node")
+	numaNodeBytes, err := os.ReadFile(numaNodeFile)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %q: %w", numaNodeFile, err)
+	}
+	numaNode, err := strconv.Atoi(strings.TrimSpace(string(numaNodeBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse numa_node %q: %w", numaNodeFile, err)
+	}
+	return proto.Int32(int32(numaNode)), nil
+}
+
 func buildQueuesXPSOnly(txQueueToXPS map[int]string) ([]*pb.TxQueue, error) {
 	var txQueues []*pb.TxQueue
 	for txQueueIndex, xpsCPUListStr := range txQueueToXPS {
@@ -560,10 +576,16 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("building queues for %q: %w", nicName, err)
 		}
 
+		numaNode, err := numaNodeForInterface(nicName)
+		if err != nil {
+			return nil, fmt.Errorf("getting NUMA node for %q: %w", nicName, err)
+		}
+
 		nicBuilder := pb.NicExpectation_builder{
 			Type:     proto.String(nicType),
 			TxQueues: txQueues,
 			RxQueues: rxQueues,
+			NumaNode: numaNode,
 		}
 
 		if rings, err := ringSizesForInterface(nicName); err == nil {
@@ -640,6 +662,9 @@ func TestDeviceConfig(t *testing.T) {
 		}
 		if !wantNic.HasTxRingSize() {
 			gotNic.ClearTxRingSize()
+		}
+		if !wantNic.HasNumaNode() {
+			gotNic.ClearNumaNode()
 		}
 	}
 

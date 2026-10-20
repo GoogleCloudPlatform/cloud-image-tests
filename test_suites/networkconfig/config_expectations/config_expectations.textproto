@@ -5270,6 +5270,7 @@ config_expectations: {
   machine_type: "n2-highcpu-32"
   nics: {
     type: "GVNIC"
+    numa_node: -1
     tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
     tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
     tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
@@ -5309,6 +5310,7 @@ config_expectations: {
   machine_type: "n2-highcpu-32"
   nics: {
     type: "GVNIC"
+    numa_node: -1
     tx_queues: { index: 0 irq_cpulist: "0" xps_cpulist: "0" }
     tx_queues: { index: 1 irq_cpulist: "1" xps_cpulist: "1" }
     tx_queues: { index: 2 irq_cpulist: "2" xps_cpulist: "2" }
