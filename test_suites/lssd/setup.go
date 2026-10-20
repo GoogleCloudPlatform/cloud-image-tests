@@ -18,6 +18,9 @@ package lssd
 import (
 	"flag"
 	"fmt"
+	"log"
+	"math/rand/v2"
+	"slices"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
@@ -27,6 +30,31 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "lssd"
+
+// c3LSSDZones lists the zones that support c3-standard-8-lssd and have C3_CPUS
+// and Local SSD quota in the CIT test pool projects.
+var c3LSSDZones = []string{
+	"us-central1-a", "us-central1-b", "us-central1-c",
+	"us-east1-b", "us-east1-c", "us-east1-d",
+	"us-east4-a", "us-east4-b", "us-east4-c",
+	"us-west1-a", "us-west1-b",
+	"us-west4-a", "us-west4-b",
+	"europe-west1-b", "europe-west1-c", "europe-west1-d",
+	"europe-west2-a", "europe-west2-c",
+	"europe-west3-a", "europe-west3-b", "europe-west3-c",
+	"europe-west4-a", "europe-west4-b", "europe-west4-c",
+	"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c",
+}
+
+// pickZone returns zone if it is in zones, and a random zone from zones
+// otherwise. CIT reruns TestSetup with the next -zones entry after a stockout or
+// quota error, so a retry picks again.
+func pickZone(zone string, zones []string) string {
+	if slices.Contains(zones, zone) {
+		return zone
+	}
+	return zones[rand.IntN(len(zones))]
+}
 
 var (
 	// lssdMetalMachineType is an optional Bare Metal LSSD machine type (e.g.
@@ -51,15 +79,13 @@ const (
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
 	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
-		vmZone := t.Zone.Name
-		if vmZone == "" {
-			vmZone = "us-west1-b"
-		}
+		zone := pickZone(t.Zone.Name, c3LSSDZones)
+		log.Printf("Using zone %s for c3-standard-8-lssd test", zone)
 		lssdMountInst := &daisy.Instance{}
-		lssdMountInst.Zone = vmZone
+		lssdMountInst.Zone = zone
 		lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: vmZone, Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
+		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: zone, Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
 		if err != nil {
 			return err
 		}
@@ -78,7 +104,10 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		if metalMachineType != "" && !utils.HasFeature(t.Image, "WINDOWS") {
 			metalZone := *lssdMetalZone
 			if metalZone == "" {
-				metalZone = vmZone
+				metalZone = t.Zone.Name
+			}
+			if metalZone == "" {
+				metalZone = zone
 			}
 			fmt.Printf("Using zone %s for %s Bare Metal LSSD instance\n", metalZone, metalMachineType)
 			lssdMetalInst := &daisy.Instance{}
