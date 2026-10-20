@@ -30,9 +30,8 @@ import (
 // Name is the name of the test package. It must match the directory name.
 var Name = "cvm"
 
-// cvmZones lists the zones that support every CVM type tested here: SEV on C3D
-// machines (AMD Genoa CPU), SEV-SNP on N2D machines (AMD Milan CPU), and Intel TDX
-// on C3 machines (Intel Sapphire Rapids CPU).
+// cvmZones lists the zones that support SEV on C3D machines (AMD Genoa CPU) and
+// Intel TDX on C3 machines (Intel Sapphire Rapids CPU).
 // See https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/supported-configurations#supported-zones
 var cvmZones = []string{
 	"us-central1-a", "us-central1-b", "us-central1-c",
@@ -41,14 +40,20 @@ var cvmZones = []string{
 	"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c",
 }
 
-// pickZone returns zone if it is in cvmZones, and a random zone from cvmZones
+// sevSnpZones lists the zones that both support SEV-SNP on N2D machines (AMD
+// Milan CPU) and have N2D_CPUS quota in the CIT test pool projects.
+var sevSnpZones = []string{
+	"us-central1-a", "us-central1-b", "us-central1-c",
+}
+
+// pickZone returns zone if it is in zones, and a random zone from zones
 // otherwise. CIT reruns TestSetup with the next -zones entry after a stockout or
 // quota error, so a retry picks again.
-func pickZone(zone string) string {
-	if slices.Contains(cvmZones, zone) {
+func pickZone(zone string, zones []string) string {
+	if slices.Contains(zones, zone) {
 		return zone
 	}
-	return cvmZones[rand.IntN(len(cvmZones))]
+	return zones[rand.IntN(len(zones))]
 }
 
 // TestSetup sets up test workflow.
@@ -56,7 +61,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	for _, feature := range t.ImageBeta.GuestOsFeatures {
 		switch feature.Type {
 		case "SEV_CAPABLE":
-			zone := pickZone(t.Zone.Name)
+			zone := pickZone(t.Zone.Name, cvmZones)
 			log.Printf("Using zone %s for SEV test", zone)
 			sevtests := "TestSEVEnabled|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
@@ -82,7 +87,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			tvm.ForceZone(zone)
 			tvm.RunTests(sevtests)
 		case "SEV_SNP_CAPABLE":
-			zone := pickZone(t.Zone.Name)
+			zone := pickZone(t.Zone.Name, sevSnpZones)
 			log.Printf("Using zone %s for SEV-SNP test", zone)
 			sevsnptests := "TestSEVSNPEnabled|TestSEVSNPAttestation|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
@@ -104,7 +109,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			tvm.ForceZone(zone)
 			tvm.RunTests(sevsnptests)
 		case "TDX_CAPABLE":
-			zone := pickZone(t.Zone.Name)
+			zone := pickZone(t.Zone.Name, cvmZones)
 			log.Printf("Using zone %s for TDX test", zone)
 			tdxtests := "TestTDXEnabled|TestTDXAttestation|TestCheckApicId|TestCheckCpuidLeaf7"
 			vm := &daisy.InstanceBeta{}
