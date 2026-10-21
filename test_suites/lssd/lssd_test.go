@@ -240,12 +240,51 @@ func udevPropertiesForDevice(t *testing.T, devPath string) map[string]string {
 	return props
 }
 
+// googleNVMeIDSupportsVendorExt returns the resolved google_nvme_id script path
+// and whether its -h output documents the Bare Metal -e vendor-extension flag.
+// TODO(b/573992297): Remove vendor-extension support from google_nvme_id and
+// this function after NVMe Local SSD udev rules are fully rolled out.
+func googleNVMeIDSupportsVendorExt(t *testing.T) (string, bool) {
+	t.Helper()
+	scriptPath, err := findFirstExistingFile(googleNVMeIDCandidatePaths)
+	if err != nil {
+		t.Fatalf("could not find google_nvme_id script: %v", err)
+	}
+	helpOut, err := exec.Command(scriptPath, "-h").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s -h failed: %v, output: %s", scriptPath, err, string(helpOut))
+	}
+	return scriptPath, strings.Contains(string(helpOut), "-e")
+}
+
+// skipIfBareMetalVendorExtUnsupported skips the calling test when the installed
+// google_nvme_id script does not yet support the -e vendor-extension flag.
+func skipIfBareMetalVendorExtUnsupported(t *testing.T) {
+	t.Helper()
+	utils.LinuxOnly(t)
+	if scriptPath, ok := googleNVMeIDSupportsVendorExt(t); !ok {
+		t.Skipf("%s does not yet support -e flag (older guest-configs package); skipping Bare Metal LSSD test", scriptPath)
+	}
+}
+
 // TestUdevRulesAndScript verifies that 65-gce-disk-naming.rules and
 // google_nvme_id are present on the guest image and include the NVMe Local SSD
-// rules (single-controller, multi-controller, Bare Metal vendor extension, and
-// partition symlinks).
+// rules (single-controller, multi-controller, partition symlinks, and Bare
+// Metal vendor extension when supported by the installed google_nvme_id).
 func TestUdevRulesAndScript(t *testing.T) {
 	utils.LinuxOnly(t)
+
+	scriptPath, supportsVendorExt := googleNVMeIDSupportsVendorExt(t)
+	info, err := os.Stat(scriptPath)
+	if err != nil {
+		t.Fatalf("failed to stat %s: %v", scriptPath, err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Errorf("%s is not executable (mode %v)", scriptPath, info.Mode())
+	}
+	if !supportsVendorExt {
+		t.Logf("%s does not yet support -e flag; skipping Bare Metal vendor-extension udev rule check", scriptPath)
+	}
 
 	rulesPath, err := findFirstExistingFile(udevRulesCandidatePaths)
 	if err != nil {
@@ -260,34 +299,18 @@ func TestUdevRulesAndScript(t *testing.T) {
 	expectedRuleSnippets := []string{
 		`ATTRS{model}=="nvme_card"`,
 		`ATTRS{model}=="nvme_card[0-9]*"`,
-		`ATTRS{model}=="nvme_card", ATTRS{serial}!="nvme_card*", IMPORT{program}="google_nvme_id -e -d $tempnode"`,
 		`SYMLINK+="disk/by-id/google-$env{ID_SERIAL_SHORT}"`,
 		`SYMLINK+="disk/by-id/google-$env{ID_SERIAL_SHORT}-part%n"`,
+	}
+	if supportsVendorExt {
+		expectedRuleSnippets = append(expectedRuleSnippets,
+			`ATTRS{model}=="nvme_card", ATTRS{serial}!="nvme_card*", IMPORT{program}="google_nvme_id -e -d $tempnode"`,
+		)
 	}
 	for _, snippet := range expectedRuleSnippets {
 		if !strings.Contains(rulesContent, snippet) {
 			t.Errorf("%s is missing expected rule snippet %q", rulesPath, snippet)
 		}
-	}
-
-	scriptPath, err := findFirstExistingFile(googleNVMeIDCandidatePaths)
-	if err != nil {
-		t.Fatalf("could not find google_nvme_id script: %v", err)
-	}
-	info, err := os.Stat(scriptPath)
-	if err != nil {
-		t.Fatalf("failed to stat %s: %v", scriptPath, err)
-	}
-	if info.Mode()&0111 == 0 {
-		t.Errorf("%s is not executable (mode %v)", scriptPath, info.Mode())
-	}
-
-	helpOut, err := exec.Command(scriptPath, "-h").CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s -h failed: %v, output: %s", scriptPath, err, string(helpOut))
-	}
-	if !strings.Contains(string(helpOut), "-e") {
-		t.Errorf("%s -h output does not document -e flag:\n%s", scriptPath, string(helpOut))
 	}
 }
 
@@ -469,12 +492,14 @@ func TestBareMetalUdevRulesAndScript(t *testing.T) {
 // TestBareMetalLSSDSymlinksAndUdevProperties runs
 // TestLSSDSymlinksAndUdevProperties on a Bare Metal LSSD instance.
 func TestBareMetalLSSDSymlinksAndUdevProperties(t *testing.T) {
+	skipIfBareMetalVendorExtUnsupported(t)
 	TestLSSDSymlinksAndUdevProperties(t)
 }
 
 // TestBareMetalLSSDPartitionSymlinks runs TestLSSDPartitionSymlinks on a Bare
 // Metal LSSD instance.
 func TestBareMetalLSSDPartitionSymlinks(t *testing.T) {
+	skipIfBareMetalVendorExtUnsupported(t)
 	TestLSSDPartitionSymlinks(t)
 }
 
@@ -484,6 +509,6 @@ func TestBareMetalLSSDPartitionSymlinks(t *testing.T) {
 // vendor extension for each drive and that /dev/disk/by-id/google-<ID_SERIAL_SHORT>
 // resolves to that drive.
 func TestBareMetalLSSDVendorExtensionNaming(t *testing.T) {
-	utils.LinuxOnly(t)
+	skipIfBareMetalVendorExtUnsupported(t)
 	verifyGoogleNVMeIDOutput(t, true)
 }
