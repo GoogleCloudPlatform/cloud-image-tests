@@ -2666,7 +2666,7 @@ config_expectations: {
 }
 config_expectations: {
   description: "C3D 360 machine with 1 GVNIC"
-  machine_type: "c3d-standard-360"
+  machine_type: "c3d-highcpu-360"
   nics: {
     type: "GVNIC"
     tx_ring_size: 1024
