@@ -4141,6 +4141,14 @@ config_expectations: {
   }
   nics: {
     type: "IRDMA"
+    tx_queues: { index: 0 xps_cpulist: "" }
+    tx_queues: { index: 1 xps_cpulist: "" }
+    tx_queues: { index: 2 xps_cpulist: "" }
+    tx_queues: { index: 3 xps_cpulist: "" }
+    tx_queues: { index: 4 xps_cpulist: "" }
+    tx_queues: { index: 5 xps_cpulist: "" }
+    tx_queues: { index: 6 xps_cpulist: "" }
+    tx_queues: { index: 7 xps_cpulist: "" }
   }
 }
 config_expectations: {
@@ -4709,22 +4717,22 @@ config_expectations: {
     type: "IDPF"
     tx_ring_size: 2048
     rx_ring_size: 4096
-    tx_queues: { index: 0 irq_cpulist: "1" }
-    tx_queues: { index: 1 irq_cpulist: "2" }
-    tx_queues: { index: 2 irq_cpulist: "3" }
-    tx_queues: { index: 3 irq_cpulist: "4" }
-    tx_queues: { index: 4 irq_cpulist: "5" }
-    tx_queues: { index: 5 irq_cpulist: "6" }
-    tx_queues: { index: 6 irq_cpulist: "7" }
-    tx_queues: { index: 7 irq_cpulist: "8" }
-    tx_queues: { index: 8 irq_cpulist: "9" }
-    tx_queues: { index: 9 irq_cpulist: "10" }
-    tx_queues: { index: 10 irq_cpulist: "11" }
-    tx_queues: { index: 11 irq_cpulist: "12" }
-    tx_queues: { index: 12 irq_cpulist: "13" }
-    tx_queues: { index: 13 irq_cpulist: "14" }
-    tx_queues: { index: 14 irq_cpulist: "15" }
-    tx_queues: { index: 15 irq_cpulist: "16" }
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "" }
     rx_queues: { index: 0 irq_cpulist: "1" }
     rx_queues: { index: 1 irq_cpulist: "2" }
     rx_queues: { index: 2 irq_cpulist: "3" }
