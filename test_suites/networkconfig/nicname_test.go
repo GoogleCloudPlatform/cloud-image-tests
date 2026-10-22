@@ -16,37 +16,11 @@
 package networkconfig
 
 import (
-	"fmt"
-	"regexp"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 )
-
-var (
-	// e.g.: eth0, ens3, enp0s19, enp6s0f0
-	validGeneralPurposeRe = regexp.MustCompile(`^((eth|ens)\d+|(enp\d+[sp]\d+(f\d+)?))$`)
-	validIRDMARe          = regexp.MustCompile(`^rdma\d+$`)
-	validMRDMARe          = regexp.MustCompile(`^gpu\d+rdma\d+$`)
-)
-
-func expectedNICRegex(nicType string) (*regexp.Regexp, error) {
-	switch nicType {
-	case networkutils.NICTypeVIRTIONET:
-		return validGeneralPurposeRe, nil
-	case networkutils.NICTypeGVNIC:
-		return validGeneralPurposeRe, nil
-	case networkutils.NICTypeIDPF:
-		return validGeneralPurposeRe, nil
-	case networkutils.NICTypeIRDMA:
-		return validIRDMARe, nil
-	case networkutils.NICTypeMRDMA:
-		return validMRDMARe, nil
-	default:
-		return nil, fmt.Errorf("unknown/unsupported NIC type: %q", nicType)
-	}
-}
 
 func TestNICNames(t *testing.T) {
 	ctx := utils.Context(t)
@@ -72,9 +46,9 @@ func TestNICNames(t *testing.T) {
 		seenIfaceNames[systemIface.Name] = true
 
 		t.Run(systemIface.Name, func(t *testing.T) {
-			regex, err := expectedNICRegex(mdsIface.NICType)
+			regex, err := networkutils.ExpectedNICRegex(mdsIface.NICType)
 			if err != nil {
-				t.Errorf("expectedNICRegex(%q) = err %v want nil", mdsIface.NICType, err)
+				t.Errorf("ExpectedNICRegex(%q) = err %v want nil", mdsIface.NICType, err)
 				return
 			}
 

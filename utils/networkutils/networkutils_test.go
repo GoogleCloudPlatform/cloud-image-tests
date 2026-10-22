@@ -799,3 +799,103 @@ func TestCompareKernelVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestValidGeneralPurposeNICRe(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "legacy_eth0", input: "eth0", want: true},
+		{name: "pci_onboard", input: "eno1", want: true},
+		{name: "pci_onboard_phys_port", input: "eno1np0", want: true},
+		{name: "pci_onboard_dev_port", input: "eno1d1", want: true},
+		{name: "pci_onboard_sriov_vf", input: "eno1v0", want: true},
+		{name: "devicetree_onboard", input: "end0", want: true},
+		{name: "mac_ethernet", input: "enx54ee75cb1dc0", want: true},
+		{name: "pci_slot_basic", input: "ens1", want: true},
+		{name: "pci_slot_ens3", input: "ens3", want: true},
+		{name: "pci_slot_domain_and_func", input: "enP2s6022f0", want: true},
+		{name: "pci_slot_func_sriov_vf", input: "ens1f0v0", want: true},
+		{name: "pci_slot_func_sriov_rep", input: "ens1f0r0", want: true},
+		{name: "pci_slot_bcma", input: "ens1b1", want: true},
+		{name: "pci_slot_usb_chain", input: "ens1u1u2c2i1", want: true},
+		{name: "vio_slot", input: "env1", want: true},
+		{name: "xen_slot", input: "enX0", want: true},
+		{name: "ccw_path", input: "encf5f0", want: true},
+		{name: "acpi_path_3char_vendor", input: "enaabc00c2i0", want: true},
+		{name: "acpi_path_4char_vendor", input: "enahisic2i0", want: true},
+		{name: "netdevsim_path", input: "eni1np0", want: true},
+		{name: "usb_path", input: "enu1u2", want: true},
+		{name: "pci_path_basic", input: "enp0s19", want: true},
+		{name: "pci_path_multifunc", input: "enp6s0f0", want: true},
+		{name: "pci_path_sriov_vf", input: "enp1s0f0v0", want: true},
+		{name: "pci_path_domain_sriov_vf", input: "enP2p1s0f0v0", want: true},
+		{name: "pci_path_phys_port", input: "enp216s0f0np0", want: true},
+		{name: "pci_path_dev_port", input: "enp0s19d1", want: true},
+		{name: "pci_path_usb_phone", input: "enp0s29u1u2", want: true},
+		{name: "non_ethernet_mac_wlan", input: "wlx0024d7e31130", want: false},
+		{name: "non_ethernet_mac_wwan", input: "wwx028037ec0200", want: false},
+		{name: "non_ethernet_pci_path_wwan", input: "wwp0s29u1u4i6", want: false},
+		{name: "non_ethernet_pci_path_infiniband", input: "ibp21s0f0", want: false},
+		{name: "non_ethernet_pci_path_wlan", input: "wlp3s0", want: false},
+		{name: "bare_prefix", input: "en", want: false},
+		{name: "domain_only", input: "enP2", want: false},
+		{name: "bus_only", input: "enp0", want: false},
+		{name: "function_without_slot", input: "enf0", want: false},
+		{name: "trailing_tmp_on_slot", input: "ens3tmp", want: false},
+		{name: "trailing_tmp_on_path", input: "enp0s19tmp", want: false},
+		{name: "short_mac", input: "enx12345", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ValidGeneralPurposeNICRe.MatchString(tc.input); got != tc.want {
+				t.Errorf("ValidGeneralPurposeNICRe.MatchString(%q) = %t, want %t", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExpectedNICRegex(t *testing.T) {
+	tests := []struct {
+		name    string
+		nicType string
+		ifname  string
+		want    bool
+	}{
+		{name: "gvnic_legacy_eth0", nicType: NICTypeGVNIC, ifname: "eth0", want: true},
+		{name: "gvnic_pci_slot", nicType: NICTypeGVNIC, ifname: "ens3", want: true},
+		{name: "gvnic_pci_path", nicType: NICTypeGVNIC, ifname: "enp0s19", want: true},
+		{name: "gvnic_pci_domain_slot_func", nicType: NICTypeGVNIC, ifname: "enP2s6022f0", want: true},
+		{name: "idpf_pci_path_func", nicType: NICTypeIDPF, ifname: "enp6s0f0", want: true},
+		{name: "idpf_pci_path_func_vf", nicType: NICTypeIDPF, ifname: "enp1s0f0v0", want: true},
+		{name: "virtionet_pci_onboard", nicType: NICTypeVIRTIONET, ifname: "eno1", want: true},
+		{name: "gvnic_rejects_infiniband_prefix", nicType: NICTypeGVNIC, ifname: "ibp21s0f0", want: false},
+		{name: "gvnic_rejects_eth0tmp", nicType: NICTypeGVNIC, ifname: "eth0tmp", want: false},
+		{name: "gvnic_rejects_bare_en", nicType: NICTypeGVNIC, ifname: "en", want: false},
+		{name: "gvnic_rejects_rdma", nicType: NICTypeGVNIC, ifname: "rdma0", want: false},
+		{name: "irdma_valid", nicType: NICTypeIRDMA, ifname: "rdma0", want: true},
+		{name: "irdma_rejects_mrdma", nicType: NICTypeIRDMA, ifname: "gpu0rdma0", want: false},
+		{name: "mrdma_valid", nicType: NICTypeMRDMA, ifname: "gpu0rdma0", want: true},
+		{name: "mrdma_rejects_irdma", nicType: NICTypeMRDMA, ifname: "rdma0", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			re, err := ExpectedNICRegex(tc.nicType)
+			if err != nil {
+				t.Fatalf("ExpectedNICRegex(%q) returned unexpected error: %v", tc.nicType, err)
+			}
+			if got := re.MatchString(tc.ifname); got != tc.want {
+				t.Errorf("ExpectedNICRegex(%q).MatchString(%q) = %t, want %t", tc.nicType, tc.ifname, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExpectedNICRegex_Errors(t *testing.T) {
+	if got, err := ExpectedNICRegex("UNKNOWN_NIC"); err == nil {
+		t.Errorf("ExpectedNICRegex(%q) = (%v, nil), want non-nil error", "UNKNOWN_NIC", got)
+	}
+}

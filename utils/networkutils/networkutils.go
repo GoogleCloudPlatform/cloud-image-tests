@@ -42,6 +42,61 @@ const (
 	NICTypeIRDMA = "IRDMA"
 	// NICTypeMRDMA is the string type for an MRDMA interface.
 	NICTypeMRDMA = "MRDMA"
+
+	// Grammar for predictable network interface names from systemd.net-naming-scheme(7).
+	// See https://man7.org/linux/man-pages/man7/systemd.net-naming-scheme.7.html.
+
+	// Basic tokens.
+	decimal  = `[0-9]+`
+	hex      = `[0-9a-fA-F]+`
+	macAddr  = `[0-9a-fA-F]{12}`
+	portName = `[a-z0-9]+`
+
+	// Two-character Ethernet interface type prefix.
+	prefixEthernet = "en"
+
+	// Shared PCI, USB, BCMA, and SR-IOV component specifiers.
+	pciDomain        = "P" + decimal
+	pciBus           = "p" + decimal
+	pciSlot          = "s" + decimal
+	pciFunction      = "f" + decimal
+	portSpecifier    = "n" + portName + "|d" + decimal
+	bcmaCore         = "b" + decimal
+	usbPortChain     = "(u" + decimal + ")+(c" + decimal + ")?(i" + decimal + ")?"
+	sriovVF          = "v" + decimal
+	sriovRepresentor = "r" + decimal
+	pciSuffix        = bcmaCore + "|" + usbPortChain + "|" + sriovVF + "|" + sriovRepresentor
+
+	// On-board naming schemes (ID_NET_NAME_ONBOARD).
+	pciOnboard        = "o" + decimal + "(" + portSpecifier + ")?(" + sriovVF + "|" + sriovRepresentor + ")?"
+	devicetreeOnboard = "d" + decimal
+	onboardNaming     = pciOnboard + "|" + devicetreeOnboard
+
+	// MAC address naming scheme (ID_NET_NAME_MAC).
+	macNaming = "x" + macAddr
+
+	// Slot naming schemes (ID_NET_NAME_SLOT).
+	pciSlotNaming = "(" + pciDomain + ")?" + pciSlot + "(" + pciFunction + ")?(" + portSpecifier + ")?(" + pciSuffix + ")?"
+	vioSlotNaming = "v" + decimal
+	xenSlotNaming = "X" + decimal
+	slotNaming    = pciSlotNaming + "|" + vioSlotNaming + "|" + xenSlotNaming
+
+	// Path naming schemes (ID_NET_NAME_PATH).
+	ccwPathNaming       = "c" + hex
+	acpiVendor          = `[a-z0-9]{3,4}`
+	acpiPathNaming      = "a" + acpiVendor + hex + "i" + decimal
+	netdevsimPathNaming = "i" + decimal + "n" + portName
+	usbPathNaming       = usbPortChain
+	pciPathNaming       = "(" + pciDomain + ")?" + pciBus + pciSlot + "(" + pciFunction + ")?(" + portSpecifier + ")?(" + pciSuffix + ")?"
+	pathNaming          = ccwPathNaming + "|" + acpiPathNaming + "|" + netdevsimPathNaming + "|" + usbPathNaming + "|" + pciPathNaming
+
+	// Complete naming schemes.
+	systemdNaming         = onboardNaming + "|" + macNaming + "|" + slotNaming + "|" + pathNaming
+	systemdEthernetNaming = prefixEthernet + "(" + systemdNaming + ")"
+	legacyEthernetNaming  = "eth" + decimal
+	generalPurposeNaming  = legacyEthernetNaming + "|" + systemdEthernetNaming
+	irdmaNaming           = "rdma" + decimal
+	mrdmaNaming           = "gpu" + decimal + "rdma" + decimal
 )
 
 var (
@@ -54,6 +109,16 @@ var (
 
 	// EthtoolDriverRe is a regex to extract the driver name from the `ethtool -i` output.
 	EthtoolDriverRe = regexp.MustCompile(`(?m)^driver:\s*(.*)$`)
+
+	// ValidGeneralPurposeNICRe matches valid general-purpose Ethernet NIC names
+	// (legacy kernel eth<N> or systemd.net-naming-scheme(7) Ethernet names).
+	ValidGeneralPurposeNICRe = regexp.MustCompile("^(" + generalPurposeNaming + ")$")
+
+	// ValidIRDMANICRe matches valid IRDMA NIC names.
+	ValidIRDMANICRe = regexp.MustCompile("^" + irdmaNaming + "$")
+
+	// ValidMRDMANICRe matches valid MRDMA NIC names.
+	ValidMRDMANICRe = regexp.MustCompile("^" + mrdmaNaming + "$")
 
 	nicTypeRegex = regexp.MustCompile(`^(.+):([0-9]+)$`)
 
@@ -647,4 +712,18 @@ func CompareKernelVersion(v1 string, v2 string) int {
 		}
 	}
 	return 0
+}
+
+// ExpectedNICRegex returns the expected interface name regular expression for the given NIC type.
+func ExpectedNICRegex(nicType string) (*regexp.Regexp, error) {
+	switch nicType {
+	case NICTypeVIRTIONET, NICTypeGVNIC, NICTypeIDPF:
+		return ValidGeneralPurposeNICRe, nil
+	case NICTypeIRDMA:
+		return ValidIRDMANICRe, nil
+	case NICTypeMRDMA:
+		return ValidMRDMANICRe, nil
+	default:
+		return nil, fmt.Errorf("unknown/unsupported NIC type: %q", nicType)
+	}
 }
