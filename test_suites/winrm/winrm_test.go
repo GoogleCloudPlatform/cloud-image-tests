@@ -15,6 +15,7 @@
 package winrm
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -24,9 +25,10 @@ import (
 )
 
 func runOrFail(t *testing.T, cmd, msg string) {
+	t.Helper()
 	out, err := utils.RunPowershellCmd(cmd)
 	if err != nil {
-		t.Fatalf("%s: %s %s %v", msg, out.Stdout, out.Stderr, msg)
+		t.Fatalf("%s: stdout=%q stderr=%q err=%v", msg, out.Stdout, out.Stderr, err)
 	}
 }
 
@@ -37,13 +39,14 @@ func TestWaitForWinrmConnection(t *testing.T) {
 		t.Fatalf("could not fetch winrm password: %v", err)
 	}
 	passwd = strings.TrimSpace(passwd)
-	runOrFail(t, fmt.Sprintf(`net user "%s" "%s" /add`, user, passwd), fmt.Sprintf("could not add user %s", user))
+	runOrFail(t, fmt.Sprintf(`New-LocalUser -Name '%s' -Password (ConvertTo-SecureString -String '%s' -AsPlainText -Force)`, user, passwd), fmt.Sprintf("could not add user %s", user))
 	runOrFail(t, fmt.Sprintf(`Add-LocalGroupMember -Group Administrators -Member "%s"`, user), fmt.Sprintf("could not add user %s to administrators", user))
 	t.Logf("winrm target boot succesfully at %d", time.Now().UnixNano())
 }
 
 func TestWinrmConnection(t *testing.T) {
-	ctx := utils.Context(t)
+	ctx, cancel := context.WithTimeout(utils.Context(t), 15*time.Minute)
+	defer cancel()
 	target, err := utils.GetRealVMName(ctx, "server")
 	if err != nil {
 		t.Fatalf("could not get target name: %v", err)
@@ -54,24 +57,27 @@ func TestWinrmConnection(t *testing.T) {
 	}
 	passwd = strings.TrimSpace(passwd)
 	runOrFail(t, fmt.Sprintf(`winrm set winrm/config/client '@{TrustedHosts="%s"}'`, target), "could not trust target")
+	var lastOut utils.ProcessStatus
 	for {
 		if ctx.Err() != nil {
-			t.Fatalf("test context expired before winrm was available: %v", ctx.Err())
+			t.Fatalf("test context expired before winrm was available: %v (last stdout: %q, stderr: %q)", ctx.Err(), lastOut.Stdout, lastOut.Stderr)
 		}
-		_, err := utils.RunPowershellCmd(fmt.Sprintf(`Test-WSMan "%s"`, target))
-		time.Sleep(time.Minute) // Sleep even on success as there is some delay between target starting winrm and creating the test user
+		lastOut, err = utils.RunPowershellCmd(fmt.Sprintf(`Test-WSMan "%s"`, target))
 		if err == nil {
 			break
 		}
+		t.Logf("Test-WSMan %q failed (retrying): stdout=%q stderr=%q err=%v", target, lastOut.Stdout, lastOut.Stderr, err)
+		time.Sleep(10 * time.Second)
 	}
 	for {
 		if err := ctx.Err(); err != nil {
-			t.Fatalf("test context expired before successful winrm connection: %v", err)
+			t.Fatalf("test context expired before successful winrm connection: %v (last stdout: %q, stderr: %q)", err, lastOut.Stdout, lastOut.Stderr)
 		}
-		out, err := utils.RunPowershellCmd(fmt.Sprintf(`Invoke-Command -SessionOption(New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck) -ScriptBlock{ hostname } -ComputerName %s -Credential (New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "%s\%s", (ConvertTo-SecureString -String '%s' -AsPlainText -Force))`, target, target, user, passwd))
-		if err == nil && strings.Contains(out.Stdout, "server-winrm") {
+		lastOut, err = utils.RunPowershellCmd(fmt.Sprintf(`Invoke-Command -SessionOption(New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck) -ScriptBlock{ hostname } -ComputerName %s -Credential (New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList "%s\%s", (ConvertTo-SecureString -String '%s' -AsPlainText -Force))`, target, target, user, passwd))
+		if err == nil && strings.Contains(lastOut.Stdout, "server-winrm") {
 			break
 		}
-		time.Sleep(time.Minute)
+		t.Logf("Invoke-Command to %q failed (retrying): stdout=%q stderr=%q err=%v", target, lastOut.Stdout, lastOut.Stderr, err)
+		time.Sleep(10 * time.Second)
 	}
 }
