@@ -15,10 +15,12 @@
 package packagemanager
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,6 +28,8 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
+
+const windowsGooget = `C:\ProgramData\GooGet\googet.exe`
 
 var (
 	repoAvailabilityTestCmdArgs = map[string][]string{
@@ -35,7 +39,15 @@ var (
 		"zypper": {"refresh"},
 		"googet": {"available"},
 	}
-	googetErrorMatch = "ERROR:"
+	repoListCmdArgs = map[string][]string{
+		"apt":    {"policy"},
+		"yum":    {"repolist", "-v"},
+		"dnf":    {"repolist", "-v"},
+		"googet": {"listrepos"},
+	}
+	googetErrorMatch   = "ERROR:"
+	nonStableRepoRegex = regexp.MustCompile(`google-compute-engine-(?:[^\s/,]+-)?(canary|global|staging|testing|unstable)\b`)
+	stableRepoRegex    = regexp.MustCompile(`google-compute-engine-(?:[^\s/,]+-)?stable\b`)
 )
 
 func TestRepoReachabilityDualStack(t *testing.T) {
@@ -46,13 +58,58 @@ func TestRepoReachabilityIPv4Only(t *testing.T) {
 	testRepoAvailability(t)
 }
 
+func cmdExists(pm string) (string, bool) {
+	if utils.IsWindows() {
+		if pm != "googet" {
+			return "", false
+		}
+		if path, err := exec.LookPath(pm); err == nil {
+			return path, true
+		}
+		if utils.Exists(windowsGooget, utils.TypeFile) {
+			return windowsGooget, true
+		}
+		return "", false
+	}
+	if utils.CheckLinuxCmdExists(pm) {
+		return pm, true
+	}
+	return "", false
+}
+
+func validateRepoConfig(ctx context.Context, t *testing.T, pm, cmdPath, image string) {
+	t.Helper()
+	args, ok := repoListCmdArgs[pm]
+	if !ok {
+		return
+	}
+	cmd := exec.CommandContext(ctx, cmdPath, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("exec.CommandContext(%s).CombinedOutput() = output: %s err: %v, want err: nil", cmd.String(), out, err)
+	}
+	output := string(out)
+	if match := nonStableRepoRegex.FindString(output); match != "" {
+		t.Fatalf("%s enabled repos reference a non-stable google-compute-engine repo %q; output:\n%s", pm, match, output)
+	}
+	requireStableRepo := utils.IsDebian(image) || utils.IsRHEL(image) || utils.IsCentOS(image) || utils.IsRocky(image) || utils.IsAlmaLinux(image) || utils.IsOracle(image) || utils.IsWindows()
+	if requireStableRepo && !stableRepoRegex.MatchString(output) {
+		t.Fatalf("%s enabled repos do not include a google-compute-engine stable repo; output:\n%s", pm, output)
+	}
+}
+
 func testRepoAvailability(t *testing.T) {
 	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("utils.GetMetadata(ctx, instance, image) = %v, want nil", err)
+	}
 	for pm, args := range repoAvailabilityTestCmdArgs {
-		if !utils.CheckLinuxCmdExists(pm) {
+		cmdPath, ok := cmdExists(pm)
+		if !ok {
 			continue
 		}
-		cmd := exec.CommandContext(ctx, pm, args...)
+		cmd := exec.CommandContext(ctx, cmdPath, args...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("exec.CommandContext(%s).CombinedOutput() = output: %s err: %v, want err: nil", cmd.String(), out, err)
@@ -61,6 +118,7 @@ func testRepoAvailability(t *testing.T) {
 			// Googet does not set failing exit code when repos are unreachable.
 			t.Fatalf("exec.CommandContext(%s).CombinedOutput() = output: %s which contains %q", cmd.String(), out, googetErrorMatch)
 		}
+		validateRepoConfig(ctx, t, pm, cmdPath, image)
 	}
 }
 
