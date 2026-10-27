@@ -39,8 +39,8 @@ func TestWaitForWinrmConnection(t *testing.T) {
 		t.Fatalf("could not fetch winrm password: %v", err)
 	}
 	passwd = strings.TrimSpace(passwd)
-	runOrFail(t, fmt.Sprintf(`New-LocalUser -Name '%s' -Password (ConvertTo-SecureString -String '%s' -AsPlainText -Force)`, user, passwd), fmt.Sprintf("could not add user %s", user))
-	runOrFail(t, fmt.Sprintf(`Add-LocalGroupMember -Group Administrators -Member "%s"`, user), fmt.Sprintf("could not add user %s to administrators", user))
+	runOrFail(t, fmt.Sprintf("New-LocalUser -Name '%s' -Password (ConvertTo-SecureString -String '%s' -AsPlainText -Force)", user, passwd), fmt.Sprintf("could not add user %s", user))
+	runOrFail(t, fmt.Sprintf("Add-LocalGroupMember -Group Administrators -Member %q", user), fmt.Sprintf("could not add user %s to administrators", user))
 	t.Logf("winrm target boot succesfully at %d", time.Now().UnixNano())
 }
 
@@ -56,13 +56,13 @@ func TestWinrmConnection(t *testing.T) {
 		t.Fatalf("could not fetch winrm password: %v", err)
 	}
 	passwd = strings.TrimSpace(passwd)
-	runOrFail(t, fmt.Sprintf(`winrm set winrm/config/client '@{TrustedHosts="%s"}'`, target), "could not trust target")
+	runOrFail(t, fmt.Sprintf("winrm set winrm/config/client '@{TrustedHosts=%q}'", target), "could not trust target")
 	var lastOut utils.ProcessStatus
 	for {
 		if ctx.Err() != nil {
 			t.Fatalf("test context expired before winrm was available: %v (last stdout: %q, stderr: %q)", ctx.Err(), lastOut.Stdout, lastOut.Stderr)
 		}
-		lastOut, err = utils.RunPowershellCmd(fmt.Sprintf(`Test-WSMan "%s"`, target))
+		lastOut, err = utils.RunPowershellCmd(fmt.Sprintf("Test-WSMan %q", target))
 		if err == nil {
 			break
 		}
