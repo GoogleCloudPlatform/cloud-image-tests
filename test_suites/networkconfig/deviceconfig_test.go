@@ -16,7 +16,6 @@
 package networkconfig
 
 import (
-	_ "embed"
 	"fmt"
 	fs "io/fs"
 	"os"
@@ -32,7 +31,6 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 	"github.com/google/go-cmp/cmp"
-	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -54,9 +52,6 @@ var (
 	txQueueRe     = regexp.MustCompile(`tx-(\d+)`)
 	idpfTxRxIRQRe = regexp.MustCompile(`.*TxRx-(\d+)`)
 )
-
-//go:embed config_expectations/config_expectations.textproto
-var configExpectationsBytes []byte
 
 type systemKey struct {
 	machineType string
@@ -497,19 +492,13 @@ func buildQueuesXPSOnly(txQueueToXPS map[int]string) ([]*pb.TxQueue, error) {
 	return txQueues, nil
 }
 
-func buildQueues(nicType string, irqCPULists *irqCPULists, txQueueToXPS map[int]string) ([]*pb.TxQueue, []*pb.RxQueue, error) {
-	// The guest environment don't configure IRQs for IRDMA and MRDMA.
-	// We may wish to assert on this in the future (i.e. values from the driver), but for now we
-	// ignore it.
-	switch nicType {
-	case networkutils.NICTypeIRDMA, networkutils.NICTypeMRDMA:
+func buildQueues(irqCPULists *irqCPULists, txQueueToXPS map[int]string) ([]*pb.TxQueue, []*pb.RxQueue, error) {
+	if irqCPULists == nil {
 		txQueues, err := buildQueuesXPSOnly(txQueueToXPS)
 		if err != nil {
 			return nil, nil, err
 		}
 		return txQueues, nil, nil
-	default:
-		// continue
 	}
 
 	if len(irqCPULists.txIRQAffinity) != len(txQueueToXPS) {
@@ -554,8 +543,11 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("parsing ethtool -l output for %q: %w", nicName, err)
 		}
 
+		// The guest environment doesn't configure IRQs for IRDMA and MRDMA.
+		// Check mdsIface.NICType rather than nicType because images without an IRDMA driver
+		// bind IDPF, while config_expectations only specifies XPS for IRDMA NICs.
 		var queueToIRQs *irqCPULists
-		if nicType != networkutils.NICTypeIRDMA && nicType != networkutils.NICTypeMRDMA {
+		if mdsIface.NICType != networkutils.NICTypeIRDMA && mdsIface.NICType != networkutils.NICTypeMRDMA {
 			irqs, err := deviceIRQs(nicName)
 			if err != nil {
 				return nil, fmt.Errorf("getting device IRQs for %q: %w", nicName, err)
@@ -571,7 +563,7 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("getting XPS for %q: %w", nicName, err)
 		}
 
-		txQueues, rxQueues, err := buildQueues(nicType, queueToIRQs, txQueueToXPS)
+		txQueues, rxQueues, err := buildQueues(queueToIRQs, txQueueToXPS)
 		if err != nil {
 			return nil, fmt.Errorf("building queues for %q: %w", nicName, err)
 		}
@@ -610,9 +602,13 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 func TestDeviceConfig(t *testing.T) {
 	ctx := utils.Context(t)
 
-	var configExpectations pb.ConfigExpectations
-	if err := prototext.Unmarshal(configExpectationsBytes, &configExpectations); err != nil {
-		t.Fatalf("failed to unmarshal embedded config expectations: %v", err)
+	configExpectations, err := parseConfigExpectations()
+	if err != nil {
+		t.Fatalf("parseConfigExpectations() = err %v, want nil", err)
+	}
+	constraints, err := guestOSConstraints(ctx, configExpectations.GetGuestOsConstraints())
+	if err != nil {
+		t.Fatalf("guestOSConstraints(ctx, ...) = err %v, want nil", err)
 	}
 
 	mdsIfaces, err := networkutils.ListMDSIfaces(ctx)
@@ -641,9 +637,9 @@ func TestDeviceConfig(t *testing.T) {
 	}
 	kernelVersion := strings.TrimSpace(string(kernelVersionOut))
 
-	wantSystemConfig, err := expectedConfigForMachine(&configExpectations, machineType, nicTypes, kernelVersion)
+	wantSystemConfig, err := expectedConfigForMachine(configExpectations, machineType, nicTypes, kernelVersion)
 	if err != nil {
-		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v, %q) = err: %v, want nil", machineType, nicTypes, kernelVersion, err)
+		t.Fatalf("expectedConfigForMachine(configExpectations, %q, %v, %q) = err: %v, want nil", machineType, nicTypes, kernelVersion, err)
 	}
 
 	gotSystemConfig, err := thisSystemConfig(mdsIfaces)
@@ -651,8 +647,11 @@ func TestDeviceConfig(t *testing.T) {
 		t.Fatalf("thisSystemConfig(mdsIfaces) = err: %v, want nil", err)
 	}
 
-	// Only assert the ring size if they're set in the expected config.
+	// Adjust expectations for guest OS constraints and unset optional fields.
 	for i, wantNic := range wantSystemConfig.GetNics() {
+		if wantNic.GetType() == networkutils.NICTypeIRDMA && !constraints.GetIncludesIrdmaDriver() {
+			wantNic.SetType(networkutils.NICTypeIDPF)
+		}
 		if i >= len(gotSystemConfig.GetNics()) {
 			break
 		}
