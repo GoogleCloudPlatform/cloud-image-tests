@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkconfig/expectations"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 	"github.com/google/go-cmp/cmp"
@@ -57,6 +58,14 @@ var (
 
 //go:embed config_expectations/config_expectations.textproto
 var configExpectationsBytes []byte
+
+func parseConfigExpectations() (*pb.ConfigExpectations, error) {
+	var configExpectations pb.ConfigExpectations
+	if err := prototext.Unmarshal(configExpectationsBytes, &configExpectations); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal embedded config expectations: %w", err)
+	}
+	return &configExpectations, nil
+}
 
 type systemKey struct {
 	machineType string
@@ -497,19 +506,16 @@ func buildQueuesXPSOnly(txQueueToXPS map[int]string) ([]*pb.TxQueue, error) {
 	return txQueues, nil
 }
 
-func buildQueues(nicType string, irqCPULists *irqCPULists, txQueueToXPS map[int]string) ([]*pb.TxQueue, []*pb.RxQueue, error) {
+func buildQueues(skipIRQs bool, irqCPULists *irqCPULists, txQueueToXPS map[int]string) ([]*pb.TxQueue, []*pb.RxQueue, error) {
 	// The guest environment don't configure IRQs for IRDMA and MRDMA.
 	// We may wish to assert on this in the future (i.e. values from the driver), but for now we
 	// ignore it.
-	switch nicType {
-	case networkutils.NICTypeIRDMA, networkutils.NICTypeMRDMA:
+	if skipIRQs {
 		txQueues, err := buildQueuesXPSOnly(txQueueToXPS)
 		if err != nil {
 			return nil, nil, err
 		}
 		return txQueues, nil, nil
-	default:
-		// continue
 	}
 
 	if len(irqCPULists.txIRQAffinity) != len(txQueueToXPS) {
@@ -535,7 +541,7 @@ func buildQueues(nicType string, irqCPULists *irqCPULists, txQueueToXPS map[int]
 	return txQueues, rxQueues, nil
 }
 
-func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConfig, error) {
+func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface, hasIRDMADriver bool) (*pb.SystemConfig, error) {
 	var nics []*pb.NicExpectation
 	for _, mdsIface := range mdsIfaces {
 		systemIface, err := utils.GetInterfaceByMAC(mdsIface.MAC)
@@ -554,8 +560,12 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("parsing ethtool -l output for %q: %w", nicName, err)
 		}
 
+		skipIRQs := nicType == networkutils.NICTypeIRDMA ||
+			nicType == networkutils.NICTypeMRDMA ||
+			(mdsIface.NICType == networkutils.NICTypeIRDMA && !hasIRDMADriver)
+
 		var queueToIRQs *irqCPULists
-		if nicType != networkutils.NICTypeIRDMA && nicType != networkutils.NICTypeMRDMA {
+		if !skipIRQs {
 			irqs, err := deviceIRQs(nicName)
 			if err != nil {
 				return nil, fmt.Errorf("getting device IRQs for %q: %w", nicName, err)
@@ -571,7 +581,7 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 			return nil, fmt.Errorf("getting XPS for %q: %w", nicName, err)
 		}
 
-		txQueues, rxQueues, err := buildQueues(nicType, queueToIRQs, txQueueToXPS)
+		txQueues, rxQueues, err := buildQueues(skipIRQs, queueToIRQs, txQueueToXPS)
 		if err != nil {
 			return nil, fmt.Errorf("building queues for %q: %w", nicName, err)
 		}
@@ -610,9 +620,18 @@ func thisSystemConfig(mdsIfaces []networkutils.NetworkInterface) (*pb.SystemConf
 func TestDeviceConfig(t *testing.T) {
 	ctx := utils.Context(t)
 
-	var configExpectations pb.ConfigExpectations
-	if err := prototext.Unmarshal(configExpectationsBytes, &configExpectations); err != nil {
-		t.Fatalf("failed to unmarshal embedded config expectations: %v", err)
+	configExpectations, err := parseConfigExpectations()
+	if err != nil {
+		t.Fatalf("parseConfigExpectations() = err %v, want nil", err)
+	}
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("utils.GetMetadata(ctx, \"instance\", \"image\") = err %v, want nil", err)
+	}
+	hasIRDMADriver, err := expectations.IncludesIRDMADriver(configExpectations.GetGuestOsConstraints(), image)
+	if err != nil {
+		t.Fatalf("expectations.IncludesIRDMADriver(..., %q) = err %v, want nil", image, err)
 	}
 
 	mdsIfaces, err := networkutils.ListMDSIfaces(ctx)
@@ -641,34 +660,19 @@ func TestDeviceConfig(t *testing.T) {
 	}
 	kernelVersion := strings.TrimSpace(string(kernelVersionOut))
 
-	wantSystemConfig, err := expectedConfigForMachine(&configExpectations, machineType, nicTypes, kernelVersion)
+	wantSystemConfig, err := expectedConfigForMachine(configExpectations, machineType, nicTypes, kernelVersion)
 	if err != nil {
-		t.Fatalf("expectedConfigForMachine(&configExpectations, %q, %v, %q) = err: %v, want nil", machineType, nicTypes, kernelVersion, err)
+		t.Fatalf("expectedConfigForMachine(configExpectations, %q, %v, %q) = err: %v, want nil", machineType, nicTypes, kernelVersion, err)
 	}
 
-	gotSystemConfig, err := thisSystemConfig(mdsIfaces)
+	gotSystemConfig, err := thisSystemConfig(mdsIfaces, hasIRDMADriver)
 	if err != nil {
-		t.Fatalf("thisSystemConfig(mdsIfaces) = err: %v, want nil", err)
+		t.Fatalf("thisSystemConfig(mdsIfaces, %t) = err: %v, want nil", hasIRDMADriver, err)
 	}
 
-	// Only assert the ring size if they're set in the expected config.
-	for i, wantNic := range wantSystemConfig.GetNics() {
-		if i >= len(gotSystemConfig.GetNics()) {
-			break
-		}
-		gotNic := gotSystemConfig.GetNics()[i]
-		if !wantNic.HasRxRingSize() {
-			gotNic.ClearRxRingSize()
-		}
-		if !wantNic.HasTxRingSize() {
-			gotNic.ClearTxRingSize()
-		}
-		if !wantNic.HasNumaNode() {
-			gotNic.ClearNumaNode()
-		}
-	}
+	wantNorm, gotNorm := expectations.PrepareConfigsForComparison(wantSystemConfig, gotSystemConfig, hasIRDMADriver)
 
-	if diff := cmp.Diff(wantSystemConfig, gotSystemConfig,
+	if diff := cmp.Diff(wantNorm, gotNorm,
 		protocmp.Transform(),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "tx_queues"),
 		protocmp.SortRepeatedFields(&pb.NicExpectation{}, "rx_queues"),

@@ -18,12 +18,27 @@ package networkconfig
 import (
 	"testing"
 
+	"github.com/GoogleCloudPlatform/cloud-image-tests/test_suites/networkconfig/expectations"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils/networkutils"
 )
 
 func TestNICNames(t *testing.T) {
 	ctx := utils.Context(t)
+	configExpectations, err := parseConfigExpectations()
+	if err != nil {
+		t.Fatalf("parseConfigExpectations() = err %v, want nil", err)
+	}
+
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("utils.GetMetadata(ctx, \"instance\", \"image\") = err %v, want nil", err)
+	}
+	hasIRDMADriver, err := expectations.IncludesIRDMADriver(configExpectations.GetGuestOsConstraints(), image)
+	if err != nil {
+		t.Fatalf("expectations.IncludesIRDMADriver(..., %q) = err %v, want nil", image, err)
+	}
+
 	mdsIfaces, err := networkutils.ListMDSIfaces(ctx)
 	if err != nil {
 		t.Fatalf("ListMDSIfaces(ctx) = err %v want nil", err)
@@ -46,9 +61,9 @@ func TestNICNames(t *testing.T) {
 		seenIfaceNames[systemIface.Name] = true
 
 		t.Run(systemIface.Name, func(t *testing.T) {
-			regex, err := networkutils.ExpectedNICRegex(mdsIface.NICType)
+			regex, err := expectations.ExpectedNICRegex(mdsIface.NICType, hasIRDMADriver)
 			if err != nil {
-				t.Errorf("ExpectedNICRegex(%q) = err %v want nil", mdsIface.NICType, err)
+				t.Errorf("expectations.ExpectedNICRegex(%q, %t) = err %v want nil", mdsIface.NICType, hasIRDMADriver, err)
 				return
 			}
 

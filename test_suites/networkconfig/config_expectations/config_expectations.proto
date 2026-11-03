@@ -23,6 +23,19 @@ option go_package = "./test_suites/networkconfig/config_expectations_proto";
 
 message ConfigExpectations {
   repeated SystemConfig config_expectations = 1;
+  repeated GuestOsConstraint guest_os_constraints = 2;
+}
+
+// Constraints describing divergences from normal guest OS capabilities for OS
+// images matching a pattern.
+message GuestOsConstraint {
+  // Regular expression matched against the base guest OS image name (from
+  // instance metadata `instance/image`), e.g. "debian-13".
+  string os_pattern = 1;
+
+  // Whether the guest OS includes an in-tree irdma driver. Defaults to true if
+  // unset or if no constraint matches.
+  bool includes_irdma_driver = 2;
 }
 
 message GuestOsSelector {
