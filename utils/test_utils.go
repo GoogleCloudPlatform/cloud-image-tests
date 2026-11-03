@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -32,7 +33,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -619,6 +622,88 @@ func RunPowershellCmd(command string) (ProcessStatus, error) {
 	return output, err
 }
 
+var validPowershellParamName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func escapePowershellSingleQuote(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+// RunPowershellScript writes an embedded PowerShell script to a temporary .ps1
+// file, executes it with the given named parameters under ctx, and removes the
+// temporary directory before returning. Parameter values are passed via
+// temporary child environment variables and splatted as a PowerShell hashtable
+// so arbitrary values (including passwords) are never placed on argv or parsed
+// by the shell.
+func RunPowershellScript(ctx context.Context, scripts fs.FS, scriptPath string, params map[string]string) (ProcessStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return ProcessStatus{Exitcode: -1}, err
+	}
+	content, err := fs.ReadFile(scripts, scriptPath)
+	if err != nil {
+		return ProcessStatus{}, fmt.Errorf("failed to read embedded script %q: %w", scriptPath, err)
+	}
+
+	keys := make([]string, 0, len(params))
+	for k, v := range params {
+		if !validPowershellParamName.MatchString(k) {
+			return ProcessStatus{}, fmt.Errorf("invalid PowerShell parameter name %q for %q", k, scriptPath)
+		}
+		if strings.ContainsRune(v, 0) {
+			return ProcessStatus{}, fmt.Errorf("NUL byte in parameter %q for %q", k, scriptPath)
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	tmpDir, err := os.MkdirTemp("", "cit-ps-*")
+	if err != nil {
+		return ProcessStatus{}, fmt.Errorf("failed to create temp directory for %q: %w", scriptPath, err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	tmpScript := filepath.Join(tmpDir, filepath.Base(scriptPath))
+	if err := os.WriteFile(tmpScript, content, 0600); err != nil {
+		return ProcessStatus{}, fmt.Errorf("failed to write temp script %q: %w", tmpScript, err)
+	}
+
+	baseEnv := os.Environ()
+	env := make([]string, len(baseEnv)+len(keys))
+	copy(env, baseEnv)
+	var invoke strings.Builder
+	var cleanupEnv strings.Builder
+	invoke.WriteString("$ErrorActionPreference = 'Stop'; $global:LASTEXITCODE = 0; $scriptParams = @{")
+	for i, k := range keys {
+		if i > 0 {
+			invoke.WriteString("; ")
+		}
+		envVar := fmt.Sprintf("CIT_PS_PARAM_%d", i)
+		env[len(baseEnv)+i] = fmt.Sprintf("%s=%s", envVar, params[k])
+		fmt.Fprintf(&invoke, "'%s' = [string]$env:%s", k, envVar)
+		fmt.Fprintf(&cleanupEnv, "Remove-Item Env:\\%s -ErrorAction SilentlyContinue; ", envVar)
+	}
+	fmt.Fprintf(&invoke, "}; %s& '%s' @scriptParams; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", cleanupEnv.String(), escapePowershellSingleQuote(tmpScript))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", invoke.String())
+	cmd.Env = env
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+
+	var exitCode int
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	} else {
+		exitCode = -1
+	}
+	return ProcessStatus{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		Exitcode: exitCode,
+	}, runErr
+}
+
 // CheckPowershellSuccess returns an error if the powershell command fails.
 func CheckPowershellSuccess(command string) error {
 	output, err := RunPowershellCmd(command)
@@ -828,6 +913,130 @@ func Exists(path string, fileType FileType) bool {
 	}
 }
 
+// PollUntil calls check immediately and then every interval until check returns
+// true, ctx expires, or timeout elapses. interval must be positive and timeout
+// must be non-negative. Any non-empty detail returned by the last check call is
+// included in timeout and context-expiration errors.
+func PollUntil(ctx context.Context, desc string, interval, timeout time.Duration, check func() (bool, string)) error {
+	if interval <= 0 {
+		return fmt.Errorf("poll interval must be positive, got %v", interval)
+	}
+	if timeout < 0 {
+		return fmt.Errorf("poll timeout must be non-negative, got %v", timeout)
+	}
+	var detail string
+	ctxErr := func(err error) error {
+		if detail != "" {
+			return fmt.Errorf("context expired waiting for %s (%s): %w", desc, detail, err)
+		}
+		return fmt.Errorf("context expired waiting for %s: %w", desc, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return ctxErr(err)
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		var done bool
+		done, detail = check()
+		if done {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return ctxErr(err)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			if detail != "" {
+				return fmt.Errorf("timed out after %v waiting for %s (%s)", timeout, desc, detail)
+			}
+			return fmt.Errorf("timed out after %v waiting for %s", timeout, desc)
+		}
+		timer := time.NewTimer(min(interval, remaining))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctxErr(ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func filterMetadataItems(items []*compute.MetadataItems, keys ...string) ([]*compute.MetadataItems, bool) {
+	if len(items) == 0 || len(keys) == 0 {
+		return items, false
+	}
+	removeSet := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		removeSet[k] = true
+	}
+	filtered := make([]*compute.MetadataItems, 0, len(items))
+	removed := false
+	for _, item := range items {
+		if item != nil && removeSet[item.Key] {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, removed
+}
+
+func updateInstanceMetadata(ctx context.Context, client daisyCompute.Client, mutate func(*compute.Metadata) bool) error {
+	prj, zone, err := GetProjectZone(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get project zone: %w", err)
+	}
+	name, err := GetInstanceName(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get instance name: %w", err)
+	}
+	inst, err := client.GetInstance(prj, zone, name)
+	if err != nil {
+		return fmt.Errorf("failed to get instance: %w", err)
+	}
+	var md *compute.Metadata
+	if inst.Metadata != nil {
+		md = inst.Metadata
+	} else {
+		md = &compute.Metadata{}
+	}
+	if !mutate(md) {
+		return nil
+	}
+	if err := client.SetInstanceMetadata(prj, zone, name, md); err != nil {
+		return fmt.Errorf("failed to set instance metadata: %w", err)
+	}
+	return nil
+}
+
+func upsertMetadataWithClient(ctx context.Context, client daisyCompute.Client, key, value string) error {
+	return updateInstanceMetadata(ctx, client, func(md *compute.Metadata) bool {
+		val := value
+		for _, item := range md.Items {
+			if item != nil && item.Key == key {
+				item.Value = &val
+				return true
+			}
+		}
+		md.Items = append(md.Items, &compute.MetadataItems{Key: key, Value: &val})
+		return true
+	})
+}
+
+func deleteMetadataWithClient(ctx context.Context, client daisyCompute.Client, keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	return updateInstanceMetadata(ctx, client, func(md *compute.Metadata) bool {
+		filtered, removed := filterMetadataItems(md.Items, keys...)
+		if !removed {
+			return false
+		}
+		md.Items = filtered
+		return true
+	})
+}
+
 // UpsertMetadata inserts or updates a metadata entry on a currently running
 // instance.
 func UpsertMetadata(ctx context.Context, key, value string) error {
@@ -835,42 +1044,20 @@ func UpsertMetadata(ctx context.Context, key, value string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get daisy client: %w", err)
 	}
+	return upsertMetadataWithClient(ctx, client, key, value)
+}
 
-	prj, zone, err := GetProjectZone(ctx)
+// DeleteMetadata removes the given metadata keys from a currently running
+// instance. Keys that are not present on the instance are ignored.
+func DeleteMetadata(ctx context.Context, keys ...string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	client, err := GetDaisyClient(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get project zone: %w", err)
+		return fmt.Errorf("failed to get daisy client: %w", err)
 	}
-
-	name, err := GetMetadata(ctx, "instance", "name")
-	if err != nil {
-		return fmt.Errorf("failed to get instance name: %w", err)
-	}
-
-	inst, err := client.GetInstance(prj, zone, name)
-	if err != nil {
-		return fmt.Errorf("failed to get instance: %w", err)
-	}
-
-	updated := false
-	for _, item := range inst.Metadata.Items {
-		if item.Key == key {
-			item.Value = &value
-			updated = true
-			break
-		}
-	}
-
-	// If the key is not found, append it to the metadata items.
-	if !updated {
-		inst.Metadata.Items = append(inst.Metadata.Items, &compute.MetadataItems{Key: key, Value: &value})
-	}
-
-	err = client.SetInstanceMetadata(prj, zone, name, inst.Metadata)
-	if err != nil {
-		return fmt.Errorf("failed to set instance metadata: %w", err)
-	}
-
-	return nil
+	return deleteMetadataWithClient(ctx, client, keys...)
 }
 
 // IfOldAgentInstalled returns true if the old agent is installed.

@@ -15,6 +15,8 @@
 package guestagent
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -22,6 +24,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,12 +35,13 @@ import (
 	// allowlist:crypto/sha1
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
-	"google.golang.org/api/compute/v1"
 )
 
 const (
 	// passwordResetUser is the user for the password reset test.
 	passwordResetUser = "windowsuser5"
+	// initialTestUserPassword is the initial local password set before testing password reset.
+	initialTestUserPassword = "gyug3q445m0!"
 	// differentLocaleUser is the user for the password reset test with a different locale.
 	// This is currently just the Romaji spelling of "Administrators" in Japanese, with
 	// "user" appended to the end.
@@ -44,8 +51,37 @@ const (
 	localAdminSID = "S-1-5-32-544"
 	// This is the name of the admin group that the normal Administrators group is renamed to.
 	// This is currently just the romaji spelling of "Administrators" in Japanese.
-	newAdminGroupName = "kanrinin"
+	newAdminGroupName           = "kanrinin"
+	legacyPasswordResetUser     = "winlegacyuser"
+	legacyNewAdminUser          = "winlegacynew"
+	windowsCompatManagerPath    = `C:\Program Files\Google\Compute Engine\agent\GCEWindowsCompatManager.exe`
+	windowsLegacyAgentPath      = `C:\Program Files\Google\Compute Engine\agent\GCEWindowsAgent.exe`
+	windowsCorePluginSubdirPath = `C:\Program Files\Google\Compute Engine\agent\GuestAgentCorePlugin\CorePlugin.exe`
+	windowsCorePluginAgentPath  = `C:\Program Files\Google\Compute Engine\agent\CorePlugin.exe`
+	compatManagerServiceName    = "GCEWindowsCompatManager"
+	agentManagerServiceName     = "GCEAgentManager"
+	legacyAgentServiceName      = "GCEAgent"
+	corePluginProcessName       = "CorePlugin"
+	legacyAgentProcessName      = "GCEWindowsAgent"
+	serviceRunningStatus        = "Running"
+	serviceNotFoundStatus       = "NotFound"
+	serviceAutomaticStartType   = "Automatic"
+	windowsKeysMetadataKey      = "windows-keys"
+	enableCorePluginKey         = "enable-guest-agent-core-plugin"
+	credCheckUserEnvVar         = "CIT_CRED_USER"
+	credCheckPasswordEnvVar     = "CIT_CRED_PASSWORD"
+	rsaKeyBitSize               = 2048
+	com4SerialPort              = 4
+	windowsKeyTTL               = 10 * time.Minute
+	com4ResponseTimeout         = 2 * time.Minute
+	agentModeSwitchTimeout      = 3 * time.Minute
+	agentPollInterval           = 3 * time.Second
 )
+
+var windowsCorePluginPaths = []string{
+	windowsCorePluginSubdirPath,
+	windowsCorePluginAgentPath,
+}
 
 type windowsKeyJSON struct {
 	ExpireOn string
@@ -54,55 +90,16 @@ type windowsKeyJSON struct {
 	UserName string
 }
 
-// unlike utils.GetMetadata(), this gets the full metadata object for the instance rather than the metadata stored at a single url path
-func getInstanceMetadata(client daisyCompute.Client, instance, zone, project string) (*compute.Metadata, error) {
-	ins, err := client.GetInstance(project, zone, instance)
-	if err != nil {
-		return nil, fmt.Errorf("error getting instance: %v", err)
-	}
-
-	return ins.Metadata, nil
-}
-
-func generateKey(priv *rsa.PublicKey, user string) (*windowsKeyJSON, error) {
-	bs := make([]byte, 4)
-	binary.BigEndian.PutUint32(bs, uint32(priv.E))
-
-	return &windowsKeyJSON{
-		ExpireOn: time.Now().Add(5 * time.Minute).Format(time.RFC3339),
-		// This is different than what the other tools produce,
-		// AQAB vs AQABAA==, both are decoded as 65537.
-		Exponent: base64.StdEncoding.EncodeToString(bs),
-		Modulus:  base64.StdEncoding.EncodeToString(priv.N.Bytes()),
-		UserName: user,
-	}, nil
-}
-
 type credsJSON struct {
 	ErrorMessage      string `json:"errorMessage,omitempty"`
 	EncryptedPassword string `json:"encryptedPassword,omitempty"`
+	UserName          string `json:"userName,omitempty"`
+	PasswordFound     bool   `json:"passwordFound,omitempty"`
 	Modulus           string `json:"modulus,omitempty"`
 }
 
-func getEncryptedPassword(client daisyCompute.Client, mod, instanceName, projectID, zone string) (string, error) {
-	out, err := client.GetSerialPortOutput(projectID, zone, instanceName, 4, 0)
-	if err != nil {
-		return "", fmt.Errorf("could not get serial output: err %v", err)
-	}
-
-	for _, line := range strings.Split(out.Contents, "\n") {
-		var creds credsJSON
-		if err := json.Unmarshal([]byte(line), &creds); err != nil {
-			continue
-		}
-		if creds.Modulus == mod {
-			if creds.ErrorMessage != "" {
-				return "", fmt.Errorf("error from agent: %s", creds.ErrorMessage)
-			}
-			return creds.EncryptedPassword, nil
-		}
-	}
-	return "", fmt.Errorf("password not found in serial output: %s", out.Contents)
+func psSingleQuote(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
 }
 
 func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
@@ -117,75 +114,175 @@ func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
 	return string(pwd), nil
 }
 
-func resetPassword(client daisyCompute.Client, t *testing.T, user string) (string, error) {
-	ctx := utils.Context(t)
+func currentSerialPortOffset(client daisyCompute.Client, projectID, zone, instanceName string, port int64) (int64, error) {
+	out, err := client.GetSerialPortOutput(projectID, zone, instanceName, port, 0)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query serial port %d offset for %s: %w", port, instanceName, err)
+	}
+	if out == nil {
+		return 0, fmt.Errorf("nil serial port %d output for %s", port, instanceName)
+	}
+	return out.Next, nil
+}
+
+func requestWindowsPasswordReset(ctx context.Context, client daisyCompute.Client, user string) (*credsJSON, *rsa.PrivateKey, error) {
 	instanceName, err := utils.GetInstanceName(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not get instsance name: err %v", err)
+		return nil, nil, fmt.Errorf("could not get instance name: %w", err)
 	}
 	projectID, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not project or zone: err %v", err)
-	}
-	md, err := getInstanceMetadata(client, instanceName, zone, projectID)
-	if err != nil {
-		return "", fmt.Errorf("error getting instance metadata: instance %s, zone %s, project %s, err %v", instanceName, zone, projectID, err)
-	}
-	t.Log("Generating public/private key pair")
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return "", err
+		return nil, nil, fmt.Errorf("could not get project or zone: %w", err)
 	}
 
-	winKey, err := generateKey(&key.PublicKey, user)
+	key, err := rsa.GenerateKey(rand.Reader, rsaKeyBitSize)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
-
+	bs := binary.BigEndian.AppendUint32(nil, uint32(key.PublicKey.E))
+	winKey := &windowsKeyJSON{
+		ExpireOn: time.Now().UTC().Add(windowsKeyTTL).Format(time.RFC3339),
+		// This is different from what other tools produce (AQAB vs AQABAA==),
+		// though both decode to 65537.
+		Exponent: base64.StdEncoding.EncodeToString(bs),
+		Modulus:  base64.StdEncoding.EncodeToString(key.PublicKey.N.Bytes()),
+		UserName: user,
+	}
 	data, err := json.Marshal(winKey)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
 
-	winKeys := string(data)
-	var found bool
-	for _, mdi := range md.Items {
-		if mdi.Key == "windows-keys" {
-			val := fmt.Sprintf("%s\n%s", *mdi.Value, winKeys)
-			mdi.Value = &val
-			found = true
-			break
-		}
+	offset, err := currentSerialPortOffset(client, projectID, zone, instanceName, com4SerialPort)
+	if err != nil {
+		return nil, nil, err
 	}
-	if !found {
-		md.Items = append(md.Items, &compute.MetadataItems{Key: "windows-keys", Value: &winKeys})
+	if err := utils.UpsertMetadata(ctx, windowsKeysMetadataKey, string(data)); err != nil {
+		return nil, nil, fmt.Errorf("failed to upsert %q metadata for %q: %w", windowsKeysMetadataKey, user, err)
 	}
 
-	if err := client.SetInstanceMetadata(projectID, zone, instanceName, md); err != nil {
-		return "", err
+	var matched *credsJSON
+	err = utils.PollUntil(ctx, fmt.Sprintf("COM4 password reset response for %q", user), agentPollInterval, com4ResponseTimeout, func() (bool, string) {
+		out, rpcErr := client.GetSerialPortOutput(projectID, zone, instanceName, com4SerialPort, offset)
+		if rpcErr == nil && out != nil && out.Contents == "" && out.Next < offset {
+			offset = 0
+			out, rpcErr = client.GetSerialPortOutput(projectID, zone, instanceName, com4SerialPort, 0)
+		}
+		if rpcErr != nil {
+			return false, fmt.Sprintf("modulus=%s, last RPC err=%v", winKey.Modulus, rpcErr)
+		}
+		if out == nil {
+			return false, fmt.Sprintf("modulus=%s, nil serial port output", winKey.Modulus)
+		}
+		for _, line := range strings.Split(out.Contents, "\n") {
+			var creds credsJSON
+			if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &creds); err != nil {
+				continue
+			}
+			if creds.Modulus == winKey.Modulus {
+				matched = &creds
+				return true, ""
+			}
+		}
+		return false, fmt.Sprintf("modulus=%s, recent COM4 output=%q", winKey.Modulus, out.Contents)
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	t.Logf("Set new 'windows-keys' metadata to %s", winKeys)
+	return matched, key, nil
+}
 
-	t.Log("Fetching encrypted password")
-	var attempts int
-	var ep string
-	for {
-		if err := ctx.Err(); err != nil {
-			t.Fatalf("context expired before successfully fetching encrypted password: %v", err)
-		}
-		time.Sleep(time.Minute)
-		ep, err = getEncryptedPassword(client, winKey.Modulus, instanceName, projectID, zone)
-		if err == nil {
-			break
-		}
-		if attempts > 5 {
-			return "", err
-		}
-		attempts++
+func decryptResetCreds(t *testing.T, user string, creds *credsJSON, privKey *rsa.PrivateKey) string {
+	t.Helper()
+	if creds.ErrorMessage != "" {
+		t.Fatalf("password reset for %q returned errorMessage = %q, want empty", user, creds.ErrorMessage)
 	}
+	if !creds.PasswordFound || creds.EncryptedPassword == "" {
+		t.Fatalf("password reset for %q returned passwordFound=%t, encryptedPassword empty=%t, want true and false", user, creds.PasswordFound, creds.EncryptedPassword == "")
+	}
+	pwd, err := decryptPassword(privKey, creds.EncryptedPassword)
+	if err != nil {
+		t.Fatalf("failed to decrypt password for %q: %v", user, err)
+	}
+	return pwd
+}
 
-	t.Log("Decrypting password")
-	return decryptPassword(key, ep)
+func redactSecret(s, secret string) string {
+	trimmed := strings.TrimSpace(s)
+	if secret == "" {
+		return trimmed
+	}
+	return strings.ReplaceAll(trimmed, secret, "<redacted>")
+}
+
+func runPowershellWithEnv(ctx context.Context, command string, extraEnv ...string) (utils.ProcessStatus, error) {
+	baseEnv := os.Environ()
+	env := make([]string, len(baseEnv)+len(extraEnv))
+	copy(env, baseEnv)
+	copy(env[len(baseEnv):], extraEnv)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command)
+	cmd.Env = env
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+
+	var exitCode int
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	} else {
+		exitCode = -1
+	}
+	return utils.ProcessStatus{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		Exitcode: exitCode,
+	}, runErr
+}
+
+func verifyLocalWindowsCredentials(ctx context.Context, t *testing.T, username, password string) {
+	t.Helper()
+	credEnv := []string{
+		fmt.Sprintf("%s=%s", credCheckUserEnvVar, username),
+		fmt.Sprintf("%s=%s", credCheckPasswordEnvVar, password),
+	}
+	validateCmd := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$user = [string]$env:%[1]s
+$plainPwd = [string]$env:%[2]s
+Remove-Item Env:\%[1]s, Env:\%[2]s -ErrorAction SilentlyContinue
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Machine)
+if (-not $ctx.ValidateCredentials($user, $plainPwd)) {
+  throw 'ValidateCredentials returned false for local account'
+}
+`, credCheckUserEnvVar, credCheckPasswordEnvVar)
+	if procStatus, err := runPowershellWithEnv(ctx, validateCmd, credEnv...); err != nil || procStatus.Exitcode != 0 {
+		t.Fatalf("ValidateCredentials for %q failed (exitcode=%d, err=%v): stderr=%s", username, procStatus.Exitcode, err, redactSecret(procStatus.Stderr, password))
+	}
+	logonCmd := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$user = [string]$env:%[1]s
+$secPwd = ConvertTo-SecureString ([string]$env:%[2]s) -AsPlainText -Force
+Remove-Item Env:\%[1]s, Env:\%[2]s -ErrorAction SilentlyContinue
+$cred = New-Object System.Management.Automation.PSCredential($user, $secPwd)
+Start-Process -Credential $cred -WorkingDirectory C:\Windows\System32 -FilePath cmd.exe -ArgumentList '/c exit 0' -Wait -ErrorAction Stop
+`, credCheckUserEnvVar, credCheckPasswordEnvVar)
+	if procStatus, err := runPowershellWithEnv(ctx, logonCmd, credEnv...); err != nil || procStatus.Exitcode != 0 {
+		t.Fatalf("Start-Process logon check for %q failed (exitcode=%d, err=%v): stderr=%s", username, procStatus.Exitcode, err, redactSecret(procStatus.Stderr, password))
+	}
+}
+
+func cleanupLocalWindowsUsers(t *testing.T, users ...string) {
+	t.Helper()
+	for _, u := range users {
+		cmd := fmt.Sprintf("if ($null -ne (Get-LocalUser -Name '%[1]s' -ErrorAction SilentlyContinue)) { Remove-LocalUser -Name '%[1]s' -ErrorAction Stop }", psSingleQuote(u))
+		if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {
+			t.Errorf("failed to remove local test user %q (exitcode=%d, err=%v): stderr=%s", u, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+		}
+	}
 }
 
 // Verifies that a powershell command ran with no errors and exited with an exit code of 0.
@@ -211,33 +308,31 @@ func verifyPowershellCmd(t *testing.T, cmd string) string {
 // not already there.
 func TestWindowsPasswordReset(t *testing.T) {
 	utils.WindowsOnly(t)
-	initpwd := "gyug3q445m0!"
-	createUserCmd := fmt.Sprintf("net user %s %s /add", passwordResetUser, initpwd)
-	verifyPowershellCmd(t, createUserCmd)
 	ctx := utils.Context(t)
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("Error creating compute service: %v", err)
 	}
 
-	t.Logf("Resetting password on current instance for user %q\n", passwordResetUser)
-	decryptedPassword, err := resetPassword(client, t, passwordResetUser)
+	t.Cleanup(func() {
+		// t.Context() is already canceled when t.Cleanup runs, and daisyCompute.Client
+		// bounds GCE operation waits internally without per-call contexts.
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, passwordResetUser)
+	})
+
+	createUserCmd := fmt.Sprintf("net user %s %s /add", passwordResetUser, initialTestUserPassword)
+	verifyPowershellCmd(t, createUserCmd)
+
+	t.Logf("Resetting password on current instance for user %q", passwordResetUser)
+	creds, privKey, err := requestWindowsPasswordReset(ctx, client, passwordResetUser)
 	if err != nil {
-		t.Fatalf("reset password failed: error %v", err)
+		t.Fatalf("reset password failed: %v", err)
 	}
-	t.Logf("- Username: %s\n- Password: %s\n", passwordResetUser, decryptedPassword)
-	// wait for guest agent to update, since it can take up to a minute
-	time.Sleep(time.Minute)
-	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
-	userList := verifyPowershellCmd(t, getUsersCmd)
-	t.Logf("expected user %s in userlist %s", passwordResetUser, userList)
-	if !strings.Contains(userList, passwordResetUser) {
-		t.Fatalf("user %s not found in userlist: %s", passwordResetUser, userList)
-	}
-	// Verify that the user can log in with the new password.
-	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", passwordResetUser, decryptedPassword)
-	// The process "Credential" in powershell does not print anything on success
-	verifyPowershellCmd(t, verificationCmd)
+	decryptedPassword := decryptResetCreds(t, passwordResetUser, creds, privKey)
+	verifyLocalWindowsCredentials(ctx, t, passwordResetUser, decryptedPassword)
 }
 
 // TestWindowsPasswordResetDifferentLocale tests that the guest agent can create
@@ -252,7 +347,7 @@ func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 	}
 
 	// This feature is only implemented in the core plugin.
-	if utils.IsCoreDisabled() {
+	if isWindowsCoreDisabled() {
 		t.Skip("Skipping test as core plugin is disabled")
 	}
 	ctx := utils.Context(t)
@@ -261,34 +356,31 @@ func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 		t.Fatalf("Error creating compute service: %v", err)
 	}
 
-	// Change the name of the admin group to something else.
-	changeAdminGroupCmd := fmt.Sprintf("Rename-LocalGroup -Name Administrators -NewName %s", newAdminGroupName)
 	t.Cleanup(func() {
-		utils.RunPowershellCmd(fmt.Sprintf("Rename-LocalGroup -Name %s -NewName Administrators", newAdminGroupName))
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, differentLocaleUser)
+		if procStatus, err := utils.RunPowershellCmd(fmt.Sprintf("if ($null -ne (Get-LocalGroup -Name '%[1]s' -ErrorAction SilentlyContinue)) { Rename-LocalGroup -Name '%[1]s' -NewName Administrators -ErrorAction Stop }", psSingleQuote(newAdminGroupName))); err != nil || procStatus.Exitcode != 0 {
+			t.Errorf("failed to restore Administrators group name (exitcode=%d, err=%v): stderr=%s", procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+		}
 	})
+
+	// Change the name of the admin group to something else.
+	changeAdminGroupCmd := fmt.Sprintf("Rename-LocalGroup -Name Administrators -NewName %s -ErrorAction Stop", newAdminGroupName)
 	verifyPowershellCmd(t, changeAdminGroupCmd)
 
 	// Reset the password for the user.
-	t.Logf("Resetting password on current instance for user %q\n", differentLocaleUser)
-	decryptedPassword, err := resetPassword(client, t, differentLocaleUser)
+	t.Logf("Resetting password on current instance for user %q", differentLocaleUser)
+	creds, privKey, err := requestWindowsPasswordReset(ctx, client, differentLocaleUser)
 	if err != nil {
-		t.Fatalf("reset password failed: error %v", err)
+		t.Fatalf("reset password failed: %v", err)
 	}
-	t.Logf("- Username: %s\n- Password: %s\n", differentLocaleUser, decryptedPassword)
-	// wait for guest agent to update, since it can take up to a minute
-	time.Sleep(time.Minute)
-	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
-	userList := verifyPowershellCmd(t, getUsersCmd)
-	t.Logf("expected user %s in userlist %s", differentLocaleUser, strings.Join(strings.Fields(userList), ", "))
-	if !strings.Contains(userList, differentLocaleUser) {
-		t.Fatalf("user %s not found in userlist: %s", differentLocaleUser, userList)
-	}
+	decryptedPassword := decryptResetCreds(t, differentLocaleUser, creds, privKey)
 	// Double check that the user is in the admin group.
 	verifyAdminGroup(t, differentLocaleUser)
 	// Verify that the user can log in with the new password.
-	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", differentLocaleUser, decryptedPassword)
-	// The process "Credential" in powershell does not print anything on success
-	verifyPowershellCmd(t, verificationCmd)
+	verifyLocalWindowsCredentials(ctx, t, differentLocaleUser, decryptedPassword)
 }
 
 // verifyAdminGroup verifies that a user is a member of the local admin group.
@@ -304,4 +396,333 @@ func verifyAdminGroup(t *testing.T, user string) {
 		}
 	}
 	t.Errorf("User %s not a member of the admin group (SID %s)", user, localAdminSID)
+}
+
+func hasWindowsCorePluginBinary() bool {
+	for _, p := range windowsCorePluginPaths {
+		if utils.Exists(p, utils.TypeFile) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWindowsCoreDisabled() bool {
+	return !hasWindowsCorePluginBinary() || utils.IsCoreDisabled()
+}
+
+func isWindowsProcessRunning(processName string) (bool, error) {
+	cmd := fmt.Sprintf("if ($null -ne (Get-Process -Name '%s' -ErrorAction SilentlyContinue)) { Write-Output 'true' } else { Write-Output 'false' }", psSingleQuote(processName))
+	procStatus, err := utils.RunPowershellCmd(cmd)
+	if err != nil || procStatus.Exitcode != 0 {
+		return false, fmt.Errorf("Get-Process %q failed (exitcode=%d, err=%v, stderr=%q)", processName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+	return strings.TrimSpace(procStatus.Stdout) == "true", nil
+}
+
+func windowsServiceState(serviceName string) (string, string, error) {
+	cmd := fmt.Sprintf("$svc = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output 'NotFound|' } else { Write-Output \"$($svc.Status)|$($svc.StartType)\" }", psSingleQuote(serviceName))
+	procStatus, err := utils.RunPowershellCmd(cmd)
+	if err != nil || procStatus.Exitcode != 0 {
+		return "", "", fmt.Errorf("Get-Service %q failed (exitcode=%d, err=%v, stderr=%q)", serviceName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+	status, startType, ok := strings.Cut(strings.TrimSpace(procStatus.Stdout), "|")
+	if !ok {
+		return "", "", fmt.Errorf("unexpected Get-Service %q output %q", serviceName, strings.TrimSpace(procStatus.Stdout))
+	}
+	return status, startType, nil
+}
+
+func windowsServiceStatus(serviceName string) (string, error) {
+	status, _, err := windowsServiceState(serviceName)
+	return status, err
+}
+
+func isWindowsServiceRunning(serviceName string) (bool, error) {
+	status, err := windowsServiceStatus(serviceName)
+	if err != nil {
+		return false, err
+	}
+	return status == serviceRunningStatus, nil
+}
+
+// hasAvailableLegacyWindowsAgent reports whether the legacy GCEWindowsAgent
+// binary and GCEAgent Windows service exist and are either running or
+// configured for automatic startup.
+func hasAvailableLegacyWindowsAgent() (bool, error) {
+	if !utils.Exists(windowsLegacyAgentPath, utils.TypeFile) {
+		return false, nil
+	}
+	status, startType, err := windowsServiceState(legacyAgentServiceName)
+	if err != nil {
+		return false, err
+	}
+	if status == serviceNotFoundStatus {
+		return false, nil
+	}
+	return status == serviceRunningStatus || startType == serviceAutomaticStartType, nil
+}
+
+// canSwitchWindowsAgentMode reports whether the VM can switch between CorePlugin
+// and the legacy GCEWindowsAgent via GCEWindowsCompatManager. If Compat Manager
+// is configured for automatic (including delayed auto-start) startup and has not
+// finished starting yet, it polls until Running; if missing, disabled, manual,
+// or lacking the legacy agent binary/service, it returns (false, nil) immediately.
+func canSwitchWindowsAgentMode(ctx context.Context) (bool, error) {
+	if !utils.Exists(windowsCompatManagerPath, utils.TypeFile) || !utils.Exists(windowsLegacyAgentPath, utils.TypeFile) {
+		return false, nil
+	}
+	legacyStatus, err := windowsServiceStatus(legacyAgentServiceName)
+	if err != nil {
+		return false, err
+	}
+	if legacyStatus == serviceNotFoundStatus {
+		return false, nil
+	}
+
+	var (
+		running  bool
+		stateErr error
+	)
+	pollErr := utils.PollUntil(ctx, fmt.Sprintf("%s service readiness", compatManagerServiceName), agentPollInterval, agentModeSwitchTimeout, func() (bool, string) {
+		status, startType, err := windowsServiceState(compatManagerServiceName)
+		if err != nil {
+			stateErr = err
+			return true, ""
+		}
+		if status == serviceRunningStatus {
+			running = true
+			return true, ""
+		}
+		if startType != serviceAutomaticStartType {
+			return true, ""
+		}
+		return false, fmt.Sprintf("status=%q, startType=%q", status, startType)
+	})
+	if stateErr != nil {
+		return false, stateErr
+	}
+	if pollErr != nil {
+		return false, pollErr
+	}
+	return running, nil
+}
+
+// stopStaleCorePluginProcess terminates any orphaned CorePlugin.exe process
+// left behind on Windows after GCEWindowsCompatManager disables CorePlugin and
+// restarts GCEAgentManager with SkipCorePlugin=true. Stopping GCEAgentManager
+// on Windows does not always terminate child plugin processes before service
+// exit, and local plugin state is not persisted on disk for stopCorePlugin.
+func stopStaleCorePluginProcess() {
+	quotedPaths := make([]string, len(windowsCorePluginPaths))
+	for i, p := range windowsCorePluginPaths {
+		quotedPaths[i] = fmt.Sprintf("'%s'", psSingleQuote(p))
+	}
+	cmd := fmt.Sprintf("Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -in @(%s) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }", strings.Join(quotedPaths, ", "))
+	if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {
+		log.Printf("Best-effort stop of stale CorePlugin.exe returned exitcode=%d, err=%v (stderr=%q)", procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+}
+
+func isCorePluginModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning bool) bool {
+	return !coreDisabled && serviceRunning && coreRunning && !legacyRunning
+}
+
+func isLegacyAgentModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning bool) bool {
+	return coreDisabled && serviceRunning && legacyRunning && !coreRunning
+}
+
+func hasOrphanedCorePluginInLegacyMode(coreDisabled, serviceRunning, coreRunning, legacyRunning, agentManagerRunning bool) bool {
+	return coreDisabled && serviceRunning && legacyRunning && coreRunning && agentManagerRunning
+}
+
+func pollWindowsAgentMode(ctx context.Context, wantCorePlugin bool) error {
+	var serviceName string
+	if wantCorePlugin {
+		serviceName = agentManagerServiceName
+	} else {
+		serviceName = legacyAgentServiceName
+	}
+	return utils.PollUntil(ctx, fmt.Sprintf("Windows agent mode (wantCorePlugin=%t)", wantCorePlugin), agentPollInterval, agentModeSwitchTimeout, func() (bool, string) {
+		coreDisabled := isWindowsCoreDisabled()
+		coreRunning, coreErr := isWindowsProcessRunning(corePluginProcessName)
+		legacyRunning, legacyErr := isWindowsProcessRunning(legacyAgentProcessName)
+		if coreErr != nil || legacyErr != nil {
+			return false, fmt.Sprintf("process check error (coreErr=%v, legacyErr=%v)", coreErr, legacyErr)
+		}
+		serviceStatus, serviceErr := windowsServiceStatus(serviceName)
+		if serviceErr != nil {
+			return false, fmt.Sprintf("service %q status check error=%v", serviceName, serviceErr)
+		}
+		serviceRunning := serviceStatus == serviceRunningStatus
+
+		if wantCorePlugin {
+			if isCorePluginModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning) {
+				return true, ""
+			}
+			return false, fmt.Sprintf("coreDisabled=%t, %s=%q, coreRunning=%t, legacyRunning=%t", coreDisabled, serviceName, serviceStatus, coreRunning, legacyRunning)
+		}
+		if isLegacyAgentModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning) {
+			return true, ""
+		}
+		mgrRunning, mgrErr := isWindowsServiceRunning(agentManagerServiceName)
+		if mgrErr != nil {
+			return false, fmt.Sprintf("service %q status check error=%v", agentManagerServiceName, mgrErr)
+		}
+		if hasOrphanedCorePluginInLegacyMode(coreDisabled, serviceRunning, coreRunning, legacyRunning, mgrRunning) {
+			stopStaleCorePluginProcess()
+		}
+		return false, fmt.Sprintf("coreDisabled=%t, %s=%q, %sRunning=%t, coreRunning=%t, legacyRunning=%t", coreDisabled, serviceName, serviceStatus, agentManagerServiceName, mgrRunning, coreRunning, legacyRunning)
+	})
+}
+
+func waitForWindowsAgentMode(ctx context.Context, t *testing.T, wantCorePlugin bool) {
+	t.Helper()
+	if err := pollWindowsAgentMode(ctx, wantCorePlugin); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func currentInstanceMetadataAttr(ctx context.Context, client daisyCompute.Client, key string) (*string, error) {
+	instanceName, err := utils.GetInstanceName(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get instance name: %w", err)
+	}
+	projectID, zone, err := utils.GetProjectZone(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get project or zone: %w", err)
+	}
+	inst, err := client.GetInstance(projectID, zone, instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance %s: %w", instanceName, err)
+	}
+	if inst.Metadata == nil {
+		return nil, nil
+	}
+	for _, item := range inst.Metadata.Items {
+		if item != nil && item.Key == key {
+			return item.Value, nil
+		}
+	}
+	return nil, nil
+}
+
+func switchWindowsCorePlugin(ctx context.Context, enable bool) error {
+	if err := utils.UpsertMetadata(ctx, enableCorePluginKey, strconv.FormatBool(enable)); err != nil {
+		return fmt.Errorf("failed to set %s=%t: %w", enableCorePluginKey, enable, err)
+	}
+	return pollWindowsAgentMode(ctx, enable)
+}
+
+func restoreWindowsCorePluginMode(origCoreEnabled bool, origAttr *string) error {
+	switchCtx, cancel := context.WithTimeout(context.Background(), agentModeSwitchTimeout)
+	defer cancel()
+	if err := switchWindowsCorePlugin(switchCtx, origCoreEnabled); err != nil {
+		return err
+	}
+	// Run metadata cleanup with context.Background() after the mode switch finishes
+	// so an expired switchCtx cannot abort MDS/GCE cleanup calls.
+	if origAttr == nil {
+		if origCoreEnabled {
+			// switchWindowsCorePlugin already confirmed CorePlugin is active and wrote
+			// enabled=true on disk, so deleting the temporary instance override key
+			// preserves CorePlugin mode without a second mode poll.
+			if err := utils.DeleteMetadata(context.Background(), enableCorePluginKey); err != nil {
+				return fmt.Errorf("failed to delete %s metadata: %w", enableCorePluginKey, err)
+			}
+		}
+		return nil
+	}
+	if *origAttr != strconv.FormatBool(origCoreEnabled) {
+		if err := utils.UpsertMetadata(context.Background(), enableCorePluginKey, *origAttr); err != nil {
+			return fmt.Errorf("failed to restore %s=%q metadata: %w", enableCorePluginKey, *origAttr, err)
+		}
+	}
+	return nil
+}
+
+func setWindowsCorePluginEnabled(ctx context.Context, t *testing.T, enable bool) {
+	t.Helper()
+	if err := switchWindowsCorePlugin(ctx, enable); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestWindowsPasswordResetLegacyAgent switches from CorePlugin to the legacy
+// GCEWindowsAgent on non-DC Windows images (including Windows 10, Windows 11,
+// and standalone Windows Server) and verifies both existing-user password
+// resets and new admin account creation.
+func TestWindowsPasswordResetLegacyAgent(t *testing.T) {
+	utils.WindowsOnly(t)
+	ctx := t.Context()
+
+	origCoreEnabled := !isWindowsCoreDisabled()
+	switchedMode := false
+	if origCoreEnabled {
+		canSwitch, err := canSwitchWindowsAgentMode(ctx)
+		if err != nil {
+			t.Fatalf("failed to check Windows agent mode switch support: %v", err)
+		}
+		if !canSwitch {
+			t.Skip("Windows guest agent mode switching via GCEWindowsCompatManager is unavailable and CorePlugin is active; cannot switch to legacy agent.")
+		}
+		switchedMode = true
+	} else {
+		legacyAvailable, err := hasAvailableLegacyWindowsAgent()
+		if err != nil {
+			t.Fatalf("failed to check legacy Windows agent availability: %v", err)
+		}
+		if !legacyAvailable {
+			t.Skip("Legacy GCEWindowsAgent is absent or disabled and CorePlugin is not active; skipping legacy agent test.")
+		}
+	}
+
+	client, err := utils.GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("Error creating compute service: %v", err)
+	}
+	var origEnableCoreAttr *string
+	if switchedMode {
+		origEnableCoreAttr, err = currentInstanceMetadataAttr(ctx, client, enableCorePluginKey)
+		if err != nil {
+			t.Fatalf("failed to read initial %s metadata: %v", enableCorePluginKey, err)
+		}
+	}
+
+	t.Cleanup(func() {
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, legacyPasswordResetUser, legacyNewAdminUser)
+		if switchedMode {
+			if err := restoreWindowsCorePluginMode(origCoreEnabled, origEnableCoreAttr); err != nil {
+				t.Errorf("failed to restore core plugin mode (%t) in cleanup: %v", origCoreEnabled, err)
+			}
+		}
+	})
+
+	if switchedMode {
+		setWindowsCorePluginEnabled(ctx, t, false)
+	} else {
+		waitForWindowsAgentMode(ctx, t, false)
+	}
+
+	// 1. Existing local user password reset under GCEWindowsAgent.
+	verifyPowershellCmd(t, fmt.Sprintf("net user %s %s /add", legacyPasswordResetUser, initialTestUserPassword))
+
+	existingCreds, existingPriv, err := requestWindowsPasswordReset(ctx, client, legacyPasswordResetUser)
+	if err != nil {
+		t.Fatalf("legacy agent password reset for %s failed: %v", legacyPasswordResetUser, err)
+	}
+	existingPwd := decryptResetCreds(t, legacyPasswordResetUser, existingCreds, existingPriv)
+	verifyLocalWindowsCredentials(ctx, t, legacyPasswordResetUser, existingPwd)
+
+	// 2. New local admin user creation under GCEWindowsAgent.
+	newCreds, newPriv, err := requestWindowsPasswordReset(ctx, client, legacyNewAdminUser)
+	if err != nil {
+		t.Fatalf("legacy agent account creation for %s failed: %v", legacyNewAdminUser, err)
+	}
+	newPwd := decryptResetCreds(t, legacyNewAdminUser, newCreds, newPriv)
+	verifyAdminGroup(t, legacyNewAdminUser)
+	verifyLocalWindowsCredentials(ctx, t, legacyNewAdminUser, newPwd)
 }
