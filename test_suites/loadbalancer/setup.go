@@ -72,7 +72,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	mkvm := func(name, ip, test string) (*daisy.Instance, error) {
 		inst := &daisy.Instance{}
-		vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: name}}, inst)
+		vm, err := t.CreateTestVMFromInstance(inst, []*compute.Disk{{Name: name}})
 		if err != nil {
 			return nil, err
 		}

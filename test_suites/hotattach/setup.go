@@ -40,7 +40,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
 
-	hotattach, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: strings.Replace("reattach"+diskType, "-", "", -1), Type: diskType}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}}, hotattachInst)
+	hotattach, err := t.CreateTestVMFromInstance(hotattachInst, []*compute.Disk{{Name: strings.Replace("reattach"+diskType, "-", "", -1), Type: diskType}, {Name: "hotattachmount", Type: diskType, SizeGb: 30}})
 	if err != nil {
 		return err
 	}

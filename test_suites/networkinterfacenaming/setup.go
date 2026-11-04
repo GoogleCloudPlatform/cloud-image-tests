@@ -63,7 +63,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		c3metal.Zone = zone
 		c3metal.Scheduling = &compute.Scheduling{OnHostMaintenance: "TERMINATE"}
 		c3MetalDiskType := imagetest.DiskTypeNeeded(c3metal.MachineType)
-		c3metalVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: zone}}, c3metal)
+		c3metalVM, err := t.CreateTestVMFromInstance(c3metal, []*compute.Disk{{Name: "c3metal", Type: c3MetalDiskType, Zone: zone}})
 		if err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		},
 	}
 	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
-	nicnameVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "nicname", Type: diskType}}, nicname)
+	nicnameVM, err := t.CreateTestVMFromInstance(nicname, []*compute.Disk{{Name: "nicname", Type: diskType}})
 	if err != nil {
 		return err
 	}

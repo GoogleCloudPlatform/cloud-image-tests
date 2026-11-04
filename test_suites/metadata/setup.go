@@ -59,7 +59,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	vm2Inst := &daisy.Instance{}
 	vm2Inst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	shutdownScriptsVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "shutdownscripts"}}, vm2Inst)
+	shutdownScriptsVM, err := t.CreateTestVMFromInstance(vm2Inst, []*compute.Disk{{Name: "shutdownscripts"}})
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 
 	vm3Inst := &daisy.Instance{}
 	vm3Inst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	shutdownScriptsMaxLengthVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "shutdownscriptsfailed"}}, vm3Inst)
+	shutdownScriptsMaxLengthVM, err := t.CreateTestVMFromInstance(vm3Inst, []*compute.Disk{{Name: "shutdownscriptsfailed"}})
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		// For Linux, create a dedicated VM to test the shutdown script URL.
 		shutdownScriptURLInst := &daisy.Instance{}
 		shutdownScriptURLInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-		shutdownScriptURL, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "shutdownurlscripts"}}, shutdownScriptURLInst)
+		shutdownScriptURL, err := t.CreateTestVMFromInstance(shutdownScriptURLInst, []*compute.Disk{{Name: "shutdownurlscripts"}})
 		if err != nil {
 			return err
 		}

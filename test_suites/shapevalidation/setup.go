@@ -185,7 +185,7 @@ Familyloop:
 				return err
 			}
 		}
-		vm, err := t.CreateTestVMMultipleDisks(shape.disks, nil)
+		vm, err := t.CreateTestVMFromInstance(nil, shape.disks)
 		if err != nil {
 			return err
 		}

@@ -52,7 +52,7 @@ const (
 func TestSetup(t *imagetest.TestWorkflow) error {
 	rebootInst := &daisy.Instance{}
 	rebootInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "resize"}}, rebootInst)
+	vm, err := t.CreateTestVMFromInstance(rebootInst, []*compute.Disk{{Name: "resize"}})
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			inst.MachineType = tc.machineType
 			series, _, _ := strings.Cut(tc.machineType, "-")
 			inst.Name = "blockNaming" + strings.ToUpper(series)
-			vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.HyperdiskBalanced}, {Name: "secondary", Type: imagetest.HyperdiskBalanced, SizeGb: 10}}, inst)
+			vm, err := t.CreateTestVMFromInstance(inst, []*compute.Disk{{Name: inst.Name, Type: imagetest.HyperdiskBalanced}, {Name: "secondary", Type: imagetest.HyperdiskBalanced, SizeGb: 10}})
 			if err != nil {
 				return err
 			}
