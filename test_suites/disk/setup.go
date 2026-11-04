@@ -16,6 +16,7 @@
 package disk
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
@@ -45,7 +46,10 @@ var (
 )
 
 const (
-	resizeDiskSize = 200
+	resizeDiskSize               = 200
+	secondaryDiskName            = "secondary"
+	customDeviceNameDiskResource = "customdevname"
+	customDeviceName             = "data.disk_1-test"
 )
 
 // TestSetup sets up the test workflow.
@@ -73,11 +77,27 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			inst.MachineType = tc.machineType
 			series, _, _ := strings.Cut(tc.machineType, "-")
 			inst.Name = "blockNaming" + strings.ToUpper(series)
-			vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: inst.Name, Type: imagetest.HyperdiskBalanced}, {Name: "secondary", Type: imagetest.HyperdiskBalanced, SizeGb: 10}}, inst)
+			disks := []*compute.Disk{
+				{Name: inst.Name, Type: imagetest.HyperdiskBalanced},
+				{Name: secondaryDiskName, Type: imagetest.HyperdiskBalanced, SizeGb: 10},
+				{Name: customDeviceNameDiskResource, Type: imagetest.HyperdiskBalanced, SizeGb: 10},
+			}
+			vm, err := t.CreateTestVMMultipleDisks(disks, inst)
 			if err != nil {
 				return err
 			}
-			vm.RunTests("TestBlockDeviceNaming")
+			foundCustomDisk := false
+			for _, d := range inst.Disks {
+				if d.Source == customDeviceNameDiskResource {
+					d.DeviceName = customDeviceName
+					foundCustomDisk = true
+					break
+				}
+			}
+			if !foundCustomDisk {
+				return fmt.Errorf("attached disk for %q not found on instance %q", customDeviceNameDiskResource, inst.Name)
+			}
+			vm.RunTests("TestBlockDeviceNaming|TestGoogleNVMeIDVendorExtensionValidation")
 		}
 	}
 	return nil
