@@ -103,7 +103,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			lssdMountInst.Zone = zone
 			lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-			lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: zone, Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
+			lssdMount, err := t.CreateTestVMFromInstance(lssdMountInst, []*compute.Disk{{Zone: zone, Name: "remountLSSD", Type: imagetest.PdBalanced}})
 			if err != nil {
 				return err
 			}
@@ -131,7 +131,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			lssdMetalInst.Scheduling = &compute.Scheduling{OnHostMaintenance: imagetest.MachineMaintenancePolicy(metalMachineType)}
 			metalDiskType := imagetest.DiskTypeNeeded(metalMachineType)
 
-			lssdMetal, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: metalZone, Name: "lssdMetal", Type: metalDiskType}}, lssdMetalInst)
+			lssdMetal, err := t.CreateTestVMFromInstance(lssdMetalInst, []*compute.Disk{{Zone: metalZone, Name: "lssdMetal", Type: metalDiskType}})
 			if err != nil {
 				return err
 			}

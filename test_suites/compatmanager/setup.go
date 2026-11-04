@@ -104,7 +104,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// Test metadata script compat manager with shutdown script.
 	metadataShutdownTestVM := &daisy.Instance{}
 	metadataShutdownTestVM.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	rebootVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "shutdownscripts"}}, metadataShutdownTestVM)
+	rebootVM, err := t.CreateTestVMFromInstance(metadataShutdownTestVM, []*compute.Disk{{Name: "shutdownscripts"}})
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// Default shutdown script runner without compat manager.
 	defaultShutdownTestVM := &daisy.Instance{}
 	defaultShutdownTestVM.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	defaultRebootVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "defaultshutdownscripts"}}, defaultShutdownTestVM)
+	defaultRebootVM, err := t.CreateTestVMFromInstance(defaultShutdownTestVM, []*compute.Disk{{Name: "defaultshutdownscripts"}})
 	if err != nil {
 		return err
 	}

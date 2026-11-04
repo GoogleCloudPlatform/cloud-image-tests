@@ -209,241 +209,129 @@ func MachineMaintenancePolicy(machineType string) string {
 	return "MIGRATE"
 }
 
-// CreateTestVM adds the necessary steps to create a VM with the specified
-// name to the workflow.
-func (t *TestWorkflow) CreateTestVM(name string) (*TestVM, error) {
+// vmName derives the workflow VM name from a test VM name: anything after the
+// first "." is dropped and underscores are replaced with dashes.
+func vmName(name string) string {
 	parts := strings.Split(name, ".")
-	vmname := strings.ReplaceAll(parts[0], "_", "-")
+	return strings.ReplaceAll(parts[0], "_", "-")
+}
 
-	bootDisk := &compute.Disk{Name: vmname}
-	createDisksStep, err := t.appendCreateDisksStep(bootDisk)
-	if err != nil {
-		return nil, err
-	}
-
-	daisyInst := &daisy.Instance{}
-	// createDisksStep doesn't depend on any other steps.
-	createVMStep, i, err := t.appendCreateVMStep([]*compute.Disk{bootDisk}, daisyInst)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := t.wf.AddDependency(createVMStep, createDisksStep); err != nil {
-		return nil, err
-	}
-
-	waitStep, err := t.addWaitStep(vmname, vmname)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := t.wf.AddDependency(waitStep, createVMStep); err != nil {
-		return nil, err
-	}
-
-	if createSubnetworkStep, ok := t.wf.Steps[createSubnetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createSubnetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
-	if createNetworkStep, ok := t.wf.Steps[createNetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createNetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
-	return &TestVM{name: vmname, testWorkflow: t, instance: i}, nil
+// CreateTestVM adds the necessary steps to create a VM with the specified
+// name and default instance parameters to the workflow.
+func (t *TestWorkflow) CreateTestVM(name string) (*TestVM, error) {
+	return t.CreateTestVMFromInstance(&daisy.Instance{}, []*compute.Disk{{Name: vmName(name)}})
 }
 
 // CreateTestVMBeta adds the necessary steps to create a VM with the specified
-// name from the compute beta API to the workflow.
+// name and default instance parameters from the compute beta API to the
+// workflow.
 func (t *TestWorkflow) CreateTestVMBeta(name string) (*TestVM, error) {
-	parts := strings.Split(name, ".")
-	vmname := strings.ReplaceAll(parts[0], "_", "-")
-
-	bootDisk := &compute.Disk{Name: vmname}
-	createDisksStep, err := t.appendCreateDisksStep(bootDisk)
-	if err != nil {
-		return nil, err
-	}
-
-	daisyInst := &daisy.InstanceBeta{}
-	// createDisksStep doesn't depend on any other steps.
-	createVMStep, i, err := t.appendCreateVMStepBeta([]*compute.Disk{bootDisk}, daisyInst)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := t.wf.AddDependency(createVMStep, createDisksStep); err != nil {
-		return nil, err
-	}
-
-	waitStep, err := t.addWaitStep(vmname, vmname)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := t.wf.AddDependency(waitStep, createVMStep); err != nil {
-		return nil, err
-	}
-
-	if createSubnetworkStep, ok := t.wf.Steps[createSubnetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createSubnetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
-	if createNetworkStep, ok := t.wf.Steps[createNetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createNetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
-	return &TestVM{name: vmname, testWorkflow: t, instancebeta: i}, nil
+	return t.CreateTestVMFromInstanceBeta(&daisy.InstanceBeta{}, []*compute.Disk{{Name: vmName(name)}})
 }
 
-// CreateTestVMMultipleDisks adds the necessary steps to create a VM with the specified
-// name to the workflow.
-func (t *TestWorkflow) CreateTestVMMultipleDisks(disks []*compute.Disk, instanceParams *daisy.Instance) (*TestVM, error) {
-	if len(disks) == 0 || disks[0].Name == "" {
-		return nil, fmt.Errorf("failed to create multiple disk VM with empty boot disk")
-	}
-
-	name := disks[0].Name
-	parts := strings.Split(name, ".")
-	vmname := strings.ReplaceAll(parts[0], "_", "-")
-
-	createDisksSteps := make([]*daisy.Step, len(disks))
-	for i, disk := range disks {
-		// the disk creation steps are slightly different for the boot disk and mount disks
-		var createDisksStep *daisy.Step
-		var err error
-		if i == 0 {
-			createDisksStep, err = t.appendCreateDisksStep(disk)
-		} else {
-			createDisksStep, err = t.appendCreateMountDisksStep(disk)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-		createDisksSteps[i] = createDisksStep
-	}
-	var daisyInst *daisy.Instance
-	if instanceParams == nil {
-		daisyInst = &daisy.Instance{}
-	} else {
-		daisyInst = instanceParams
-	}
-	// createDisksStep doesn't depend on any other steps.
-	createVMStep, i, err := t.appendCreateVMStep(disks, daisyInst)
+// CreateTestVMFromInstance creates a test vm struct to run CIT suites on from
+// the given daisy instance and adds it to the test workflow. The first disk is
+// the boot disk and names the VM; any further disks are created as additional
+// disks attached to the VM. A nil instance uses default instance parameters.
+func (t *TestWorkflow) CreateTestVMFromInstance(i *daisy.Instance, disks []*compute.Disk) (*TestVM, error) {
+	createDisksSteps, err := t.appendCreateVMDisksSteps(disks)
 	if err != nil {
 		return nil, err
 	}
-	for _, createDisksStep := range createDisksSteps {
-		if err := t.wf.AddDependency(createVMStep, createDisksStep); err != nil {
-			return nil, err
-		}
-	}
-
-	// In a follow-up, guest attribute support will be added.
-	// If this is the first boot before a reboot, this should use a
-	// different guest attribute when waiting for the instance signal.
-	var waitStep *daisy.Step
-	if _, foundKey := daisyInst.Metadata[ShouldRebootDuringTest]; foundKey {
-		waitStep, err = t.addWaitRebootGAStep(vmname, vmname)
-	} else {
-		waitStep, err = t.addWaitStep(vmname, vmname)
-	}
+	// createDisksSteps don't depend on any other steps.
+	createVMStep, i, err := t.appendCreateVMStep(disks, i)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := t.wf.AddDependency(waitStep, createVMStep); err != nil {
+	vmname := vmName(disks[0].Name)
+	_, rebootDuringTest := i.Metadata[ShouldRebootDuringTest]
+	if err := t.addCreateVMDependencies(vmname, createVMStep, createDisksSteps, rebootDuringTest); err != nil {
 		return nil, err
 	}
-
-	if createSubnetworkStep, ok := t.wf.Steps[createSubnetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createSubnetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
-	if createNetworkStep, ok := t.wf.Steps[createNetworkStepName]; ok {
-		if err := t.wf.AddDependency(createVMStep, createNetworkStep); err != nil {
-			return nil, err
-		}
-	}
-
 	return &TestVM{name: vmname, testWorkflow: t, instance: i}, nil
 }
 
 // CreateTestVMFromInstanceBeta creates a test vm struct to run CIT suites on from
-// the given daisy instancebeta and adds it to the test workflow.
+// the given daisy instancebeta and adds it to the test workflow. The first disk
+// is the boot disk and names the VM; any further disks are created as additional
+// disks attached to the VM. A nil instance uses default instance parameters.
 func (t *TestWorkflow) CreateTestVMFromInstanceBeta(i *daisy.InstanceBeta, disks []*compute.Disk) (*TestVM, error) {
-	if len(disks) == 0 || disks[0].Name == "" {
-		return nil, fmt.Errorf("failed to create multiple disk VM with empty boot disk")
+	createDisksSteps, err := t.appendCreateVMDisksSteps(disks)
+	if err != nil {
+		return nil, err
 	}
-
-	name := disks[0].Name
-	parts := strings.Split(name, ".")
-	vmname := strings.ReplaceAll(parts[0], "_", "-")
-
-	createDisksSteps := make([]*daisy.Step, len(disks))
-	for i, disk := range disks {
-		// the disk creation steps are slightly different for the boot disk and mount disks
-		var createDisksStep *daisy.Step
-		var err error
-		if i == 0 {
-			createDisksStep, err = t.appendCreateDisksStep(disk)
-		} else {
-			createDisksStep, err = t.appendCreateMountDisksStep(disk)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-		createDisksSteps[i] = createDisksStep
-	}
-	// createDisksStep doesn't depend on any other steps.
+	// createDisksSteps don't depend on any other steps.
 	createVMStep, i, err := t.appendCreateVMStepBeta(disks, i)
 	if err != nil {
 		return nil, err
 	}
+	vmname := vmName(disks[0].Name)
+	_, rebootDuringTest := i.Metadata[ShouldRebootDuringTest]
+	if err := t.addCreateVMDependencies(vmname, createVMStep, createDisksSteps, rebootDuringTest); err != nil {
+		return nil, err
+	}
+	return &TestVM{name: vmname, testWorkflow: t, instancebeta: i}, nil
+}
+
+// appendCreateVMDisksSteps adds the disk creation steps for a VM. The first
+// disk is created as the boot disk and the rest as mount disks.
+func (t *TestWorkflow) appendCreateVMDisksSteps(disks []*compute.Disk) ([]*daisy.Step, error) {
+	if len(disks) == 0 || disks[0].Name == "" {
+		return nil, fmt.Errorf("failed to create VM with empty boot disk")
+	}
+	createDisksSteps := make([]*daisy.Step, len(disks))
+	for i, disk := range disks {
+		var err error
+		if i == 0 {
+			createDisksSteps[i], err = t.appendCreateDisksStep(disk)
+		} else {
+			createDisksSteps[i], err = t.appendCreateMountDisksStep(disk)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return createDisksSteps, nil
+}
+
+// addCreateVMDependencies adds the wait step for the VM and wires the create VM
+// step after its disks and the workflow network, if any. If the VM is expected
+// to reboot during the test, a dedicated guest attribute is used as the wait
+// signal.
+func (t *TestWorkflow) addCreateVMDependencies(vmname string, createVMStep *daisy.Step, createDisksSteps []*daisy.Step, rebootDuringTest bool) error {
 	for _, createDisksStep := range createDisksSteps {
 		if err := t.wf.AddDependency(createVMStep, createDisksStep); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	var waitStep *daisy.Step
-	if _, foundKey := i.Metadata[ShouldRebootDuringTest]; foundKey {
+	var err error
+	if rebootDuringTest {
 		waitStep, err = t.addWaitRebootGAStep(vmname, vmname)
 	} else {
 		waitStep, err = t.addWaitStep(vmname, vmname)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := t.wf.AddDependency(waitStep, createVMStep); err != nil {
-		return nil, err
+		return err
 	}
 
 	if createSubnetworkStep, ok := t.wf.Steps[createSubnetworkStepName]; ok {
 		if err := t.wf.AddDependency(createVMStep, createSubnetworkStep); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	if createNetworkStep, ok := t.wf.Steps[createNetworkStepName]; ok {
 		if err := t.wf.AddDependency(createVMStep, createNetworkStep); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	return &TestVM{name: vmname, testWorkflow: t, instancebeta: i}, nil
+	return nil
 }
 
 // CreateDerivativeVM creates a derivative image using the sourceVM's boot disk

@@ -59,7 +59,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			Subnetwork: "dualStack",
 		},
 	}
-	dualStackVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "dualstack"}}, dualStack)
+	dualStackVM, err := t.CreateTestVMFromInstance(dualStack, []*compute.Disk{{Name: "dualstack"}})
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			Subnetwork: "ipv4Only",
 		},
 	}
-	ipv4OnlyVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "ipv4only"}}, ipv4Only)
+	ipv4OnlyVM, err := t.CreateTestVMFromInstance(ipv4Only, []*compute.Disk{{Name: "ipv4only"}})
 	if err != nil {
 		return err
 	}

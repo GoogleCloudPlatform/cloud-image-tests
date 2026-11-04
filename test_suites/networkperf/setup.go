@@ -373,7 +373,7 @@ func createMachine(
 		}
 	}
 
-	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&disk}, instance)
+	vm, err := t.CreateTestVMFromInstance(instance, []*compute.Disk{&disk})
 	if err != nil {
 		return nil, fmt.Errorf("creating machine: %w", err)
 	}

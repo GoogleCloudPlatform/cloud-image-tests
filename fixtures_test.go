@@ -250,12 +250,147 @@ func TestCreateVMFromInstanceBeta(t *testing.T) {
 	}
 }
 
-// TestCreateVMMultipleDisks tests that after creating a VM with multiple disks,
+// TestVMName tests that test VM names are normalized to workflow VM names.
+func TestVMName(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "vm", want: "vm"},
+		{name: "vm.subtest", want: "vm"},
+		{name: "my_vm", want: "my-vm"},
+		{name: "my_vm.subtest", want: "my-vm"},
+	}
+	for _, tc := range tests {
+		if got := vmName(tc.name); got != tc.want {
+			t.Errorf("vmName(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestCreateTestVM tests that CreateTestVM creates a VM with a single boot disk
+// named after the VM and waits for the default guest attribute.
+func TestCreateTestVM(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	tvm, err := twf.CreateTestVM("vm.subtest")
+	if err != nil {
+		t.Fatalf("failed to create test vm: %v", err)
+	}
+	if tvm.name != "vm" {
+		t.Errorf("tvm.name = %q, want %q", tvm.name, "vm")
+	}
+	if tvm.instance == nil || tvm.instance.Name != "vm" {
+		t.Fatalf("tvm.instance = %+v, want instance named vm", tvm.instance)
+	}
+	if len(tvm.instance.Disks) != 1 || tvm.instance.Disks[0].Source != "vm" {
+		t.Errorf("tvm.instance.Disks = %+v, want a single boot disk vm", tvm.instance.Disks)
+	}
+	createDisksStep, ok := twf.wf.Steps[createDisksStepName]
+	if !ok || createDisksStep.CreateDisks == nil || len(*createDisksStep.CreateDisks) != 1 {
+		t.Fatalf("create disks step = %+v, want one disk", createDisksStep)
+	}
+	if got := (*createDisksStep.CreateDisks)[0].Name; got != "vm" {
+		t.Errorf("boot disk name = %q, want %q", got, "vm")
+	}
+	createVMStep, ok := twf.wf.Steps[createVMsStepName]
+	if !ok || createVMStep.CreateInstances == nil || len(createVMStep.CreateInstances.Instances) != 1 {
+		t.Fatalf("create vm step = %+v, want one instance", createVMStep)
+	}
+	waitStep, ok := twf.wf.Steps["wait-vm"]
+	if !ok || waitStep.WaitForInstancesSignal == nil || len(*waitStep.WaitForInstancesSignal) != 1 {
+		t.Fatalf("wait step = %+v, want one instance signal", waitStep)
+	}
+	if got := (*waitStep.WaitForInstancesSignal)[0].GuestAttribute.KeyName; got != utils.GuestAttributeTestKey {
+		t.Errorf("wait guest attribute key = %q, want %q", got, utils.GuestAttributeTestKey)
+	}
+}
+
+// TestCreateTestVMDependencies tests that the VM created by CreateTestVM is
+// created after its boot disk and waited for after it is created.
+func TestCreateTestVMDependencies(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	if _, err := twf.CreateTestVM("vm"); err != nil {
+		t.Fatalf("failed to create test vm: %v", err)
+	}
+	if !slices.Contains(twf.wf.Dependencies[createVMsStepName], createDisksStepName) {
+		t.Errorf("create vm step dependencies = %v, want %q", twf.wf.Dependencies[createVMsStepName], createDisksStepName)
+	}
+	if !slices.Contains(twf.wf.Dependencies["wait-vm"], createVMsStepName) {
+		t.Errorf("wait step dependencies = %v, want %q", twf.wf.Dependencies["wait-vm"], createVMsStepName)
+	}
+}
+
+// TestCreateTestVMBeta tests that CreateTestVMBeta creates a beta VM with a
+// single boot disk named after the VM and waits for the default guest attribute.
+func TestCreateTestVMBeta(t *testing.T) {
+	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+	tvm, err := twf.CreateTestVMBeta("my_vm")
+	if err != nil {
+		t.Fatalf("failed to create test vm: %v", err)
+	}
+	if tvm.name != "my-vm" {
+		t.Errorf("tvm.name = %q, want %q", tvm.name, "my-vm")
+	}
+	if tvm.instancebeta == nil || tvm.instancebeta.Name != "my-vm" {
+		t.Fatalf("tvm.instancebeta = %+v, want instance named my-vm", tvm.instancebeta)
+	}
+	if len(tvm.instancebeta.Disks) != 1 || tvm.instancebeta.Disks[0].Source != "my-vm" {
+		t.Errorf("tvm.instancebeta.Disks = %+v, want a single boot disk my-vm", tvm.instancebeta.Disks)
+	}
+	createVMStep, ok := twf.wf.Steps[createVMsStepName]
+	if !ok || createVMStep.CreateInstances == nil || len(createVMStep.CreateInstances.InstancesBeta) != 1 {
+		t.Fatalf("create vm step = %+v, want one beta instance", createVMStep)
+	}
+	waitStep, ok := twf.wf.Steps["wait-my-vm"]
+	if !ok || waitStep.WaitForInstancesSignal == nil || len(*waitStep.WaitForInstancesSignal) != 1 {
+		t.Fatalf("wait step = %+v, want one instance signal", waitStep)
+	}
+	if got := (*waitStep.WaitForInstancesSignal)[0].GuestAttribute.KeyName; got != utils.GuestAttributeTestKey {
+		t.Errorf("wait guest attribute key = %q, want %q", got, utils.GuestAttributeTestKey)
+	}
+}
+
+var emptyBootDiskTests = []struct {
+	name  string
+	disks []*compute.Disk
+}{
+	{name: "nil", disks: nil},
+	{name: "empty", disks: []*compute.Disk{}},
+	{name: "unnamed", disks: []*compute.Disk{{}}},
+}
+
+// TestCreateVMFromInstanceEmptyBootDisk tests that a VM cannot be created
+// without a named boot disk.
+func TestCreateVMFromInstanceEmptyBootDisk(t *testing.T) {
+	for _, tc := range emptyBootDiskTests {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+			if _, err := twf.CreateTestVMFromInstance(nil, tc.disks); err == nil {
+				t.Error("CreateTestVMFromInstance succeeded, want error")
+			}
+		})
+	}
+}
+
+// TestCreateVMFromInstanceBetaEmptyBootDisk tests that a beta VM cannot be
+// created without a named boot disk.
+func TestCreateVMFromInstanceBetaEmptyBootDisk(t *testing.T) {
+	for _, tc := range emptyBootDiskTests {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+			if _, err := twf.CreateTestVMFromInstanceBeta(nil, tc.disks); err == nil {
+				t.Error("CreateTestVMFromInstanceBeta succeeded, want error")
+			}
+		})
+	}
+}
+
+// TestCreateVMFromInstance tests that after creating a VM with multiple disks,
 // the correct step dependencies are in place.
-func TestCreateVMMultipleDisks(t *testing.T) {
+func TestCreateVMFromInstance(t *testing.T) {
 	twf := NewTestWorkflowForUnitTest("name", "image", "30m")
 	disks := []*compute.Disk{{Name: "vm"}, {Name: "mountdisk", Type: PdSsd, SizeGb: 100}}
-	tvm, err := twf.CreateTestVMMultipleDisks(disks, nil)
+	tvm, err := twf.CreateTestVMFromInstance(nil, disks)
 	if err != nil {
 		t.Errorf("failed to create test vm: %v", err)
 	}
@@ -338,7 +473,7 @@ func TestCreateVMRebootGA(t *testing.T) {
 	disks := []*compute.Disk{{Name: "vm"}, {Name: "mountdisk", Type: PdSsd, SizeGb: 100}}
 	rebootInst := &daisy.Instance{}
 	rebootInst.Metadata = map[string]string{ShouldRebootDuringTest: "true"}
-	tvm, err := twf.CreateTestVMMultipleDisks(disks, rebootInst)
+	tvm, err := twf.CreateTestVMFromInstance(rebootInst, disks)
 	if err != nil {
 		t.Errorf("failed to create test vm: %v", err)
 	}
@@ -443,7 +578,7 @@ func TestRebootMultipleDisks(t *testing.T) {
 	testMachineType := "c3-standard-4"
 	pdInst := &daisy.Instance{}
 	pdInst.MachineType = testMachineType
-	tvm, err := twf.CreateTestVMMultipleDisks(disks, pdInst)
+	tvm, err := twf.CreateTestVMFromInstance(pdInst, disks)
 	if err != nil {
 		t.Errorf("failed to create test vm: %v", err)
 	}
