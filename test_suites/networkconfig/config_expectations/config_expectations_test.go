@@ -4,6 +4,7 @@ package configexpectations
 import (
 	_ "embed"
 	"fmt"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -169,5 +170,19 @@ func TestKernelVersionFormat(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGuestOsConstraints(t *testing.T) {
+	c := proto()
+	for i, constraint := range c.GetGuestOsConstraints() {
+		pattern := constraint.GetOsPattern()
+		if pattern == "" {
+			t.Errorf("guest_os_constraints[%d]: empty os_pattern", i)
+			continue
+		}
+		if _, err := regexp.Compile(pattern); err != nil {
+			t.Errorf("guest_os_constraints[%d]: invalid os_pattern %q: %v", i, pattern, err)
+		}
 	}
 }

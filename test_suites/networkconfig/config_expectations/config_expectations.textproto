@@ -1,6 +1,11 @@
 # proto-file: third_party/golang/github_com/GoogleCloudPlatform/cloud_image_tests/test_suites/networkconfig/config_expectations/config_expectations.proto
 # proto-message: ConfigExpectations
 
+guest_os_constraints: {
+  os_pattern: "debian-(12|13)"
+  includes_irdma_driver: false
+}
+
 # go/keep-sorted start block=yes by_regex=machine_type.*;description.*
 config_expectations: {
   description: "A2 High machine with 1 GVNIC"

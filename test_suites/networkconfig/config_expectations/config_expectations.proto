@@ -23,8 +23,25 @@ option go_package = "./test_suites/networkconfig/config_expectations_proto";
 
 message ConfigExpectations {
   repeated SystemConfig config_expectations = 1;
+  repeated GuestOsConstraint guest_os_constraints = 2;
 }
 
+// Constraints describing divergences from normal guest OS capabilities for OS
+// images matching a pattern.
+//
+// Related to GuestOsSelector, but for properties which are material across
+// machine types.
+message GuestOsConstraint {
+  // Regular expression matched against the base guest OS image name (from
+  // instance metadata `instance/image`).
+  string os_pattern = 1;
+
+  // Whether the guest OS includes an IRDMA driver.
+  bool includes_irdma_driver = 2 [default = true];
+}
+
+// Criteria for matching properties of the VM's guest OS.
+// This is used to match machine expectations to a particular guest OS.
 message GuestOsSelector {
   // The minimum kernel version (inclusive) required for this expectation to
   // apply, e.g. "6.8.0" or "6.8".
