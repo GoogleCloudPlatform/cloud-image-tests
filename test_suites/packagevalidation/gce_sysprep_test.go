@@ -15,6 +15,7 @@
 package packagevalidation
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"regexp"
@@ -25,23 +26,31 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
-func resetDebugLogs(t *testing.T) {
+func resetDebugLogs(ctx context.Context, t *testing.T) {
 	t.Helper()
+	// Windows package test images append log_level = 4 and log_verbosity = 2 (or 4)
+	// to instance_configs.cfg; reset both and restart the agent so in-memory debug
+	// logging does not exceed the Event Log cap during sysprep.exe.
 	script := `
-(Get-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg") -replace 'log_level = 4', 'log_level = 3' | Set-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg"
-(Get-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg") -replace 'log_verbosity = 4', 'log_verbosity = 0' | Set-Content -Path "C:\Program Files\Google\Compute Engine\instance_configs.cfg"
+$cfg = "C:\Program Files\Google\Compute Engine\instance_configs.cfg"
+if (Test-Path $cfg) {
+  (Get-Content -Path $cfg) -replace 'log_level = \d+', 'log_level = 3' -replace 'log_verbosity = \d+', 'log_verbosity = 0' | Set-Content -Path $cfg
+}
 `
 
 	out, err := utils.RunPowershellCmd(script)
 	if err != nil {
 		t.Fatalf("Failed to reset log settings: %v, output: %+v", err, out)
 	}
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatalf("Failed to restart guest agent after resetting log settings: %v", err)
+	}
 }
 
 func TestGCESysprep(t *testing.T) {
 	utils.WindowsOnly(t)
-	resetDebugLogs(t)
 	ctx := utils.Context(t)
+	resetDebugLogs(ctx, t)
 	err := os.WriteFile(`C:\Windows\Temp\test.txt`, []byte(`test file`), 0777)
 	if err != nil {
 		t.Fatal(err)
