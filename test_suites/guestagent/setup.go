@@ -24,8 +24,9 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 const (
-	Name        = "guestagent"
-	mwlidVMName = "mwlid" // Name of the VM used for mwlid tests.
+	Name                = "guestagent"
+	mwlidVMName         = "mwlid" // Name of the VM used for mwlid tests.
+	windowsAccountTests = "TestWindowsPasswordReset|TestWindowsPasswordResetDifferentLocale|TestWindowsPasswordResetLegacyAgent|TestDiagnostic"
 )
 
 // TestSetup sets up the test workflow.
@@ -64,16 +65,16 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		snapshotvm.RunTests("TestSnapshotScripts")
 	}
 
-	if utils.HasFeature(t.Image, "WINDOWS") {
+	if utils.HasFeature(t.Image, "WINDOWS") && t.ShouldRunTests(windowsAccountTests) {
 		passwordInst := &daisy.Instance{}
 		passwordInst.Scopes = append(passwordInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-		windowsaccountVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsaccount"}}, passwordInst)
+		windowsaccountVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsaccount", Type: diskType}}, passwordInst)
 		if err != nil {
 			return err
 		}
 		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
 		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
-		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
+		windowsaccountVM.RunTests(windowsAccountTests)
 	}
 
 	if !utils.IsWindowsImage(t.Image.Name) {
