@@ -24,9 +24,29 @@ import (
 
 // Name is the name of the test package. It must match the directory name.
 const (
-	Name        = "guestagent"
-	mwlidVMName = "mwlid" // Name of the VM used for mwlid tests.
+	Name                = "guestagent"
+	mwlidVMName         = "mwlid" // Name of the VM used for mwlid tests.
+	windowsAccountTests = "TestWindowsPasswordReset|TestWindowsPasswordResetDifferentLocale|TestWindowsPasswordResetLegacyAgent|TestDiagnostic"
+	windowsDCTestName   = "TestWindowsDomainControllerAccounts"
 )
+
+func supportsWindowsDomainControllerRole(img *compute.Image) bool {
+	return utils.HasFeature(img, "WINDOWS") &&
+		!utils.IsWindowsClient(img.Name) &&
+		!utils.IsWindowsSQLImage(img.Name) &&
+		!strings.Contains(img.Name, "-for-containers")
+}
+
+func hasUpdatedGuestAgentPackage(img *compute.Image) bool {
+	return strings.Contains(img.Name, "guest-agent") ||
+		strings.Contains(img.SelfLink, "gce-unstable-pkg-test-images")
+}
+
+func shouldRunWindowsDomainControllerTests(t *imagetest.TestWorkflow) bool {
+	return supportsWindowsDomainControllerRole(t.Image) &&
+		hasUpdatedGuestAgentPackage(t.Image) &&
+		t.ShouldRunTests(windowsDCTestName)
+}
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -64,16 +84,46 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		snapshotvm.RunTests("TestSnapshotScripts")
 	}
 
-	if utils.HasFeature(t.Image, "WINDOWS") {
+	if utils.HasFeature(t.Image, "WINDOWS") && t.ShouldRunTests(windowsAccountTests) {
 		passwordInst := &daisy.Instance{}
 		passwordInst.Scopes = append(passwordInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-		windowsaccountVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsaccount"}}, passwordInst)
+		windowsaccountVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsaccount", Type: diskType}}, passwordInst)
 		if err != nil {
 			return err
 		}
 		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
 		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
-		windowsaccountVM.RunTests("TestWindowsPasswordReset|TestDiagnostic")
+		windowsaccountVM.RunTests(windowsAccountTests)
+	}
+
+	// Active Directory Domain Controller account tests require the AD-Domain-Services
+	// server role (not available on client, container, or SQL Server images).
+	// TODO(b/507998440): drop the guest-agent / gce-unstable-pkg-test-images image
+	// filter once the updated google-compute-engine-windows package reaches public
+	// Windows Server images.
+	if shouldRunWindowsDomainControllerTests(t) {
+		dcInst := &daisy.Instance{
+			InstanceBase: daisy.InstanceBase{
+				Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
+			},
+			Metadata: map[string]string{
+				imagetest.ShouldRebootDuringTest: "true",
+			},
+		}
+		windowsDCVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsdc", Type: diskType}}, dcInst)
+		if err != nil {
+			return err
+		}
+		if t.MachineType.Name == imagetest.DefaultMachineType {
+			windowsDCVM.ForceMachineType("n1-standard-2")
+		}
+		windowsDCVM.AddMetadata("enable-guest-attributes", "true")
+		windowsDCVM.AddMetadata("enable-windows-ssh", "true")
+		windowsDCVM.AddMetadata("block-project-ssh-keys", "true")
+		if err := windowsDCVM.Reboot(); err != nil {
+			return err
+		}
+		windowsDCVM.RunTests(windowsDCTestName)
 	}
 
 	if !utils.IsWindowsImage(t.Image.Name) {
