@@ -15,6 +15,8 @@
 package guestagent
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -22,6 +24,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -29,12 +33,13 @@ import (
 	// allowlist:crypto/sha1
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
-	"google.golang.org/api/compute/v1"
 )
 
 const (
 	// passwordResetUser is the user for the password reset test.
 	passwordResetUser = "windowsuser5"
+	// initialTestUserPassword is the initial local password set before testing password reset.
+	initialTestUserPassword = "gyug3q445m0!"
 	// differentLocaleUser is the user for the password reset test with a different locale.
 	// This is currently just the Romaji spelling of "Administrators" in Japanese, with
 	// "user" appended to the end.
@@ -44,7 +49,15 @@ const (
 	localAdminSID = "S-1-5-32-544"
 	// This is the name of the admin group that the normal Administrators group is renamed to.
 	// This is currently just the romaji spelling of "Administrators" in Japanese.
-	newAdminGroupName = "kanrinin"
+	newAdminGroupName       = "kanrinin"
+	windowsKeysMetadataKey  = "windows-keys"
+	credCheckUserEnvVar     = "CIT_CRED_USER"
+	credCheckPasswordEnvVar = "CIT_CRED_PASSWORD"
+	rsaKeyBitSize           = 2048
+	com4SerialPort          = 4
+	windowsKeyTTL           = 10 * time.Minute
+	com4ResponseTimeout     = 2 * time.Minute
+	agentPollInterval       = 3 * time.Second
 )
 
 type windowsKeyJSON struct {
@@ -54,55 +67,16 @@ type windowsKeyJSON struct {
 	UserName string
 }
 
-// unlike utils.GetMetadata(), this gets the full metadata object for the instance rather than the metadata stored at a single url path
-func getInstanceMetadata(client daisyCompute.Client, instance, zone, project string) (*compute.Metadata, error) {
-	ins, err := client.GetInstance(project, zone, instance)
-	if err != nil {
-		return nil, fmt.Errorf("error getting instance: %v", err)
-	}
-
-	return ins.Metadata, nil
-}
-
-func generateKey(priv *rsa.PublicKey, user string) (*windowsKeyJSON, error) {
-	bs := make([]byte, 4)
-	binary.BigEndian.PutUint32(bs, uint32(priv.E))
-
-	return &windowsKeyJSON{
-		ExpireOn: time.Now().Add(5 * time.Minute).Format(time.RFC3339),
-		// This is different than what the other tools produce,
-		// AQAB vs AQABAA==, both are decoded as 65537.
-		Exponent: base64.StdEncoding.EncodeToString(bs),
-		Modulus:  base64.StdEncoding.EncodeToString(priv.N.Bytes()),
-		UserName: user,
-	}, nil
-}
-
 type credsJSON struct {
 	ErrorMessage      string `json:"errorMessage,omitempty"`
 	EncryptedPassword string `json:"encryptedPassword,omitempty"`
+	UserName          string `json:"userName,omitempty"`
+	PasswordFound     bool   `json:"passwordFound,omitempty"`
 	Modulus           string `json:"modulus,omitempty"`
 }
 
-func getEncryptedPassword(client daisyCompute.Client, mod, instanceName, projectID, zone string) (string, error) {
-	out, err := client.GetSerialPortOutput(projectID, zone, instanceName, 4, 0)
-	if err != nil {
-		return "", fmt.Errorf("could not get serial output: err %v", err)
-	}
-
-	for _, line := range strings.Split(out.Contents, "\n") {
-		var creds credsJSON
-		if err := json.Unmarshal([]byte(line), &creds); err != nil {
-			continue
-		}
-		if creds.Modulus == mod {
-			if creds.ErrorMessage != "" {
-				return "", fmt.Errorf("error from agent: %s", creds.ErrorMessage)
-			}
-			return creds.EncryptedPassword, nil
-		}
-	}
-	return "", fmt.Errorf("password not found in serial output: %s", out.Contents)
+func psSingleQuote(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
 }
 
 func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
@@ -117,75 +91,175 @@ func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
 	return string(pwd), nil
 }
 
-func resetPassword(client daisyCompute.Client, t *testing.T, user string) (string, error) {
-	ctx := utils.Context(t)
+func currentSerialPortOffset(client daisyCompute.Client, projectID, zone, instanceName string, port int64) (int64, error) {
+	out, err := client.GetSerialPortOutput(projectID, zone, instanceName, port, 0)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query serial port %d offset for %s: %w", port, instanceName, err)
+	}
+	if out == nil {
+		return 0, fmt.Errorf("nil serial port %d output for %s", port, instanceName)
+	}
+	return out.Next, nil
+}
+
+func requestWindowsPasswordReset(ctx context.Context, client daisyCompute.Client, user string) (*credsJSON, *rsa.PrivateKey, error) {
 	instanceName, err := utils.GetInstanceName(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not get instsance name: err %v", err)
+		return nil, nil, fmt.Errorf("could not get instance name: %w", err)
 	}
 	projectID, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not project or zone: err %v", err)
-	}
-	md, err := getInstanceMetadata(client, instanceName, zone, projectID)
-	if err != nil {
-		return "", fmt.Errorf("error getting instance metadata: instance %s, zone %s, project %s, err %v", instanceName, zone, projectID, err)
-	}
-	t.Log("Generating public/private key pair")
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return "", err
+		return nil, nil, fmt.Errorf("could not get project or zone: %w", err)
 	}
 
-	winKey, err := generateKey(&key.PublicKey, user)
+	key, err := rsa.GenerateKey(rand.Reader, rsaKeyBitSize)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
-
+	bs := binary.BigEndian.AppendUint32(nil, uint32(key.PublicKey.E))
+	winKey := &windowsKeyJSON{
+		ExpireOn: time.Now().UTC().Add(windowsKeyTTL).Format(time.RFC3339),
+		// This is different from what other tools produce (AQAB vs AQABAA==),
+		// though both decode to 65537.
+		Exponent: base64.StdEncoding.EncodeToString(bs),
+		Modulus:  base64.StdEncoding.EncodeToString(key.PublicKey.N.Bytes()),
+		UserName: user,
+	}
 	data, err := json.Marshal(winKey)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
 
-	winKeys := string(data)
-	var found bool
-	for _, mdi := range md.Items {
-		if mdi.Key == "windows-keys" {
-			val := fmt.Sprintf("%s\n%s", *mdi.Value, winKeys)
-			mdi.Value = &val
-			found = true
-			break
-		}
+	offset, err := currentSerialPortOffset(client, projectID, zone, instanceName, com4SerialPort)
+	if err != nil {
+		return nil, nil, err
 	}
-	if !found {
-		md.Items = append(md.Items, &compute.MetadataItems{Key: "windows-keys", Value: &winKeys})
+	if err := utils.UpsertMetadata(ctx, windowsKeysMetadataKey, string(data)); err != nil {
+		return nil, nil, fmt.Errorf("failed to upsert %q metadata for %q: %w", windowsKeysMetadataKey, user, err)
 	}
 
-	if err := client.SetInstanceMetadata(projectID, zone, instanceName, md); err != nil {
-		return "", err
+	var matched *credsJSON
+	err = utils.PollUntil(ctx, fmt.Sprintf("COM4 password reset response for %q", user), agentPollInterval, com4ResponseTimeout, func() (bool, string) {
+		out, rpcErr := client.GetSerialPortOutput(projectID, zone, instanceName, com4SerialPort, offset)
+		if rpcErr == nil && out != nil && out.Contents == "" && out.Next < offset {
+			offset = 0
+			out, rpcErr = client.GetSerialPortOutput(projectID, zone, instanceName, com4SerialPort, 0)
+		}
+		if rpcErr != nil {
+			return false, fmt.Sprintf("modulus=%s, last RPC err=%v", winKey.Modulus, rpcErr)
+		}
+		if out == nil {
+			return false, fmt.Sprintf("modulus=%s, nil serial port output", winKey.Modulus)
+		}
+		for _, line := range strings.Split(out.Contents, "\n") {
+			var creds credsJSON
+			if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &creds); err != nil {
+				continue
+			}
+			if creds.Modulus == winKey.Modulus {
+				matched = &creds
+				return true, ""
+			}
+		}
+		return false, fmt.Sprintf("modulus=%s, recent COM4 output=%q", winKey.Modulus, out.Contents)
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	t.Logf("Set new 'windows-keys' metadata to %s", winKeys)
+	return matched, key, nil
+}
 
-	t.Log("Fetching encrypted password")
-	var attempts int
-	var ep string
-	for {
-		if err := ctx.Err(); err != nil {
-			t.Fatalf("context expired before successfully fetching encrypted password: %v", err)
-		}
-		time.Sleep(time.Minute)
-		ep, err = getEncryptedPassword(client, winKey.Modulus, instanceName, projectID, zone)
-		if err == nil {
-			break
-		}
-		if attempts > 5 {
-			return "", err
-		}
-		attempts++
+func decryptResetCreds(t *testing.T, user string, creds *credsJSON, privKey *rsa.PrivateKey) string {
+	t.Helper()
+	if creds.ErrorMessage != "" {
+		t.Fatalf("password reset for %q returned errorMessage = %q, want empty", user, creds.ErrorMessage)
 	}
+	if !creds.PasswordFound || creds.EncryptedPassword == "" {
+		t.Fatalf("password reset for %q returned passwordFound=%t, encryptedPassword empty=%t, want true and false", user, creds.PasswordFound, creds.EncryptedPassword == "")
+	}
+	pwd, err := decryptPassword(privKey, creds.EncryptedPassword)
+	if err != nil {
+		t.Fatalf("failed to decrypt password for %q: %v", user, err)
+	}
+	return pwd
+}
 
-	t.Log("Decrypting password")
-	return decryptPassword(key, ep)
+func redactSecret(s, secret string) string {
+	trimmed := strings.TrimSpace(s)
+	if secret == "" {
+		return trimmed
+	}
+	return strings.ReplaceAll(trimmed, secret, "<redacted>")
+}
+
+func runPowershellWithEnv(ctx context.Context, command string, extraEnv ...string) (utils.ProcessStatus, error) {
+	baseEnv := os.Environ()
+	env := make([]string, len(baseEnv)+len(extraEnv))
+	copy(env, baseEnv)
+	copy(env[len(baseEnv):], extraEnv)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command)
+	cmd.Env = env
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+
+	var exitCode int
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	} else {
+		exitCode = -1
+	}
+	return utils.ProcessStatus{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		Exitcode: exitCode,
+	}, runErr
+}
+
+func verifyLocalWindowsCredentials(ctx context.Context, t *testing.T, username, password string) {
+	t.Helper()
+	credEnv := []string{
+		fmt.Sprintf("%s=%s", credCheckUserEnvVar, username),
+		fmt.Sprintf("%s=%s", credCheckPasswordEnvVar, password),
+	}
+	validateCmd := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$user = [string]$env:%[1]s
+$plainPwd = [string]$env:%[2]s
+Remove-Item Env:\%[1]s, Env:\%[2]s -ErrorAction SilentlyContinue
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+$ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Machine)
+if (-not $ctx.ValidateCredentials($user, $plainPwd)) {
+  throw 'ValidateCredentials returned false for local account'
+}
+`, credCheckUserEnvVar, credCheckPasswordEnvVar)
+	if procStatus, err := runPowershellWithEnv(ctx, validateCmd, credEnv...); err != nil || procStatus.Exitcode != 0 {
+		t.Fatalf("ValidateCredentials for %q failed (exitcode=%d, err=%v): stderr=%s", username, procStatus.Exitcode, err, redactSecret(procStatus.Stderr, password))
+	}
+	logonCmd := fmt.Sprintf(`
+$ErrorActionPreference = 'Stop'
+$user = [string]$env:%[1]s
+$secPwd = ConvertTo-SecureString ([string]$env:%[2]s) -AsPlainText -Force
+Remove-Item Env:\%[1]s, Env:\%[2]s -ErrorAction SilentlyContinue
+$cred = New-Object System.Management.Automation.PSCredential($user, $secPwd)
+Start-Process -Credential $cred -WorkingDirectory C:\Windows\System32 -FilePath cmd.exe -ArgumentList '/c exit 0' -Wait -ErrorAction Stop
+`, credCheckUserEnvVar, credCheckPasswordEnvVar)
+	if procStatus, err := runPowershellWithEnv(ctx, logonCmd, credEnv...); err != nil || procStatus.Exitcode != 0 {
+		t.Fatalf("Start-Process logon check for %q failed (exitcode=%d, err=%v): stderr=%s", username, procStatus.Exitcode, err, redactSecret(procStatus.Stderr, password))
+	}
+}
+
+func cleanupLocalWindowsUsers(t *testing.T, users ...string) {
+	t.Helper()
+	for _, u := range users {
+		cmd := fmt.Sprintf("if ($null -ne (Get-LocalUser -Name '%[1]s' -ErrorAction SilentlyContinue)) { Remove-LocalUser -Name '%[1]s' -ErrorAction Stop }", psSingleQuote(u))
+		if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {
+			t.Errorf("failed to remove local test user %q (exitcode=%d, err=%v): stderr=%s", u, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+		}
+	}
 }
 
 // Verifies that a powershell command ran with no errors and exited with an exit code of 0.
@@ -211,33 +285,31 @@ func verifyPowershellCmd(t *testing.T, cmd string) string {
 // not already there.
 func TestWindowsPasswordReset(t *testing.T) {
 	utils.WindowsOnly(t)
-	initpwd := "gyug3q445m0!"
-	createUserCmd := fmt.Sprintf("net user %s %s /add", passwordResetUser, initpwd)
-	verifyPowershellCmd(t, createUserCmd)
 	ctx := utils.Context(t)
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("Error creating compute service: %v", err)
 	}
 
-	t.Logf("Resetting password on current instance for user %q\n", passwordResetUser)
-	decryptedPassword, err := resetPassword(client, t, passwordResetUser)
+	t.Cleanup(func() {
+		// t.Context() is already canceled when t.Cleanup runs, and daisyCompute.Client
+		// bounds GCE operation waits internally without per-call contexts.
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, passwordResetUser)
+	})
+
+	createUserCmd := fmt.Sprintf("net user %s %s /add", passwordResetUser, initialTestUserPassword)
+	verifyPowershellCmd(t, createUserCmd)
+
+	t.Logf("Resetting password on current instance for user %q", passwordResetUser)
+	creds, privKey, err := requestWindowsPasswordReset(ctx, client, passwordResetUser)
 	if err != nil {
-		t.Fatalf("reset password failed: error %v", err)
+		t.Fatalf("reset password failed: %v", err)
 	}
-	t.Logf("- Username: %s\n- Password: %s\n", passwordResetUser, decryptedPassword)
-	// wait for guest agent to update, since it can take up to a minute
-	time.Sleep(time.Minute)
-	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
-	userList := verifyPowershellCmd(t, getUsersCmd)
-	t.Logf("expected user %s in userlist %s", passwordResetUser, userList)
-	if !strings.Contains(userList, passwordResetUser) {
-		t.Fatalf("user %s not found in userlist: %s", passwordResetUser, userList)
-	}
-	// Verify that the user can log in with the new password.
-	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", passwordResetUser, decryptedPassword)
-	// The process "Credential" in powershell does not print anything on success
-	verifyPowershellCmd(t, verificationCmd)
+	decryptedPassword := decryptResetCreds(t, passwordResetUser, creds, privKey)
+	verifyLocalWindowsCredentials(ctx, t, passwordResetUser, decryptedPassword)
 }
 
 // TestWindowsPasswordResetDifferentLocale tests that the guest agent can create
@@ -261,34 +333,31 @@ func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 		t.Fatalf("Error creating compute service: %v", err)
 	}
 
-	// Change the name of the admin group to something else.
-	changeAdminGroupCmd := fmt.Sprintf("Rename-LocalGroup -Name Administrators -NewName %s", newAdminGroupName)
 	t.Cleanup(func() {
-		utils.RunPowershellCmd(fmt.Sprintf("Rename-LocalGroup -Name %s -NewName Administrators", newAdminGroupName))
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, differentLocaleUser)
+		if procStatus, err := utils.RunPowershellCmd(fmt.Sprintf("if ($null -ne (Get-LocalGroup -Name '%[1]s' -ErrorAction SilentlyContinue)) { Rename-LocalGroup -Name '%[1]s' -NewName Administrators -ErrorAction Stop }", psSingleQuote(newAdminGroupName))); err != nil || procStatus.Exitcode != 0 {
+			t.Errorf("failed to restore Administrators group name (exitcode=%d, err=%v): stderr=%s", procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+		}
 	})
+
+	// Change the name of the admin group to something else.
+	changeAdminGroupCmd := fmt.Sprintf("Rename-LocalGroup -Name Administrators -NewName %s -ErrorAction Stop", newAdminGroupName)
 	verifyPowershellCmd(t, changeAdminGroupCmd)
 
 	// Reset the password for the user.
-	t.Logf("Resetting password on current instance for user %q\n", differentLocaleUser)
-	decryptedPassword, err := resetPassword(client, t, differentLocaleUser)
+	t.Logf("Resetting password on current instance for user %q", differentLocaleUser)
+	creds, privKey, err := requestWindowsPasswordReset(ctx, client, differentLocaleUser)
 	if err != nil {
-		t.Fatalf("reset password failed: error %v", err)
+		t.Fatalf("reset password failed: %v", err)
 	}
-	t.Logf("- Username: %s\n- Password: %s\n", differentLocaleUser, decryptedPassword)
-	// wait for guest agent to update, since it can take up to a minute
-	time.Sleep(time.Minute)
-	getUsersCmd := "Get-CIMInstance Win32_UserAccount | ForEach-Object { Write-Output $_.Name}"
-	userList := verifyPowershellCmd(t, getUsersCmd)
-	t.Logf("expected user %s in userlist %s", differentLocaleUser, strings.Join(strings.Fields(userList), ", "))
-	if !strings.Contains(userList, differentLocaleUser) {
-		t.Fatalf("user %s not found in userlist: %s", differentLocaleUser, userList)
-	}
+	decryptedPassword := decryptResetCreds(t, differentLocaleUser, creds, privKey)
 	// Double check that the user is in the admin group.
 	verifyAdminGroup(t, differentLocaleUser)
 	// Verify that the user can log in with the new password.
-	verificationCmd := fmt.Sprintf("Start-Process -Credential (New-Object System.Management.Automation.PSCredential(\"%s\", ('%s' | ConvertTo-SecureString -AsPlainText -Force))) -WorkingDirectory C:\\Windows\\System32 -FilePath cmd.exe", differentLocaleUser, decryptedPassword)
-	// The process "Credential" in powershell does not print anything on success
-	verifyPowershellCmd(t, verificationCmd)
+	verifyLocalWindowsCredentials(ctx, t, differentLocaleUser, decryptedPassword)
 }
 
 // verifyAdminGroup verifies that a user is a member of the local admin group.
