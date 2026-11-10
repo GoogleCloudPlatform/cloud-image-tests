@@ -58,8 +58,9 @@ func pickZone(zone string, zones []string) string {
 
 var (
 	// lssdMetalMachineType is an optional Bare Metal LSSD machine type (e.g.
-	// z3-highmem-192-highlssd-metal or c4d-standard-384-lssd-metal) used to test
-	// Bare Metal Local SSD udev vendor-extension naming end-to-end.
+	// z3-highmem-192-highlssd-metal, c4d-standard-384-lssd-metal, or
+	// a5x-highgpu-4g-metal) used to test Bare Metal Local SSD udev naming
+	// end-to-end.
 	lssdMetalMachineType = flag.String("lssd_metal_machine_type", "", "Optional Bare Metal LSSD machine type to provision for Bare Metal LSSD udev naming tests.")
 
 	// lssdMetalZone is the optional zone where the Bare Metal LSSD instance is
@@ -79,65 +80,63 @@ const (
 	mkfsCmd                 = "mkfs.ext4"
 	windowsMountDriveLetter = "F"
 	vmLSSDTests             = "TestMount|TestUdevRulesAndScript|TestLSSDSymlinksAndUdevProperties|TestLSSDPartitionSymlinks|TestLSSDGoogleNVMeIDNaming"
-	bareMetalLSSDTests      = "TestBareMetalMount|TestBareMetalUdevRulesAndScript|TestBareMetalLSSDSymlinksAndUdevProperties|TestBareMetalLSSDPartitionSymlinks|TestBareMetalLSSDVendorExtensionNaming"
+	bareMetalLSSDTests      = "TestBareMetalMount|TestBareMetalUdevRulesAndScript|TestBareMetalLSSDSymlinksAndUdevProperties|TestBareMetalLSSDPartitionSymlinks|TestBareMetalLSSDVendorExtensionNaming|TestBareMetalLSSDSerialOrderingNaming"
 )
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	if t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") {
-		runVMLSSD := !*lssdSkipVM && t.ShouldRunTests(vmLSSDTests)
-		metalMachineType := *lssdMetalMachineType
-		if metalMachineType == "" && imagetest.IsMetal(t.MachineType.Name) && t.MachineType.BundledLocalSsds != nil && t.MachineType.BundledLocalSsds.PartitionCount > 0 {
-			metalMachineType = t.MachineType.Name
-		}
-		runBareMetalLSSD := !*lssdSkipBareMetal && metalMachineType != "" && !utils.HasFeature(t.Image, "WINDOWS") && utils.HasFeature(t.Image, "IDPF") && t.ShouldRunTests(bareMetalLSSDTests)
-		if !runVMLSSD && !runBareMetalLSSD {
-			t.Skip("all applicable lssd tests are excluded")
-			return nil
-		}
+	runVMLSSD := !*lssdSkipVM && t.Image.Architecture != "ARM64" && utils.HasFeature(t.Image, "GVNIC") && t.ShouldRunTests(vmLSSDTests)
+	metalMachineType := *lssdMetalMachineType
+	if metalMachineType == "" && imagetest.IsMetal(t.MachineType.Name) && t.MachineType.BundledLocalSsds != nil && t.MachineType.BundledLocalSsds.PartitionCount > 0 {
+		metalMachineType = t.MachineType.Name
+	}
+	runBareMetalLSSD := !*lssdSkipBareMetal && metalMachineType != "" && !utils.HasFeature(t.Image, "WINDOWS") && utils.HasFeature(t.Image, "IDPF") && t.ShouldRunTests(bareMetalLSSDTests)
+	if !runVMLSSD && !runBareMetalLSSD {
+		t.Skip("all applicable lssd tests are excluded")
+		return nil
+	}
 
-		zone := pickZone(t.Zone.Name, c3LSSDZones)
-		if runVMLSSD {
-			log.Printf("Using zone %s for c3-standard-8-lssd test", zone)
-			lssdMountInst := &daisy.Instance{}
-			lssdMountInst.Zone = zone
-			lssdMountInst.MachineType = "c3-standard-8-lssd"
+	zone := pickZone(t.Zone.Name, c3LSSDZones)
+	if runVMLSSD {
+		log.Printf("Using zone %s for c3-standard-8-lssd test", zone)
+		lssdMountInst := &daisy.Instance{}
+		lssdMountInst.Zone = zone
+		lssdMountInst.MachineType = "c3-standard-8-lssd"
 
-			lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: zone, Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
-			if err != nil {
-				return err
-			}
-			// local SSD's don't show up exactly as their device name under /dev/disk/by-id
-			if utils.HasFeature(t.Image, "WINDOWS") {
-				lssdMount.AddMetadata("hotattach-disk-name", "nvme_card0")
-			} else {
-				lssdMount.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
-			}
-			lssdMount.RunTests(vmLSSDTests)
+		lssdMount, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: zone, Name: "remountLSSD", Type: imagetest.PdBalanced}}, lssdMountInst)
+		if err != nil {
+			return err
 		}
-
-		if runBareMetalLSSD {
-			metalZone := *lssdMetalZone
-			if metalZone == "" {
-				metalZone = t.Zone.Name
-			}
-			if metalZone == "" {
-				metalZone = zone
-			}
-			fmt.Printf("Using zone %s for %s Bare Metal LSSD instance\n", metalZone, metalMachineType)
-			lssdMetalInst := &daisy.Instance{}
-			lssdMetalInst.Zone = metalZone
-			lssdMetalInst.MachineType = metalMachineType
-			lssdMetalInst.Scheduling = &compute.Scheduling{OnHostMaintenance: imagetest.MachineMaintenancePolicy(metalMachineType)}
-			metalDiskType := imagetest.DiskTypeNeeded(metalMachineType)
-
-			lssdMetal, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: metalZone, Name: "lssdMetal", Type: metalDiskType}}, lssdMetalInst)
-			if err != nil {
-				return err
-			}
-			lssdMetal.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
-			lssdMetal.RunTests(bareMetalLSSDTests)
+		// local SSD's don't show up exactly as their device name under /dev/disk/by-id
+		if utils.HasFeature(t.Image, "WINDOWS") {
+			lssdMount.AddMetadata("hotattach-disk-name", "nvme_card0")
+		} else {
+			lssdMount.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
 		}
+		lssdMount.RunTests(vmLSSDTests)
+	}
+
+	if runBareMetalLSSD {
+		metalZone := *lssdMetalZone
+		if metalZone == "" {
+			metalZone = t.Zone.Name
+		}
+		if metalZone == "" {
+			metalZone = zone
+		}
+		fmt.Printf("Using zone %s for %s Bare Metal LSSD instance\n", metalZone, metalMachineType)
+		lssdMetalInst := &daisy.Instance{}
+		lssdMetalInst.Zone = metalZone
+		lssdMetalInst.MachineType = metalMachineType
+		lssdMetalInst.Scheduling = &compute.Scheduling{OnHostMaintenance: imagetest.MachineMaintenancePolicy(metalMachineType)}
+		metalDiskType := imagetest.DiskTypeNeeded(metalMachineType)
+
+		lssdMetal, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Zone: metalZone, Name: "lssdMetal", Type: metalDiskType}}, lssdMetalInst)
+		if err != nil {
+			return err
+		}
+		lssdMetal.AddMetadata("hotattach-disk-name", "local-nvme-ssd-0")
+		lssdMetal.RunTests(bareMetalLSSDTests)
 	}
 	return nil
 }

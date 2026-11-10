@@ -129,7 +129,7 @@ reattached, and the file can still be read.
 Validate that mounting and un-mounting a local ssd works, and files written are not lost when unmounted (on VM and Bare Metal LSSD instances).
 
 #### TestUdevRulesAndScript / TestBareMetalUdevRulesAndScript
-Validate that `65-gce-disk-naming.rules` and the executable `google_nvme_id` script (including `-e` support) are present on Linux images and contain the expected NVMe Local SSD naming rules.
+Validate that `65-gce-disk-naming.rules` and the executable `google_nvme_id` script (including `-e` and `-o` support) are present on Linux images and contain the expected NVMe Local SSD naming rules.
 
 #### TestLSSDSymlinksAndUdevProperties / TestBareMetalLSSDSymlinksAndUdevProperties
 Validate that every attached NVMe Local SSD has a unique `/dev/disk/by-id/google-local-nvme-ssd-<N>` symlink and matching `ID_SERIAL_SHORT` and `ID_SERIAL` udev properties after `udevadm trigger` and `udevadm settle`.
@@ -137,8 +137,8 @@ Validate that every attached NVMe Local SSD has a unique `/dev/disk/by-id/google
 #### TestLSSDPartitionSymlinks / TestBareMetalLSSDPartitionSymlinks
 Validate that creating a partition on an NVMe Local SSD generates the expected `/dev/disk/by-id/google-local-nvme-ssd-<N>-part1` partition symlink.
 
-#### TestLSSDGoogleNVMeIDNaming / TestBareMetalLSSDVendorExtensionNaming
-Validate `google_nvme_id` output directly against attached NVMe Local SSD devices (`-d` on VM instances where controller serials start with `nvme_card`, and `-e -d` on Bare Metal instances reading the NVMe Identify Namespace vendor extension).
+#### TestLSSDGoogleNVMeIDNaming / TestBareMetalLSSDVendorExtensionNaming / TestBareMetalLSSDSerialOrderingNaming
+Validate `google_nvme_id` output directly against attached NVMe Local SSD devices (`-d` on VM instances where controller serials start with `nvme_card`, `-e -d` on Bare Metal instances reading the NVMe Identify Namespace vendor extension, and `-o -d` on Bare Metal instances ordering Local SSDs lexicographically by controller serial number).
 
 ### Test suite: imageboot
 

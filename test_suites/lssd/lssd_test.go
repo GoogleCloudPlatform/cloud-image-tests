@@ -44,6 +44,10 @@ var (
 	nvmeNamespaceDevRegex = regexp.MustCompile(`^(nvme[0-9]+)n[0-9]+$`)
 )
 
+// bareMetalSerialLSSDPCIID is the PCI vendor ID (0x1344) for Bare Metal NVMe
+// Local SSDs named by serial ordering (such as on A5X Metal).
+const bareMetalSerialLSSDPCIID = 0x1344
+
 // nvmeLSSDDevice represents an attached NVMe Local SSD controller and namespace
 // discovered via nvme-cli.
 type nvmeLSSDDevice struct {
@@ -52,6 +56,7 @@ type nvmeLSSDDevice struct {
 	devPath    string
 	model      string
 	serial     string
+	vid        int
 }
 
 func getWindowsDiskNumber(ctx context.Context) (int, error) {
@@ -196,16 +201,22 @@ func discoverNVMeLSSDDevices(t *testing.T) []nvmeLSSDDevice {
 			t.Fatalf("nvme id-ctrl -o json %s failed: %v", devPath, err)
 		}
 		var idCtrl struct {
-			MN string `json:"mn"`
-			SN string `json:"sn"`
+			VID int    `json:"vid"`
+			MN  string `json:"mn"`
+			SN  string `json:"sn"`
 		}
 		if err := json.Unmarshal(out, &idCtrl); err != nil {
 			t.Fatalf("failed to unmarshal nvme id-ctrl JSON for %s: %v", devPath, err)
 		}
 		model := strings.TrimSpace(idCtrl.MN)
-		// Local SSD controllers have model "nvme_card" or "nvme_card<N>", whereas
-		// Persistent Disks have model "nvme_card-pd".
-		if !strings.HasPrefix(model, "nvme_card") || model == "nvme_card-pd" {
+		// Virtualized and vendor-extension Bare Metal Local SSD controllers have
+		// model "nvme_card" or "nvme_card<N>" (Persistent Disks have model
+		// "nvme_card-pd"). Serial-ordered Bare Metal Local SSDs (e.g. A5X Metal)
+		// have PCI vendor ID 0x1344 and a controller model that does not start
+		// with "nvme_card".
+		isGoogleLSSD := strings.HasPrefix(model, "nvme_card") && model != "nvme_card-pd"
+		isBareMetalSerialLSSD := !strings.HasPrefix(model, "nvme_card") && idCtrl.VID == bareMetalSerialLSSDPCIID
+		if !isGoogleLSSD && !isBareMetalSerialLSSD {
 			continue
 		}
 		serial := strings.TrimSpace(idCtrl.SN)
@@ -215,6 +226,7 @@ func discoverNVMeLSSDDevices(t *testing.T) []nvmeLSSDDevice {
 			devPath:    devPath,
 			model:      model,
 			serial:     serial,
+			vid:        idCtrl.VID,
 		})
 	}
 
@@ -240,11 +252,12 @@ func udevPropertiesForDevice(t *testing.T, devPath string) map[string]string {
 	return props
 }
 
-// googleNVMeIDSupportsVendorExt returns the resolved google_nvme_id script path
-// and whether its -h output documents the Bare Metal -e vendor-extension flag.
-// TODO(b/573992297): Remove vendor-extension support from google_nvme_id and
-// this function after NVMe Local SSD udev rules are fully rolled out.
-func googleNVMeIDSupportsVendorExt(t *testing.T) (string, bool) {
+// googleNVMeIDFlagSupport returns the resolved google_nvme_id script path and
+// whether its -h output documents the Bare Metal -e (vendor-extension) and -o
+// (serial-ordering) flags.
+// TODO(b/573992297): Remove legacy guest-configs fallback checks after NVMe
+// Local SSD udev rules are fully rolled out across all guest images.
+func googleNVMeIDFlagSupport(t *testing.T) (scriptPath string, supportsVendorExt, supportsSerialOrdering bool) {
 	t.Helper()
 	scriptPath, err := findFirstExistingFile(googleNVMeIDCandidatePaths)
 	if err != nil {
@@ -254,15 +267,26 @@ func googleNVMeIDSupportsVendorExt(t *testing.T) (string, bool) {
 	if err != nil {
 		t.Fatalf("%s -h failed: %v, output: %s", scriptPath, err, string(helpOut))
 	}
-	return scriptPath, strings.Contains(string(helpOut), "-e")
+	helpText := string(helpOut)
+	return scriptPath, strings.Contains(helpText, "-e"), strings.Contains(helpText, "-o")
 }
 
-// skipIfBareMetalVendorExtUnsupported skips the calling test when the installed
-// google_nvme_id script does not yet support the -e vendor-extension flag.
-func skipIfBareMetalVendorExtUnsupported(t *testing.T) {
+// skipIfBareMetalUdevUnsupported skips the calling Bare Metal test when the
+// installed google_nvme_id script does not yet support the flag required for
+// the attached Bare Metal Local SSD controller type (-e for nvme_card*
+// controllers, or -o for serial-ordered controllers).
+func skipIfBareMetalUdevUnsupported(t *testing.T) {
 	t.Helper()
 	utils.LinuxOnly(t)
-	if scriptPath, ok := googleNVMeIDSupportsVendorExt(t); !ok {
+	scriptPath, supportsVendorExt, supportsSerialOrdering := googleNVMeIDFlagSupport(t)
+	devices := discoverNVMeLSSDDevices(t)
+	if len(devices) > 0 && !strings.HasPrefix(devices[0].model, "nvme_card") {
+		if !supportsSerialOrdering {
+			t.Skipf("%s does not yet support -o flag (older guest-configs package); skipping Bare Metal LSSD test", scriptPath)
+		}
+		return
+	}
+	if !supportsVendorExt {
 		t.Skipf("%s does not yet support -e flag (older guest-configs package); skipping Bare Metal LSSD test", scriptPath)
 	}
 }
@@ -270,11 +294,12 @@ func skipIfBareMetalVendorExtUnsupported(t *testing.T) {
 // TestUdevRulesAndScript verifies that 65-gce-disk-naming.rules and
 // google_nvme_id are present on the guest image and include the NVMe Local SSD
 // rules (single-controller, multi-controller, partition symlinks, and Bare
-// Metal vendor extension when supported by the installed google_nvme_id).
+// Metal vendor-extension / serial-ordering rules when supported by the
+// installed google_nvme_id).
 func TestUdevRulesAndScript(t *testing.T) {
 	utils.LinuxOnly(t)
 
-	scriptPath, supportsVendorExt := googleNVMeIDSupportsVendorExt(t)
+	scriptPath, supportsVendorExt, supportsSerialOrdering := googleNVMeIDFlagSupport(t)
 	info, err := os.Stat(scriptPath)
 	if err != nil {
 		t.Fatalf("failed to stat %s: %v", scriptPath, err)
@@ -284,6 +309,9 @@ func TestUdevRulesAndScript(t *testing.T) {
 	}
 	if !supportsVendorExt {
 		t.Logf("%s does not yet support -e flag; skipping Bare Metal vendor-extension udev rule check", scriptPath)
+	}
+	if !supportsSerialOrdering {
+		t.Logf("%s does not yet support -o flag; skipping Bare Metal serial-ordering udev rule check", scriptPath)
 	}
 
 	rulesPath, err := findFirstExistingFile(udevRulesCandidatePaths)
@@ -305,6 +333,15 @@ func TestUdevRulesAndScript(t *testing.T) {
 	if supportsVendorExt {
 		expectedRuleSnippets = append(expectedRuleSnippets,
 			`ATTRS{model}=="nvme_card", ATTRS{serial}!="nvme_card*", IMPORT{program}="google_nvme_id -e -d $tempnode"`,
+		)
+	}
+	if supportsSerialOrdering {
+		expectedRuleSnippets = append(expectedRuleSnippets,
+			`KERNEL=="nvme*", ATTRS{model}!="nvme_card*", GOTO="gce_bare_metal_serial_naming"`,
+			`LABEL="gce_bare_metal_serial_naming"`,
+			`KERNEL=="nvme*n*", ATTRS{vendor}=="0x1344", IMPORT{program}="google_nvme_id -o -d $tempnode"`,
+			`KERNEL=="nvme*", ATTRS{vendor}=="0x1344", GOTO="gce_disk_naming_symlinks"`,
+			`LABEL="gce_disk_naming_symlinks"`,
 		)
 	}
 	for _, snippet := range expectedRuleSnippets {
@@ -492,23 +529,129 @@ func TestBareMetalUdevRulesAndScript(t *testing.T) {
 // TestBareMetalLSSDSymlinksAndUdevProperties runs
 // TestLSSDSymlinksAndUdevProperties on a Bare Metal LSSD instance.
 func TestBareMetalLSSDSymlinksAndUdevProperties(t *testing.T) {
-	skipIfBareMetalVendorExtUnsupported(t)
+	skipIfBareMetalUdevUnsupported(t)
 	TestLSSDSymlinksAndUdevProperties(t)
 }
 
 // TestBareMetalLSSDPartitionSymlinks runs TestLSSDPartitionSymlinks on a Bare
 // Metal LSSD instance.
 func TestBareMetalLSSDPartitionSymlinks(t *testing.T) {
-	skipIfBareMetalVendorExtUnsupported(t)
+	skipIfBareMetalUdevUnsupported(t)
 	TestLSSDPartitionSymlinks(t)
 }
 
 // TestBareMetalLSSDVendorExtensionNaming verifies on Bare Metal LSSD instances
-// (ATTRS{model}=="nvme_card" and ATTRS{serial}!="nvme_card*") that
-// google_nvme_id -e reads a unique device_name from the NVMe Identify Namespace
-// vendor extension for each drive and that /dev/disk/by-id/google-<ID_SERIAL_SHORT>
-// resolves to that drive.
+// whose controllers use the "nvme_card" model (ATTRS{model}=="nvme_card" and
+// ATTRS{serial}!="nvme_card*", such as Z3 or C4D Metal) that google_nvme_id -e
+// reads a unique device_name from the NVMe Identify Namespace vendor extension
+// for each drive and that /dev/disk/by-id/google-<ID_SERIAL_SHORT> resolves to
+// that drive.
 func TestBareMetalLSSDVendorExtensionNaming(t *testing.T) {
-	skipIfBareMetalVendorExtUnsupported(t)
+	utils.LinuxOnly(t)
+	devices := discoverNVMeLSSDDevices(t)
+	if len(devices) == 0 {
+		t.Fatalf("discoverNVMeLSSDDevices() returned 0 devices, want >= 1")
+	}
+	if !strings.HasPrefix(devices[0].model, "nvme_card") {
+		t.Skipf("Bare Metal LSSD controller %s has model=%q (not nvme_card*); skipping vendor-extension (-e) naming test", devices[0].controller, devices[0].model)
+	}
+	skipIfBareMetalUdevUnsupported(t)
 	verifyGoogleNVMeIDOutput(t, true)
+}
+
+// TestBareMetalLSSDSerialOrderingNaming verifies on Bare Metal LSSD instances
+// using serial-ordered naming (ATTRS{model}!="nvme_card*" and
+// ATTRS{vendor}=="0x1344", such as A5X Metal) that google_nvme_id -o assigns
+// deterministic 0-based local-nvme-ssd-<N> names according to the
+// lexicographical order of controller serial numbers, and that
+// /dev/disk/by-id/google-local-nvme-ssd-<N> resolves to the corresponding drive.
+func TestBareMetalLSSDSerialOrderingNaming(t *testing.T) {
+	utils.LinuxOnly(t)
+	devices := discoverNVMeLSSDDevices(t)
+	if len(devices) == 0 {
+		t.Fatalf("discoverNVMeLSSDDevices() returned 0 devices, want >= 1")
+	}
+	if strings.HasPrefix(devices[0].model, "nvme_card") {
+		t.Skipf("Bare Metal LSSD controller %s has model=%q (nvme_card*); skipping serial-ordering (-o) naming test", devices[0].controller, devices[0].model)
+	}
+	skipIfBareMetalUdevUnsupported(t)
+	scriptPath, _, _ := googleNVMeIDFlagSupport(t)
+
+	for _, dev := range devices {
+		if strings.HasPrefix(dev.model, "nvme_card") {
+			t.Fatalf("controller %s model = %q, want non-nvme_card* model", dev.controller, dev.model)
+		}
+		if dev.vid != bareMetalSerialLSSDPCIID {
+			t.Fatalf("controller %s vendor ID = 0x%x, want 0x%x", dev.controller, dev.vid, bareMetalSerialLSSDPCIID)
+		}
+		if dev.serial == "" {
+			t.Fatalf("controller %s (%s) serial = %q, want non-empty serial", dev.controller, dev.devPath, dev.serial)
+		}
+		sysfsVendorPath := filepath.Join("/sys/class/nvme", dev.controller, "device/vendor")
+		vendorBytes, err := os.ReadFile(sysfsVendorPath)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", sysfsVendorPath, err)
+		}
+		const wantVendor = "0x1344"
+		if gotVendor := strings.ToLower(strings.TrimSpace(string(vendorBytes))); gotVendor != wantVendor {
+			t.Errorf("os.ReadFile(%q) = %q, want %q", sysfsVendorPath, gotVendor, wantVendor)
+		}
+	}
+
+	sortedBySerial := make([]nvmeLSSDDevice, len(devices))
+	copy(sortedBySerial, devices)
+	sort.Slice(sortedBySerial, func(i, j int) bool {
+		return sortedBySerial[i].serial < sortedBySerial[j].serial
+	})
+
+	for i, dev := range sortedBySerial {
+		if i > 0 && dev.serial == sortedBySerial[i-1].serial {
+			t.Fatalf("duplicate controller serial number %q on %s and %s", dev.serial, sortedBySerial[i-1].devPath, dev.devPath)
+		}
+
+		wantShortName := fmt.Sprintf("local-nvme-ssd-%d", i)
+		wantSerial := "Google_EphemeralDisk_" + wantShortName
+
+		out, err := exec.Command(scriptPath, "-o", "-d", dev.devPath).Output()
+		if err != nil {
+			t.Fatalf("%s -o -d %s failed (model=%q, serial=%q): %v", scriptPath, dev.devPath, dev.model, dev.serial, err)
+		}
+		props := make(map[string]string)
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
+				props[k] = v
+			}
+		}
+		if got := props["ID_SERIAL_SHORT"]; got != wantShortName {
+			t.Errorf("%s -o -d %s (serial=%q, rank=%d) returned ID_SERIAL_SHORT=%q, want %q", scriptPath, dev.devPath, dev.serial, i, got, wantShortName)
+		}
+		if got := props["ID_SERIAL"]; got != wantSerial {
+			t.Errorf("%s -o -d %s (serial=%q, rank=%d) returned ID_SERIAL=%q, want %q", scriptPath, dev.devPath, dev.serial, i, got, wantSerial)
+		}
+
+		symlinkPath := filepath.Join("/dev/disk/by-id", "google-"+wantShortName)
+		resolved, err := filepath.EvalSymlinks(symlinkPath)
+		if err != nil {
+			t.Errorf("failed to resolve symlink %s: %v", symlinkPath, err)
+		} else if resolved != dev.devPath {
+			t.Errorf("symlink %s resolved to %s, want %s (serial=%q, rank=%d)", symlinkPath, resolved, dev.devPath, dev.serial, i)
+		}
+
+		udevProps := udevPropertiesForDevice(t, dev.devPath)
+		if got := udevProps["ID_SERIAL_SHORT"]; got != wantShortName {
+			t.Errorf("udev property ID_SERIAL_SHORT for %s (serial=%q, rank=%d) = %q, want %q", dev.devPath, dev.serial, i, got, wantShortName)
+		}
+		if got := udevProps["ID_SERIAL"]; got != wantSerial {
+			t.Errorf("udev property ID_SERIAL for %s (serial=%q, rank=%d) = %q, want %q", dev.devPath, dev.serial, i, got, wantSerial)
+		}
+
+		// Calling google_nvme_id -e on a drive that does not publish a vendor
+		// extension must exit 0 and emit nothing.
+		vendorExtOut, err := exec.Command(scriptPath, "-e", "-d", dev.devPath).Output()
+		if err != nil {
+			t.Errorf("%s -e -d %s failed: %v", scriptPath, dev.devPath, err)
+		} else if trimmed := strings.TrimSpace(string(vendorExtOut)); trimmed != "" {
+			t.Errorf("%s -e -d %s emitted %q on non-vendor-extension drive, want empty output", scriptPath, dev.devPath, trimmed)
+		}
+	}
 }
