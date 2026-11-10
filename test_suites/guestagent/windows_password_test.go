@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,16 +47,37 @@ const (
 	localAdminSID = "S-1-5-32-544"
 	// This is the name of the admin group that the normal Administrators group is renamed to.
 	// This is currently just the romaji spelling of "Administrators" in Japanese.
-	newAdminGroupName       = "kanrinin"
-	windowsKeysMetadataKey  = "windows-keys"
-	credCheckUserEnvVar     = "CIT_CRED_USER"
-	credCheckPasswordEnvVar = "CIT_CRED_PASSWORD"
-	rsaKeyBitSize           = 2048
-	com4SerialPort          = 4
-	windowsKeyTTL           = 10 * time.Minute
-	com4ResponseTimeout     = 2 * time.Minute
-	agentPollInterval       = 3 * time.Second
+	newAdminGroupName           = "kanrinin"
+	legacyPasswordResetUser     = "winlegacyuser"
+	legacyNewAdminUser          = "winlegacynew"
+	windowsCompatManagerPath    = `C:\Program Files\Google\Compute Engine\agent\GCEWindowsCompatManager.exe`
+	windowsLegacyAgentPath      = `C:\Program Files\Google\Compute Engine\agent\GCEWindowsAgent.exe`
+	windowsCorePluginSubdirPath = `C:\Program Files\Google\Compute Engine\agent\GuestAgentCorePlugin\CorePlugin.exe`
+	windowsCorePluginAgentPath  = `C:\Program Files\Google\Compute Engine\agent\CorePlugin.exe`
+	compatManagerServiceName    = "GCEWindowsCompatManager"
+	agentManagerServiceName     = "GCEAgentManager"
+	legacyAgentServiceName      = "GCEAgent"
+	corePluginProcessName       = "CorePlugin"
+	legacyAgentProcessName      = "GCEWindowsAgent"
+	serviceRunningStatus        = "Running"
+	serviceNotFoundStatus       = "NotFound"
+	serviceAutomaticStartType   = "Automatic"
+	windowsKeysMetadataKey      = "windows-keys"
+	enableCorePluginKey         = "enable-guest-agent-core-plugin"
+	credCheckUserEnvVar         = "CIT_CRED_USER"
+	credCheckPasswordEnvVar     = "CIT_CRED_PASSWORD"
+	rsaKeyBitSize               = 2048
+	com4SerialPort              = 4
+	windowsKeyTTL               = 10 * time.Minute
+	com4ResponseTimeout         = 2 * time.Minute
+	agentModeSwitchTimeout      = 3 * time.Minute
+	agentPollInterval           = 3 * time.Second
 )
+
+var windowsCorePluginPaths = []string{
+	windowsCorePluginSubdirPath,
+	windowsCorePluginAgentPath,
+}
 
 type windowsKeyJSON struct {
 	ExpireOn string
@@ -294,7 +316,7 @@ func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 	}
 
 	// This feature is only implemented in the core plugin.
-	if utils.IsCoreDisabled() {
+	if isWindowsCoreDisabled() {
 		t.Skip("Skipping test as core plugin is disabled")
 	}
 	ctx := utils.Context(t)
@@ -343,4 +365,329 @@ func verifyAdminGroup(t *testing.T, user string) {
 		}
 	}
 	t.Errorf("User %s not a member of the admin group (SID %s)", user, localAdminSID)
+}
+
+func hasWindowsCorePluginBinary() bool {
+	for _, p := range windowsCorePluginPaths {
+		if utils.Exists(p, utils.TypeFile) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWindowsCoreDisabled() bool {
+	return !hasWindowsCorePluginBinary() || utils.IsCoreDisabled()
+}
+
+func isWindowsProcessRunning(processName string) (bool, error) {
+	cmd := fmt.Sprintf("if ($null -ne (Get-Process -Name '%s' -ErrorAction SilentlyContinue)) { Write-Output 'true' } else { Write-Output 'false' }", psSingleQuote(processName))
+	procStatus, err := utils.RunPowershellCmd(cmd)
+	if err != nil || procStatus.Exitcode != 0 {
+		return false, fmt.Errorf("Get-Process %q failed (exitcode=%d, err=%v, stderr=%q)", processName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+	return strings.TrimSpace(procStatus.Stdout) == "true", nil
+}
+
+func windowsServiceState(serviceName string) (string, string, error) {
+	cmd := fmt.Sprintf("$svc = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output 'NotFound|' } else { Write-Output \"$($svc.Status)|$($svc.StartType)\" }", psSingleQuote(serviceName))
+	procStatus, err := utils.RunPowershellCmd(cmd)
+	if err != nil || procStatus.Exitcode != 0 {
+		return "", "", fmt.Errorf("Get-Service %q failed (exitcode=%d, err=%v, stderr=%q)", serviceName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+	status, startType, ok := strings.Cut(strings.TrimSpace(procStatus.Stdout), "|")
+	if !ok {
+		return "", "", fmt.Errorf("unexpected Get-Service %q output %q", serviceName, strings.TrimSpace(procStatus.Stdout))
+	}
+	return status, startType, nil
+}
+
+func windowsServiceStatus(serviceName string) (string, error) {
+	status, _, err := windowsServiceState(serviceName)
+	return status, err
+}
+
+func isWindowsServiceRunning(serviceName string) (bool, error) {
+	status, err := windowsServiceStatus(serviceName)
+	if err != nil {
+		return false, err
+	}
+	return status == serviceRunningStatus, nil
+}
+
+// hasAvailableLegacyWindowsAgent reports whether the legacy GCEWindowsAgent
+// binary and GCEAgent Windows service exist and are either running or
+// configured for automatic startup.
+func hasAvailableLegacyWindowsAgent() (bool, error) {
+	if !utils.Exists(windowsLegacyAgentPath, utils.TypeFile) {
+		return false, nil
+	}
+	status, startType, err := windowsServiceState(legacyAgentServiceName)
+	if err != nil {
+		return false, err
+	}
+	if status == serviceNotFoundStatus {
+		return false, nil
+	}
+	return status == serviceRunningStatus || startType == serviceAutomaticStartType, nil
+}
+
+// canSwitchWindowsAgentMode reports whether the VM can switch between CorePlugin
+// and the legacy GCEWindowsAgent via GCEWindowsCompatManager. If Compat Manager
+// is configured for automatic (including delayed auto-start) startup and has not
+// finished starting yet, it polls until Running; if missing, disabled, manual,
+// or lacking the legacy agent binary/service, it returns (false, nil) immediately.
+func canSwitchWindowsAgentMode(ctx context.Context) (bool, error) {
+	if !utils.Exists(windowsCompatManagerPath, utils.TypeFile) || !utils.Exists(windowsLegacyAgentPath, utils.TypeFile) {
+		return false, nil
+	}
+	legacyStatus, err := windowsServiceStatus(legacyAgentServiceName)
+	if err != nil {
+		return false, err
+	}
+	if legacyStatus == serviceNotFoundStatus {
+		return false, nil
+	}
+
+	var running bool
+	pollErr := utils.PollUntil(ctx, fmt.Sprintf("%s service readiness", compatManagerServiceName), agentPollInterval, agentModeSwitchTimeout, func() (bool, string) {
+		status, startType, err := windowsServiceState(compatManagerServiceName)
+		if err != nil {
+			return false, fmt.Sprintf("state check error=%v", err)
+		}
+		if status == serviceRunningStatus {
+			running = true
+			return true, ""
+		}
+		if startType != serviceAutomaticStartType {
+			return true, ""
+		}
+		return false, fmt.Sprintf("status=%q, startType=%q", status, startType)
+	})
+	if pollErr != nil {
+		return false, pollErr
+	}
+	return running, nil
+}
+
+// stopStaleCorePluginProcess terminates any orphaned CorePlugin.exe process
+// left behind on Windows after GCEWindowsCompatManager disables CorePlugin and
+// restarts GCEAgentManager with SkipCorePlugin=true. Stopping GCEAgentManager
+// on Windows does not always terminate child plugin processes before service
+// exit, and local plugin state is not persisted on disk for stopCorePlugin.
+func stopStaleCorePluginProcess() error {
+	quotedPaths := make([]string, len(windowsCorePluginPaths))
+	for i, p := range windowsCorePluginPaths {
+		quotedPaths[i] = fmt.Sprintf("'%s'", psSingleQuote(p))
+	}
+	cmd := fmt.Sprintf("Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -in @(%s) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }", strings.Join(quotedPaths, ", "))
+	if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {
+		return fmt.Errorf("exitcode=%d, err=%v (stderr=%q)", procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
+	}
+	return nil
+}
+
+func isCorePluginModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning bool) bool {
+	return !coreDisabled && serviceRunning && coreRunning && !legacyRunning
+}
+
+func isLegacyAgentModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning bool) bool {
+	return coreDisabled && serviceRunning && legacyRunning && !coreRunning
+}
+
+func hasOrphanedCorePluginInLegacyMode(coreDisabled, serviceRunning, coreRunning, legacyRunning, agentManagerRunning bool) bool {
+	return coreDisabled && serviceRunning && legacyRunning && coreRunning && agentManagerRunning
+}
+
+func pollWindowsAgentMode(ctx context.Context, wantCorePlugin bool) error {
+	var serviceName string
+	if wantCorePlugin {
+		serviceName = agentManagerServiceName
+	} else {
+		serviceName = legacyAgentServiceName
+	}
+	return utils.PollUntil(ctx, fmt.Sprintf("Windows agent mode (wantCorePlugin=%t)", wantCorePlugin), agentPollInterval, agentModeSwitchTimeout, func() (bool, string) {
+		coreDisabled := isWindowsCoreDisabled()
+		coreRunning, coreErr := isWindowsProcessRunning(corePluginProcessName)
+		legacyRunning, legacyErr := isWindowsProcessRunning(legacyAgentProcessName)
+		if coreErr != nil || legacyErr != nil {
+			return false, fmt.Sprintf("process check error (coreErr=%v, legacyErr=%v)", coreErr, legacyErr)
+		}
+		serviceStatus, serviceErr := windowsServiceStatus(serviceName)
+		if serviceErr != nil {
+			return false, fmt.Sprintf("service %q status check error=%v", serviceName, serviceErr)
+		}
+		serviceRunning := serviceStatus == serviceRunningStatus
+
+		if wantCorePlugin {
+			if isCorePluginModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning) {
+				return true, ""
+			}
+			return false, fmt.Sprintf("coreDisabled=%t, %s=%q, coreRunning=%t, legacyRunning=%t", coreDisabled, serviceName, serviceStatus, coreRunning, legacyRunning)
+		}
+		if isLegacyAgentModeReady(coreDisabled, serviceRunning, coreRunning, legacyRunning) {
+			return true, ""
+		}
+		mgrRunning, mgrErr := isWindowsServiceRunning(agentManagerServiceName)
+		if mgrErr != nil {
+			return false, fmt.Sprintf("service %q status check error=%v", agentManagerServiceName, mgrErr)
+		}
+		detail := fmt.Sprintf("coreDisabled=%t, %s=%q, %sRunning=%t, coreRunning=%t, legacyRunning=%t", coreDisabled, serviceName, serviceStatus, agentManagerServiceName, mgrRunning, coreRunning, legacyRunning)
+		if hasOrphanedCorePluginInLegacyMode(coreDisabled, serviceRunning, coreRunning, legacyRunning, mgrRunning) {
+			if err := stopStaleCorePluginProcess(); err != nil {
+				detail += fmt.Sprintf("; best-effort stale CorePlugin stop failed: %v", err)
+			}
+		}
+		return false, detail
+	})
+}
+
+func waitForWindowsAgentMode(ctx context.Context, t *testing.T, wantCorePlugin bool) {
+	t.Helper()
+	if err := pollWindowsAgentMode(ctx, wantCorePlugin); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func currentInstanceMetadataAttr(ctx context.Context, client daisyCompute.Client, key string) (*string, error) {
+	instanceName, err := utils.GetInstanceName(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get instance name: %w", err)
+	}
+	projectID, zone, err := utils.GetProjectZone(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get project or zone: %w", err)
+	}
+	inst, err := client.GetInstance(projectID, zone, instanceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance %s: %w", instanceName, err)
+	}
+	if inst.Metadata == nil {
+		return nil, nil
+	}
+	for _, item := range inst.Metadata.Items {
+		if item != nil && item.Key == key {
+			return item.Value, nil
+		}
+	}
+	return nil, nil
+}
+
+func switchWindowsCorePlugin(ctx context.Context, enable bool) error {
+	if err := utils.UpsertMetadata(ctx, enableCorePluginKey, strconv.FormatBool(enable)); err != nil {
+		return fmt.Errorf("failed to set %s=%t: %w", enableCorePluginKey, enable, err)
+	}
+	return pollWindowsAgentMode(ctx, enable)
+}
+
+func restoreWindowsCorePluginMode(origCoreEnabled bool, origAttr *string) error {
+	switchCtx, cancel := context.WithTimeout(context.Background(), agentModeSwitchTimeout)
+	defer cancel()
+	if err := switchWindowsCorePlugin(switchCtx, origCoreEnabled); err != nil {
+		return err
+	}
+	// Run metadata cleanup with context.Background() after the mode switch finishes
+	// so an expired switchCtx cannot abort MDS/GCE cleanup calls.
+	if origAttr == nil {
+		// switchWindowsCorePlugin already confirmed the restored mode is active and
+		// wrote the matching enabled= value on disk; with no instance/project key
+		// GCEWindowsCompatManager falls back to that file, so deleting the
+		// temporary override key preserves the mode without a second poll.
+		if err := utils.DeleteMetadata(context.Background(), enableCorePluginKey); err != nil {
+			return fmt.Errorf("failed to delete %s metadata: %w", enableCorePluginKey, err)
+		}
+		return nil
+	}
+	if *origAttr != strconv.FormatBool(origCoreEnabled) {
+		if err := utils.UpsertMetadata(context.Background(), enableCorePluginKey, *origAttr); err != nil {
+			return fmt.Errorf("failed to restore %s=%q metadata: %w", enableCorePluginKey, *origAttr, err)
+		}
+	}
+	return nil
+}
+
+func setWindowsCorePluginEnabled(ctx context.Context, t *testing.T, enable bool) {
+	t.Helper()
+	if err := switchWindowsCorePlugin(ctx, enable); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestWindowsPasswordResetLegacyAgent switches from CorePlugin to the legacy
+// GCEWindowsAgent on non-DC Windows images (including Windows 10, Windows 11,
+// and standalone Windows Server) and verifies both existing-user password
+// resets and new admin account creation.
+func TestWindowsPasswordResetLegacyAgent(t *testing.T) {
+	utils.WindowsOnly(t)
+	ctx := t.Context()
+
+	origCoreEnabled := !isWindowsCoreDisabled()
+	switchedMode := false
+	if origCoreEnabled {
+		canSwitch, err := canSwitchWindowsAgentMode(ctx)
+		if err != nil {
+			t.Fatalf("failed to check Windows agent mode switch support: %v", err)
+		}
+		if !canSwitch {
+			t.Skip("Windows guest agent mode switching via GCEWindowsCompatManager is unavailable and CorePlugin is active; cannot switch to legacy agent.")
+		}
+		switchedMode = true
+	} else {
+		legacyAvailable, err := hasAvailableLegacyWindowsAgent()
+		if err != nil {
+			t.Fatalf("failed to check legacy Windows agent availability: %v", err)
+		}
+		if !legacyAvailable {
+			t.Skip("Legacy GCEWindowsAgent is absent or disabled and CorePlugin is not active; skipping legacy agent test.")
+		}
+	}
+
+	client, err := utils.GetDaisyClient(ctx)
+	if err != nil {
+		t.Fatalf("Error creating compute service: %v", err)
+	}
+	var origEnableCoreAttr *string
+	if switchedMode {
+		origEnableCoreAttr, err = currentInstanceMetadataAttr(ctx, client, enableCorePluginKey)
+		if err != nil {
+			t.Fatalf("failed to read initial %s metadata: %v", enableCorePluginKey, err)
+		}
+	}
+
+	t.Cleanup(func() {
+		if err := utils.DeleteMetadata(context.Background(), windowsKeysMetadataKey); err != nil {
+			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
+		}
+		cleanupLocalWindowsUsers(t, legacyPasswordResetUser, legacyNewAdminUser)
+		if switchedMode {
+			if err := restoreWindowsCorePluginMode(origCoreEnabled, origEnableCoreAttr); err != nil {
+				t.Errorf("failed to restore core plugin mode (%t) in cleanup: %v", origCoreEnabled, err)
+			}
+		}
+	})
+
+	if switchedMode {
+		setWindowsCorePluginEnabled(ctx, t, false)
+	} else {
+		waitForWindowsAgentMode(ctx, t, false)
+	}
+
+	// 1. Existing local user password reset under GCEWindowsAgent.
+	verifyPowershellCmd(t, fmt.Sprintf("net user %s %s /add", legacyPasswordResetUser, initialTestUserPassword))
+
+	existingCreds, existingPriv, err := requestWindowsPasswordReset(ctx, client, legacyPasswordResetUser)
+	if err != nil {
+		t.Fatalf("legacy agent password reset for %s failed: %v", legacyPasswordResetUser, err)
+	}
+	existingPwd := decryptResetCreds(t, legacyPasswordResetUser, existingCreds, existingPriv)
+	verifyLocalWindowsCredentials(ctx, t, legacyPasswordResetUser, existingPwd)
+
+	// 2. New local admin user creation under GCEWindowsAgent.
+	newCreds, newPriv, err := requestWindowsPasswordReset(ctx, client, legacyNewAdminUser)
+	if err != nil {
+		t.Fatalf("legacy agent account creation for %s failed: %v", legacyNewAdminUser, err)
+	}
+	newPwd := decryptResetCreds(t, legacyNewAdminUser, newCreds, newPriv)
+	verifyAdminGroup(t, legacyNewAdminUser)
+	verifyLocalWindowsCredentials(ctx, t, legacyNewAdminUser, newPwd)
 }
