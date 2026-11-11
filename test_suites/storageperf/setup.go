@@ -231,7 +231,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		daisyInst.MachineType = tc.machineType
 		daisyInst.MinCpuPlatform = tc.minCPUPlatform
 		daisyInst.Zone = tc.zone
-		vm, err := t.CreateTestVMMultipleDisks(disks, daisyInst)
+		vm, err := t.CreateTestVMFromInstance(daisyInst, disks)
 		if err != nil {
 			return err
 		}

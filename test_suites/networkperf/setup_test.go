@@ -1,10 +1,89 @@
 package networkperf
 
 import (
+	"fmt"
+	"net/http"
 	"testing"
 
+	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	daisycompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"github.com/google/go-cmp/cmp"
 )
+
+// newTestWorkflow returns a TestWorkflow backed by a fake compute API that
+// serves just enough for imagetest.NewTestWorkflow to succeed.
+func newTestWorkflow(t *testing.T) *imagetest.TestWorkflow {
+	t.Helper()
+	srv, client, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.String() {
+		case "/projects/fake-project?alt=json&prettyPrint=false":
+			fmt.Fprint(w, `{"Name":"fake-project"}`)
+		case "/projects/fake-project/zones/us-central1-a?alt=json&prettyPrint=false":
+			fmt.Fprint(w, `{"Name":"us-central1-a"}`)
+		case "/projects/fake-project/zones/us-central1-a/machineTypes/n1-standard-1?alt=json&prettyPrint=false":
+			fmt.Fprint(w, `{"Name":"n1-standard-1"}`)
+		case "/projects/fake-cloud/global/images/fakeos?alt=json&prettyPrint=false":
+			fmt.Fprint(w, `{"Name":"fakeos", "Architecture":"X86_64"}`)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintln(w, "URL and Method not recognized:", r.Method, r.URL)
+		}
+	}))
+	if err != nil {
+		t.Fatalf("failed to create fake compute client: %v", err)
+	}
+	t.Cleanup(srv.Close)
+	twf, err := imagetest.NewTestWorkflow(&imagetest.TestWorkflowOpts{
+		Client:   client,
+		Name:     "networkperf",
+		Image:    "projects/fake-cloud/global/images/fakeos",
+		Timeout:  "20m",
+		Project:  "fake-project",
+		Zone:     "us-central1-a",
+		X86Shape: "n1-standard-1",
+	}, nil)
+	if err != nil {
+		t.Fatalf("failed to create test workflow: %v", err)
+	}
+	return twf
+}
+
+func TestCreateMachine(t *testing.T) {
+	tests := []struct {
+		name          string
+		machinePrefix string
+	}{
+		{name: "client", machinePrefix: "client"},
+		{name: "server", machinePrefix: "server"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			twf := newTestWorkflow(t)
+			networks, err := createNetworks(twf, &createNetworkOptions{namePrefix: "net", region: "us-central1", nicTypes: []string{"GVNIC"}})
+			if err != nil {
+				t.Fatalf("createNetworks failed: %v", err)
+			}
+			vm, err := createMachine(twf, "TestNetworkPerformance", tc.machinePrefix, networks, "n1-standard-1", "us-central1-a")
+			if err != nil {
+				t.Fatalf("createMachine failed: %v", err)
+			}
+			if vm == nil {
+				t.Fatal("createMachine returned a nil vm")
+			}
+		})
+	}
+}
+
+func TestCreateMachineUnknownPrefix(t *testing.T) {
+	twf := newTestWorkflow(t)
+	networks, err := createNetworks(twf, &createNetworkOptions{namePrefix: "net", region: "us-central1", nicTypes: []string{"GVNIC"}})
+	if err != nil {
+		t.Fatalf("createNetworks failed: %v", err)
+	}
+	if _, err := createMachine(twf, "TestNetworkPerformance", "other", networks, "n1-standard-1", "us-central1-a"); err == nil {
+		t.Error("createMachine succeeded with an unknown machine prefix, want error")
+	}
+}
 
 func TestNetworkAddressHelpers(t *testing.T) {
 	cases := []struct {

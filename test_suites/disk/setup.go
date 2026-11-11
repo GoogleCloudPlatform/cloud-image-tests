@@ -56,7 +56,7 @@ const (
 func TestSetup(t *imagetest.TestWorkflow) error {
 	rebootInst := &daisy.Instance{}
 	rebootInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "resize"}}, rebootInst)
+	vm, err := t.CreateTestVMFromInstance(rebootInst, []*compute.Disk{{Name: "resize"}})
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 				{Name: secondaryDiskName, Type: imagetest.HyperdiskBalanced, SizeGb: 10},
 				{Name: customDeviceNameDiskResource, Type: imagetest.HyperdiskBalanced, SizeGb: 10},
 			}
-			vm, err := t.CreateTestVMMultipleDisks(disks, inst)
+			vm, err := t.CreateTestVMFromInstance(inst, disks)
 			if err != nil {
 				return err
 			}

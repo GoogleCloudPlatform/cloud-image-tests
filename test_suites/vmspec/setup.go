@@ -88,7 +88,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	machineType := machineTypes[machineTypeCounter%len(machineTypes)]
 	sourceInst := &daisy.Instance{}
 	disks := []*compute.Disk{&compute.Disk{Name: "source", Type: imagetest.PdBalanced, Zone: zone.Name}}
-	source, err := t.CreateTestVMMultipleDisks(disks, sourceInst)
+	source, err := t.CreateTestVMFromInstance(sourceInst, disks)
 	if err != nil {
 		return err
 	}

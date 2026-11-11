@@ -30,7 +30,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	lm := &daisy.Instance{}
 	lm.Scopes = append(lm.Scopes, "https://www.googleapis.com/auth/cloud-platform")
 	lm.Scheduling = &compute.Scheduling{OnHostMaintenance: "MIGRATE"}
-	lmvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "livemigrate"}}, lm)
+	lmvm, err := t.CreateTestVMFromInstance(lm, []*compute.Disk{{Name: "livemigrate"}})
 	if err != nil {
 		return err
 	}

@@ -50,7 +50,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	suspend := &daisy.Instance{}
 	suspend.Scopes = append(suspend.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-	suspendvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "suspend"}}, suspend)
+	suspendvm, err := t.CreateTestVMFromInstance(suspend, []*compute.Disk{{Name: "suspend"}})
 	if err != nil {
 		return err
 	}

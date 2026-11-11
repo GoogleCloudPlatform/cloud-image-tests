@@ -62,7 +62,7 @@ func createMachine(t *imagetest.TestWorkflow, machineType string, zone string) (
 		return nil, fmt.Errorf("creating machine with networks: %w", err)
 	}
 
-	vm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{&disk}, instance)
+	vm, err := t.CreateTestVMFromInstance(instance, []*compute.Disk{&disk})
 	if err != nil {
 		return nil, fmt.Errorf("creating machine: %w", err)
 	}

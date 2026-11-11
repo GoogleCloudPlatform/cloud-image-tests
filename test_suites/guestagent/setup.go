@@ -64,7 +64,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	telemetrydisabledinst := &daisy.Instance{}
 	telemetrydisabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 	telemetrydisabledinst.Name = "telemetryDisabled"
-	telemetrydisabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetrydisabledinst.Name, Type: diskType}}, telemetrydisabledinst)
+	telemetrydisabledvm, err := t.CreateTestVMFromInstance(telemetrydisabledinst, []*compute.Disk{{Name: telemetrydisabledinst.Name, Type: diskType}})
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	telemetryenabledinst := &daisy.Instance{}
 	telemetryenabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 	telemetryenabledinst.Name = "telemetryEnabled"
-	telemetryenabledvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: telemetryenabledinst.Name, Type: diskType}}, telemetryenabledinst)
+	telemetryenabledvm, err := t.CreateTestVMFromInstance(telemetryenabledinst, []*compute.Disk{{Name: telemetryenabledinst.Name, Type: diskType}})
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		snapshotinst := &daisy.Instance{}
 		snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
 		snapshotinst.Name = "snapshotScripts"
-		snapshotvm, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: snapshotinst.Name, Type: diskType}}, snapshotinst)
+		snapshotvm, err := t.CreateTestVMFromInstance(snapshotinst, []*compute.Disk{{Name: snapshotinst.Name, Type: diskType}})
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if utils.HasFeature(t.Image, "WINDOWS") && t.ShouldRunTests(windowsAccountTests) {
 		passwordInst := &daisy.Instance{}
 		passwordInst.Scopes = append(passwordInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-		windowsaccountVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsaccount", Type: diskType}}, passwordInst)
+		windowsaccountVM, err := t.CreateTestVMFromInstance(passwordInst, []*compute.Disk{{Name: "windowsaccount", Type: diskType}})
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 				imagetest.ShouldRebootDuringTest: "true",
 			},
 		}
-		windowsDCVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: "windowsdc", Type: diskType}}, dcInst)
+		windowsDCVM, err := t.CreateTestVMFromInstance(dcInst, []*compute.Disk{{Name: "windowsdc", Type: diskType}})
 		if err != nil {
 			return err
 		}
@@ -194,9 +194,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			},
 		}
 
-		// When disks are defined in mwlidInst.Disks with InitializeParams,
-		// the first argument to CreateTestVMMultipleDisks (additional disks) can be nil.
-		mwlidVM, err := t.CreateTestVMMultipleDisks([]*compute.Disk{{Name: mwlidVMName, Type: diskType}}, mwlidInst)
+		mwlidVM, err := t.CreateTestVMFromInstance(mwlidInst, []*compute.Disk{{Name: mwlidVMName, Type: diskType}})
 		if err != nil {
 			return fmt.Errorf("failed to create MWLID test VM: %v", err)
 		}
