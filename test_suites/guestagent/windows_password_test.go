@@ -94,10 +94,6 @@ type credsJSON struct {
 	Modulus           string `json:"modulus,omitempty"`
 }
 
-func psSingleQuote(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
-}
-
 func decryptPassword(priv *rsa.PrivateKey, ep string) (string, error) {
 	bp, err := base64.StdEncoding.DecodeString(ep)
 	if err != nil {
@@ -247,7 +243,7 @@ Start-Process -Credential $cred -WorkingDirectory C:\Windows\System32 -FilePath 
 func cleanupLocalWindowsUsers(t *testing.T, users ...string) {
 	t.Helper()
 	for _, u := range users {
-		cmd := fmt.Sprintf("if ($null -ne (Get-LocalUser -Name '%[1]s' -ErrorAction SilentlyContinue)) { Remove-LocalUser -Name '%[1]s' -ErrorAction Stop } else { exit 0 }", psSingleQuote(u))
+		cmd := fmt.Sprintf("if ($null -ne (Get-LocalUser -Name '%[1]s' -ErrorAction SilentlyContinue)) { Remove-LocalUser -Name '%[1]s' -ErrorAction Stop } else { exit 0 }", utils.PSSingleQuote(u))
 		if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {
 			t.Errorf("failed to remove local test user %q (exitcode=%d, err=%v): stderr=%s", u, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
 		}
@@ -330,7 +326,7 @@ func TestWindowsPasswordResetDifferentLocale(t *testing.T) {
 			t.Errorf("failed to delete %s metadata in cleanup: %v", windowsKeysMetadataKey, err)
 		}
 		cleanupLocalWindowsUsers(t, differentLocaleUser)
-		if procStatus, err := utils.RunPowershellCmd(fmt.Sprintf("if ($null -ne (Get-LocalGroup -Name '%[1]s' -ErrorAction SilentlyContinue)) { Rename-LocalGroup -Name '%[1]s' -NewName Administrators -ErrorAction Stop } else { exit 0 }", psSingleQuote(newAdminGroupName))); err != nil || procStatus.Exitcode != 0 {
+		if procStatus, err := utils.RunPowershellCmd(fmt.Sprintf("if ($null -ne (Get-LocalGroup -Name '%[1]s' -ErrorAction SilentlyContinue)) { Rename-LocalGroup -Name '%[1]s' -NewName Administrators -ErrorAction Stop } else { exit 0 }", utils.PSSingleQuote(newAdminGroupName))); err != nil || procStatus.Exitcode != 0 {
 			t.Errorf("failed to restore Administrators group name (exitcode=%d, err=%v): stderr=%s", procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
 		}
 	})
@@ -381,7 +377,7 @@ func isWindowsCoreDisabled() bool {
 }
 
 func isWindowsProcessRunning(processName string) (bool, error) {
-	cmd := fmt.Sprintf("if ($null -ne (Get-Process -Name '%s' -ErrorAction SilentlyContinue)) { Write-Output 'true' } else { Write-Output 'false' }", psSingleQuote(processName))
+	cmd := fmt.Sprintf("if ($null -ne (Get-Process -Name '%s' -ErrorAction SilentlyContinue)) { Write-Output 'true' } else { Write-Output 'false' }", utils.PSSingleQuote(processName))
 	procStatus, err := utils.RunPowershellCmd(cmd)
 	if err != nil || procStatus.Exitcode != 0 {
 		return false, fmt.Errorf("Get-Process %q failed (exitcode=%d, err=%v, stderr=%q)", processName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
@@ -390,7 +386,7 @@ func isWindowsProcessRunning(processName string) (bool, error) {
 }
 
 func windowsServiceState(serviceName string) (string, string, error) {
-	cmd := fmt.Sprintf("$svc = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output 'NotFound|' } else { Write-Output \"$($svc.Status)|$($svc.StartType)\" }", psSingleQuote(serviceName))
+	cmd := fmt.Sprintf("$svc = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output 'NotFound|' } else { Write-Output \"$($svc.Status)|$($svc.StartType)\" }", utils.PSSingleQuote(serviceName))
 	procStatus, err := utils.RunPowershellCmd(cmd)
 	if err != nil || procStatus.Exitcode != 0 {
 		return "", "", fmt.Errorf("Get-Service %q failed (exitcode=%d, err=%v, stderr=%q)", serviceName, procStatus.Exitcode, err, strings.TrimSpace(procStatus.Stderr))
@@ -478,7 +474,7 @@ func canSwitchWindowsAgentMode(ctx context.Context) (bool, error) {
 func stopStaleCorePluginProcess() error {
 	quotedPaths := make([]string, len(windowsCorePluginPaths))
 	for i, p := range windowsCorePluginPaths {
-		quotedPaths[i] = fmt.Sprintf("'%s'", psSingleQuote(p))
+		quotedPaths[i] = fmt.Sprintf("'%s'", utils.PSSingleQuote(p))
 	}
 	cmd := fmt.Sprintf("Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -in @(%s) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }", strings.Join(quotedPaths, ", "))
 	if procStatus, err := utils.RunPowershellCmd(cmd); err != nil || procStatus.Exitcode != 0 {

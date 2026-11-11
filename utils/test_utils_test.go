@@ -20,14 +20,19 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	daisyCompute "github.com/GoogleCloudPlatform/compute-daisy/compute"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/compute/v1"
 )
+
+const sampleScriptPath = "scripts/sample.ps1"
 
 func strPtr(s string) *string {
 	return &s
@@ -386,5 +391,205 @@ func TestDeleteMetadataWithClient(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantMD, currentMD()); diff != "" {
 		t.Fatalf("metadata after delete mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestPSSingleQuote(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty", in: "", want: ""},
+		{name: "no_quotes", in: `C:\Temp\cit-ps-123\sample.ps1`, want: `C:\Temp\cit-ps-123\sample.ps1`},
+		{name: "single_quote", in: "O'Brien", want: "O''Brien"},
+		{name: "adjacent_quotes", in: "a''b'", want: "a''''b''"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := PSSingleQuote(tc.in); got != tc.want {
+				t.Fatalf("PSSingleQuote(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSortedPowershellParamNames(t *testing.T) {
+	t.Run("nil_and_empty_params", func(t *testing.T) {
+		got, err := sortedPowershellParamNames(sampleScriptPath, nil)
+		if err != nil {
+			t.Fatalf("sortedPowershellParamNames(nil) failed: %v", err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("sortedPowershellParamNames(nil) = %v, want empty slice", got)
+		}
+	})
+
+	t.Run("sorts_valid_names", func(t *testing.T) {
+		params := map[string]string{
+			"Z_Param": "1",
+			"_a2":     "2",
+			"Alpha":   "3",
+		}
+		got, err := sortedPowershellParamNames(sampleScriptPath, params)
+		if err != nil {
+			t.Fatalf("sortedPowershellParamNames(%v) failed: %v", params, err)
+		}
+		want := []string{"Alpha", "Z_Param", "_a2"}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Fatalf("sortedPowershellParamNames mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	errorTests := []struct {
+		name       string
+		params     map[string]string
+		wantErrSub string
+	}{
+		{
+			name:       "empty_param_name",
+			params:     map[string]string{"": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "leading_digit_param_name",
+			params:     map[string]string{"1BadName": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "hyphenated_param_name",
+			params:     map[string]string{"Bad-Name": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "injection_metachar_param_name",
+			params:     map[string]string{"Bad'; exit 1; #": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "nul_byte_in_param_value",
+			params:     map[string]string{"Password": "abc\x00def"},
+			wantErrSub: "NUL byte in parameter",
+		},
+	}
+
+	for _, tc := range errorTests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := sortedPowershellParamNames(sampleScriptPath, tc.params)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+				t.Fatalf("sortedPowershellParamNames(%v) error = %v, want substring %q", tc.params, err, tc.wantErrSub)
+			}
+		})
+	}
+}
+
+func TestWriteTempPowershellScript(t *testing.T) {
+	wantContent := []byte("Write-Output 'ok'\r\n")
+	path, cleanup, err := writeTempPowershellScript(sampleScriptPath, wantContent)
+	if err != nil {
+		t.Fatalf("writeTempPowershellScript failed: %v", err)
+	}
+
+	if filepath.Base(path) != "sample.ps1" {
+		cleanup()
+		t.Fatalf("filepath.Base(%q) = %q, want %q", path, filepath.Base(path), "sample.ps1")
+	}
+	gotContent, readErr := os.ReadFile(path)
+	if readErr != nil {
+		cleanup()
+		t.Fatalf("os.ReadFile(%q) failed: %v", path, readErr)
+	}
+	if diff := cmp.Diff(wantContent, gotContent); diff != "" {
+		cleanup()
+		t.Fatalf("temp script content mismatch (-want +got):\n%s", diff)
+	}
+
+	tmpDir := filepath.Dir(path)
+	cleanup()
+	if _, statErr := os.Stat(tmpDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("os.Stat(%q) after cleanup = %v, want os.ErrNotExist", tmpDir, statErr)
+	}
+}
+
+func TestRunPowershellScriptValidation(t *testing.T) {
+	scripts := fstest.MapFS{
+		sampleScriptPath: &fstest.MapFile{
+			Data: []byte("Write-Output 'ok'\n"),
+		},
+	}
+
+	tests := []struct {
+		name       string
+		scriptPath string
+		params     map[string]string
+		wantErrSub string
+	}{
+		{
+			name:       "missing_embedded_script",
+			scriptPath: "scripts/does_not_exist.ps1",
+			params:     nil,
+			wantErrSub: "failed to read embedded script",
+		},
+		{
+			name:       "empty_param_name",
+			scriptPath: sampleScriptPath,
+			params:     map[string]string{"": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "leading_digit_param_name",
+			scriptPath: sampleScriptPath,
+			params:     map[string]string{"1BadName": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "hyphenated_param_name",
+			scriptPath: sampleScriptPath,
+			params:     map[string]string{"Bad-Name": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "injection_metachar_param_name",
+			scriptPath: sampleScriptPath,
+			params:     map[string]string{"Bad'; exit 1; #": "val"},
+			wantErrSub: "invalid PowerShell parameter name",
+		},
+		{
+			name:       "nul_byte_in_param_value",
+			scriptPath: sampleScriptPath,
+			params:     map[string]string{"Password": "abc\x00def"},
+			wantErrSub: "NUL byte in parameter",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := RunPowershellScript(t.Context(), scripts, tc.scriptPath, tc.params)
+			if err == nil {
+				t.Fatalf("RunPowershellScript(%q, %v) succeeded, want error containing %q", tc.scriptPath, tc.params, tc.wantErrSub)
+			}
+			if !strings.Contains(err.Error(), tc.wantErrSub) {
+				t.Fatalf("RunPowershellScript(%q, %v) error = %v, want substring %q", tc.scriptPath, tc.params, err, tc.wantErrSub)
+			}
+		})
+	}
+}
+
+func TestRunPowershellScriptCanceledContext(t *testing.T) {
+	scripts := fstest.MapFS{
+		sampleScriptPath: &fstest.MapFile{
+			Data: []byte("Write-Output 'ok'\n"),
+		},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	status, err := RunPowershellScript(ctx, scripts, sampleScriptPath, map[string]string{"Valid_Name1": "val"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunPowershellScript with canceled context returned err = %v, want %v", err, context.Canceled)
+	}
+	if status.Exitcode != -1 {
+		t.Fatalf("RunPowershellScript with canceled context returned Exitcode = %d, want -1", status.Exitcode)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -32,7 +33,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -613,7 +616,7 @@ func RunPowershellCmdWithEnv(ctx context.Context, command string, extraEnv ...st
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command)
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command)
 	if len(extraEnv) > 0 {
 		baseEnv := os.Environ()
 		env := make([]string, len(baseEnv)+len(extraEnv))
@@ -637,6 +640,87 @@ func RunPowershellCmdWithEnv(ctx context.Context, command string, extraEnv ...st
 		Stderr:   stderr.String(),
 		Exitcode: exitCode,
 	}, runErr
+}
+
+var validPowershellParamName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// PSSingleQuote escapes single quotes in s for embedding inside a single-quoted
+// PowerShell string literal ('...').
+func PSSingleQuote(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+func sortedPowershellParamNames(scriptPath string, params map[string]string) ([]string, error) {
+	keys := make([]string, 0, len(params))
+	for k, v := range params {
+		if !validPowershellParamName.MatchString(k) {
+			return nil, fmt.Errorf("invalid PowerShell parameter name %q for %q", k, scriptPath)
+		}
+		if strings.ContainsRune(v, 0) {
+			return nil, fmt.Errorf("NUL byte in parameter %q for %q", k, scriptPath)
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
+func writeTempPowershellScript(scriptPath string, content []byte) (string, func(), error) {
+	tmpDir, err := os.MkdirTemp("", "cit-ps-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temp directory for %q: %w", scriptPath, err)
+	}
+	cleanup := func() {
+		os.RemoveAll(tmpDir)
+	}
+	tmpScript := filepath.Join(tmpDir, filepath.Base(scriptPath))
+	if err := os.WriteFile(tmpScript, content, 0600); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("failed to write temp script %q: %w", tmpScript, err)
+	}
+	return tmpScript, cleanup, nil
+}
+
+// RunPowershellScript writes an embedded PowerShell script to a temporary .ps1
+// file, executes it with the given named parameters under ctx, and removes the
+// temporary directory before returning. Parameter values are passed via
+// temporary child environment variables and splatted as a PowerShell hashtable
+// so arbitrary values (including passwords) are never placed on argv or parsed
+// by the shell.
+func RunPowershellScript(ctx context.Context, scripts fs.FS, scriptPath string, params map[string]string) (ProcessStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return ProcessStatus{Exitcode: -1}, err
+	}
+	content, err := fs.ReadFile(scripts, scriptPath)
+	if err != nil {
+		return ProcessStatus{}, fmt.Errorf("failed to read embedded script %q: %w", scriptPath, err)
+	}
+	keys, err := sortedPowershellParamNames(scriptPath, params)
+	if err != nil {
+		return ProcessStatus{}, err
+	}
+	tmpScript, cleanup, err := writeTempPowershellScript(scriptPath, content)
+	if err != nil {
+		return ProcessStatus{}, err
+	}
+	defer cleanup()
+
+	extraEnv := make([]string, len(keys))
+	var invoke strings.Builder
+	var cleanupEnv strings.Builder
+	invoke.WriteString("$ErrorActionPreference = 'Stop'; $global:LASTEXITCODE = 0; $scriptParams = @{")
+	for i, k := range keys {
+		if i > 0 {
+			invoke.WriteString("; ")
+		}
+		envVar := fmt.Sprintf("CIT_PS_PARAM_%d", i)
+		extraEnv[i] = fmt.Sprintf("%s=%s", envVar, params[k])
+		fmt.Fprintf(&invoke, "'%s' = [string]$env:%s", k, envVar)
+		fmt.Fprintf(&cleanupEnv, "Remove-Item Env:\\%s -ErrorAction SilentlyContinue; ", envVar)
+	}
+	fmt.Fprintf(&invoke, "}; %s& '%s' @scriptParams; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }", cleanupEnv.String(), PSSingleQuote(tmpScript))
+
+	return RunPowershellCmdWithEnv(ctx, invoke.String(), extraEnv...)
 }
 
 // CheckPowershellSuccess returns an error if the powershell command fails.
