@@ -15,15 +15,50 @@
 package licensevalidation
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 )
 
+const (
+	// //T: makes cscript kill slmgr.vbs after 120 s so a wedged licensing
+	// service cannot hang the activation retry loop.
+	slmgrCmd = `cscript //Nologo //T:120 C:\Windows\system32\slmgr.vbs`
+	// KMS activations are severed when a backend KMS host stalls, so a first
+	// boot activation attempt can fail transiently. Retry activation for a
+	// while before declaring the image broken.
+	activationRetryInterval = 20 * time.Second
+	activationRetryTimeout  = 10 * time.Minute
+)
+
+// slmgr runs slmgr.vbs with args and returns its combined stdout and stderr.
+// On failure the returned error also carries that output.
+func slmgr(args string) (string, error) {
+	out, err := utils.RunPowershellCmd(slmgrCmd + " " + args)
+	text := strings.TrimSpace(out.Stdout + "\n" + out.Stderr)
+	if err != nil {
+		return text, fmt.Errorf("%w: %s", err, text)
+	}
+	return text, nil
+}
+
+// windowsLicenseStatus reports whether Windows is activated and the
+// `slmgr /dli` output (or error) for diagnostics.
+func windowsLicenseStatus() (bool, string) {
+	out, err := slmgr("/dli")
+	if err != nil {
+		return false, "slmgr /dli: " + err.Error()
+	}
+	return strings.Contains(out, "License Status: Licensed"), "slmgr /dli: " + out
+}
+
 func TestWindowsActivationStatus(t *testing.T) {
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	ctx := utils.Context(t)
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -31,14 +66,24 @@ func TestWindowsActivationStatus(t *testing.T) {
 		t.Skip("Activation status only checked on server images.")
 	}
 
-	command := "cscript C:\\Windows\\system32\\slmgr.vbs /dli"
-	output, err := utils.RunPowershellCmd(command)
-	if err != nil {
-		t.Fatalf("Error getting license status: %v", err)
+	licensed, status := windowsLicenseStatus()
+	if licensed {
+		return
 	}
-
-	if !strings.Contains(output.Stdout, "License Status: Licensed") {
-		t.Fatalf("Activation info does not contain 'Licensed': %s", output.Stdout)
+	t.Logf("Windows was not activated on first boot, retrying activation: %s", status)
+	err = utils.PollUntil(ctx, "Windows activation", activationRetryInterval, activationRetryTimeout, func() (bool, string) {
+		ato, atoErr := slmgr("/ato")
+		if atoErr != nil {
+			ato = atoErr.Error()
+		}
+		licensed, status := windowsLicenseStatus()
+		if licensed {
+			return true, ""
+		}
+		return false, "slmgr /ato: " + ato + "; " + status
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
