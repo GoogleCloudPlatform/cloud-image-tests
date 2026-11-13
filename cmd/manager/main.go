@@ -695,7 +695,11 @@ func downloadFolder(ctx context.Context, client *storage.Client, bucket, folder,
 		if err != nil {
 			return err
 		}
-		dstFile := filepath.Join(dstDir, obj.Name)
+		dstFile, err := safeJoin(dstDir, obj.Name)
+		if err != nil {
+			log.Printf("skipping invalid artifact path %q: %v", obj.Name, err)
+			continue
+		}
 		if strings.Contains(dstFile, "/sources/") {
 			continue
 		}
@@ -705,30 +709,48 @@ func downloadFolder(ctx context.Context, client *storage.Client, bucket, folder,
 			log.Printf("failed to create %s: %v", fileDstDir, err)
 			continue
 		}
-		file, err := os.Create(dstFile)
-		if err != nil {
-			log.Printf("failed to write %s: %v", dstFile, err)
-			continue
-		}
-
-		objReader, err := client.Bucket(bucket).Object(obj.Name).NewReader(ctx)
-		if err != nil {
-			log.Printf("failed to make reader for %s: %v", obj.Name, err)
-			continue
-		}
-
-		if _, err := io.Copy(file, objReader); err != nil {
-			log.Printf("failed to copy %s to disk: %v", obj.Name, err)
-			continue
-		}
-
-		if err := objReader.Close(); err != nil {
-			log.Printf("failed to close %s reader: %v", obj.Name, err)
+		if err := downloadObject(ctx, client.Bucket(bucket).Object(obj.Name), dstFile); err != nil {
+			log.Printf("failed to download %s to %s: %v", obj.Name, dstFile, err)
 			continue
 		}
 	}
 
 	return nil
+}
+
+func downloadObject(ctx context.Context, obj *storage.ObjectHandle, dst string) (err error) {
+	r, err := obj.NewReader(ctx)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	f, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(dst)
+		}
+	}()
+	_, err = io.Copy(f, r)
+	return err
+}
+
+func safeJoin(dstDir, name string) (string, error) {
+	if filepath.IsAbs(name) {
+		return "", fmt.Errorf("path %q must be relative", name)
+	}
+	cleanDst := filepath.Clean(dstDir)
+	dstFile := filepath.Join(cleanDst, name)
+	rel, err := filepath.Rel(cleanDst, dstFile)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q resolves outside destination directory %q", name, dstDir)
+	}
+	return dstFile, nil
 }
 
 // Reformat image path into valid URI
