@@ -32,7 +32,7 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	tests := "TestStandardPrograms|TestGuestPackages"
+	tests := "TestStandardPrograms|TestGuestPackages|TestImageVersion"
 	// Artifact registry plugin is not installed on all images. Test only runs if
 	// the image is built with artifact registry plugin. Tests requires
 	// apt-transport-artifact-registry or dnf-plugin-artifact-registry installed.

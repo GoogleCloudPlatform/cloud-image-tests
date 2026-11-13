@@ -427,6 +427,11 @@ preinstalled. The guest environment enables many GCE features to function.
 - <b>Test logic</b>: Validate that the guest environment packages are installed using the system
 package manager.
 
+#### TestImageVersion
+Validate that the running OS version matches the version number in the GCE image name.
+
+- <b>Test logic</b>: Strip the publish version suffix from `instance/image` metadata and compare it against `/etc/os-release` `VERSION_ID` on Linux (including pinned minor and service-pack versions) or `Win32_OperatingSystem.Caption` on Windows.
+
 #### TestGooGetInstalled TestGooGetAvailable TestSigned TestRemoveInstall TestPackagesInstalled TestPackagesAvailable TestPackagesSigned
 
 Test that googet is fully functional on the image, and can install, uninstall, verify signatures, and manage repositories.
