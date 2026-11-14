@@ -1452,4 +1452,170 @@ func TestAppendCreateVMStep_SpecificReservationAndMachineType(t *testing.T) {
 			t.Errorf("instBeta.Scheduling.ProvisioningModel = %q, want empty string after ForceMachineType and finalizeWorkflows", instBeta.Scheduling.ProvisioningModel)
 		}
 	})
+
+	t.Run("v1_attached_accelerator_workflow_skips_reservation_when_vm_has_no_guest_accelerators", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "n1-standard-1"}
+		twf.AcceleratorType = "nvidia-tesla-t4"
+		twf.AcceleratorCount = 2
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = true
+
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vmcpu"}}, &daisy.Instance{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil when VM has no GuestAccelerators in an attached-accelerator workflow", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when VM has no GuestAccelerators", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("v1_attached_accelerator_workflow_attaches_reservation_when_vm_has_guest_accelerators", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "n1-standard-1"}
+		twf.AcceleratorType = "nvidia-tesla-t4"
+		twf.AcceleratorCount = 2
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = true
+
+		gpuInst := &daisy.Instance{}
+		gpuInst.GuestAccelerators = []*compute.AcceleratorConfig{{
+			AcceleratorType:  "zones/us-central1-a/acceleratorTypes/nvidia-tesla-t4",
+			AcceleratorCount: 2,
+		}}
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vmgpu"}}, gpuInst)
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffV1, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling == nil || inst.Scheduling.ProvisioningModel != "RESERVATION_BOUND" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %v, want RESERVATION_BOUND when VM has GuestAccelerators", inst.Scheduling)
+		}
+	})
+
+	t.Run("beta_attached_accelerator_workflow_skips_reservation_when_vm_has_no_guest_accelerators", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "n1-standard-1"}
+		twf.AcceleratorType = "nvidia-tesla-t4"
+		twf.AcceleratorCount = 2
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = true
+
+		_, inst, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vmcpu"}}, &daisy.InstanceBeta{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStepBeta failed: %v", err)
+		}
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil when VM has no GuestAccelerators in an attached-accelerator workflow", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string when VM has no GuestAccelerators", inst.Scheduling.ProvisioningModel)
+		}
+	})
+
+	t.Run("beta_attached_accelerator_workflow_attaches_reservation_when_vm_has_guest_accelerators", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{Name: "n1-standard-1"}
+		twf.AcceleratorType = "nvidia-tesla-t4"
+		twf.AcceleratorCount = 2
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = true
+
+		gpuInst := &daisy.InstanceBeta{}
+		gpuInst.GuestAccelerators = []*computeBeta.AcceleratorConfig{{
+			AcceleratorType:  "zones/us-central1-a/acceleratorTypes/nvidia-tesla-t4",
+			AcceleratorCount: 2,
+		}}
+		_, inst, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vmgpu"}}, gpuInst)
+		if err != nil {
+			t.Fatalf("appendCreateVMStepBeta failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffBeta, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling == nil || inst.Scheduling.ProvisioningModel != "RESERVATION_BOUND" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %v, want RESERVATION_BOUND when VM has GuestAccelerators", inst.Scheduling)
+		}
+	})
+
+	t.Run("builtin_gpu_machine_type_attaches_reservation_even_without_guest_accelerators", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.MachineType = &compute.MachineType{
+			Name: "g2-standard-4",
+			Accelerators: []*compute.MachineTypeAccelerators{{
+				GuestAcceleratorType:  "nvidia-l4",
+				GuestAcceleratorCount: 1,
+			}},
+		}
+		twf.AcceleratorType = "nvidia-l4"
+		twf.AcceleratorCount = 1
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationBound = true
+
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vmg2"}}, &daisy.Instance{})
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		if diff := cmp.Diff(specificAffV1, inst.ReservationAffinity); diff != "" {
+			t.Errorf("inst.ReservationAffinity diff (-want +got):\n%s", diff)
+		}
+		if inst.Scheduling == nil || inst.Scheduling.ProvisioningModel != "RESERVATION_BOUND" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %v, want RESERVATION_BOUND for built-in GPU machine type", inst.Scheduling)
+		}
+	})
+
+	t.Run("finalize_clears_specific_reservation_when_guest_accelerators_removed", func(t *testing.T) {
+		twf := NewTestWorkflowForUnitTest("name", "image", "30m")
+		twf.Image = &compute.Image{Architecture: "X86_64"}
+		twf.MachineType = &compute.MachineType{Name: "n1-standard-1"}
+		twf.AcceleratorType = "nvidia-tesla-t4"
+		twf.AcceleratorCount = 2
+		twf.ReservationAffinity = specificAffV1
+		twf.ReservationAffinityBeta = specificAffBeta
+		twf.ReservationBound = true
+
+		gpuInst := &daisy.Instance{}
+		gpuInst.GuestAccelerators = []*compute.AcceleratorConfig{{
+			AcceleratorType:  "zones/us-central1-a/acceleratorTypes/nvidia-tesla-t4",
+			AcceleratorCount: 2,
+		}}
+		_, inst, err := twf.appendCreateVMStep([]*compute.Disk{{Name: "vm1"}}, gpuInst)
+		if err != nil {
+			t.Fatalf("appendCreateVMStep failed: %v", err)
+		}
+		inst.GuestAccelerators = nil
+
+		gpuInstBeta := &daisy.InstanceBeta{}
+		gpuInstBeta.GuestAccelerators = []*computeBeta.AcceleratorConfig{{
+			AcceleratorType:  "zones/us-central1-a/acceleratorTypes/nvidia-tesla-t4",
+			AcceleratorCount: 2,
+		}}
+		_, instBeta, err := twf.appendCreateVMStepBeta([]*compute.Disk{{Name: "vmbeta"}}, gpuInstBeta)
+		if err != nil {
+			t.Fatalf("appendCreateVMStepBeta failed: %v", err)
+		}
+		instBeta.GuestAccelerators = nil
+
+		if err := finalizeWorkflows(t.Context(), []*TestWorkflow{twf}, "", ""); err != nil {
+			t.Fatalf("finalizeWorkflows failed: %v", err)
+		}
+
+		if inst.ReservationAffinity != nil {
+			t.Errorf("inst.ReservationAffinity = %+v, want nil after removing GuestAccelerators and running finalizeWorkflows", inst.ReservationAffinity)
+		}
+		if inst.Scheduling != nil && inst.Scheduling.ProvisioningModel != "" {
+			t.Errorf("inst.Scheduling.ProvisioningModel = %q, want empty string after removing GuestAccelerators and running finalizeWorkflows", inst.Scheduling.ProvisioningModel)
+		}
+		if instBeta.ReservationAffinity != nil {
+			t.Errorf("instBeta.ReservationAffinity = %+v, want nil after removing GuestAccelerators and running finalizeWorkflows", instBeta.ReservationAffinity)
+		}
+		if instBeta.Scheduling != nil && instBeta.Scheduling.ProvisioningModel != "" {
+			t.Errorf("instBeta.Scheduling.ProvisioningModel = %q, want empty string after removing GuestAccelerators and running finalizeWorkflows", instBeta.Scheduling.ProvisioningModel)
+		}
+	})
 }
