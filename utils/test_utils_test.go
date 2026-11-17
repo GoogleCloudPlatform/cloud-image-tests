@@ -593,3 +593,416 @@ func TestRunPowershellScriptCanceledContext(t *testing.T) {
 		t.Fatalf("RunPowershellScript with canceled context returned Exitcode = %d, want -1", status.Exitcode)
 	}
 }
+
+func newFakeAgentProbe(paths agentPaths, files map[string]string) agentProbe {
+	return agentProbe{
+		paths: paths,
+		fileExists: func(path string) bool {
+			_, ok := files[path]
+			return ok
+		},
+		readFile: func(path string) ([]byte, error) {
+			data, ok := files[path]
+			if !ok {
+				return nil, os.ErrNotExist
+			}
+			return []byte(data), nil
+		},
+	}
+}
+
+func TestAgentProbe(t *testing.T) {
+	platforms := []struct {
+		name  string
+		paths agentPaths
+	}{
+		{name: "linux", paths: linuxAgentPaths},
+		{name: "windows", paths: windowsAgentPaths},
+	}
+
+	for _, platform := range platforms {
+		t.Run(platform.name, func(t *testing.T) {
+			p := platform.paths
+			subdirCorePlugin := p.corePluginBinaries[0]
+			legacyCorePlugin := p.corePluginBinaries[1]
+
+			tests := []struct {
+				name         string
+				files        map[string]string
+				wantService  string
+				wantHasCore  bool
+				wantDisabled bool
+				wantEnabled  bool
+				wantOldAgent bool
+			}{
+				{
+					name:        "legacy_only_agent",
+					files:       nil,
+					wantService: p.legacyService,
+				},
+				{
+					name: "stage1_extension_only_without_core_plugin",
+					files: map[string]string{
+						p.ggactl: "",
+					},
+					wantService:  p.legacyService,
+					wantHasCore:  false,
+					wantDisabled: false,
+					wantEnabled:  false,
+				},
+				{
+					name: "stage1_extension_only_with_enabled_true_config",
+					files: map[string]string{
+						p.ggactl:           "",
+						p.corePluginConfig: "enabled=true\n",
+					},
+					wantService:  p.legacyService,
+					wantHasCore:  false,
+					wantDisabled: false,
+					wantEnabled:  false,
+				},
+				{
+					name: "full_plugin_subdir_without_config",
+					files: map[string]string{
+						p.ggactl:         "",
+						subdirCorePlugin: "",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "full_plugin_subdir_with_enabled_true_config",
+					files: map[string]string{
+						p.ggactl:           "",
+						subdirCorePlugin:   "",
+						p.corePluginConfig: "enabled=true\n",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "full_plugin_legacy_root_without_config",
+					files: map[string]string{
+						p.ggactl:         "",
+						legacyCorePlugin: "",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "full_plugin_legacy_root_with_enabled_true_config",
+					files: map[string]string{
+						p.ggactl:           "",
+						legacyCorePlugin:   "",
+						p.corePluginConfig: "enabled=true",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "full_plugin_rolled_back_via_compat_manager",
+					files: map[string]string{
+						p.ggactl:           "",
+						subdirCorePlugin:   "",
+						p.corePluginConfig: "enabled=false\n",
+					},
+					wantService:  p.legacyService,
+					wantHasCore:  true,
+					wantDisabled: true,
+					wantEnabled:  false,
+				},
+				{
+					name: "full_plugin_rolled_back_uppercase_false",
+					files: map[string]string{
+						p.ggactl:           "",
+						legacyCorePlugin:   "",
+						p.corePluginConfig: "enabled=FALSE",
+					},
+					wantService:  p.legacyService,
+					wantHasCore:  true,
+					wantDisabled: true,
+					wantEnabled:  false,
+				},
+				{
+					name: "full_plugin_empty_config_defaults_enabled",
+					files: map[string]string{
+						p.ggactl:           "",
+						subdirCorePlugin:   "",
+						p.corePluginConfig: "",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "full_plugin_invalid_bool_config_defaults_enabled",
+					files: map[string]string{
+						p.ggactl:           "",
+						subdirCorePlugin:   "",
+						p.corePluginConfig: "enabled=notabool\n",
+					},
+					wantService: p.managerService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+				{
+					name: "old_pre_config_agent_without_config",
+					files: map[string]string{
+						p.ggactl:         "",
+						p.oldGgactl:      "",
+						legacyCorePlugin: "",
+					},
+					wantService:  p.legacyService,
+					wantHasCore:  true,
+					wantDisabled: true,
+					wantEnabled:  false,
+					wantOldAgent: true,
+				},
+				{
+					name: "old_pre_config_agent_with_enabled_true_config",
+					files: map[string]string{
+						p.ggactl:           "",
+						p.oldGgactl:        "",
+						legacyCorePlugin:   "",
+						p.corePluginConfig: "enabled=true",
+					},
+					wantService:  p.managerService,
+					wantHasCore:  true,
+					wantDisabled: false,
+					wantEnabled:  true,
+					wantOldAgent: true,
+				},
+				{
+					name: "core_plugin_without_ggactl_uses_legacy_service",
+					files: map[string]string{
+						subdirCorePlugin: "",
+					},
+					wantService: p.legacyService,
+					wantHasCore: true,
+					wantEnabled: true,
+				},
+			}
+
+			for _, tc := range tests {
+				t.Run(tc.name, func(t *testing.T) {
+					probe := newFakeAgentProbe(p, tc.files)
+
+					if got := probe.agentServiceName(); got != tc.wantService {
+						t.Errorf("agentServiceName() = %q, want %q", got, tc.wantService)
+					}
+					if got := probe.hasCorePlugin(); got != tc.wantHasCore {
+						t.Errorf("hasCorePlugin() = %t, want %t", got, tc.wantHasCore)
+					}
+					if got := probe.isCoreDisabled(); got != tc.wantDisabled {
+						t.Errorf("isCoreDisabled() = %t, want %t", got, tc.wantDisabled)
+					}
+					if got := probe.isCorePluginEnabled(); got != tc.wantEnabled {
+						t.Errorf("isCorePluginEnabled() = %t, want %t", got, tc.wantEnabled)
+					}
+					if got := probe.ifOldAgentInstalled(); got != tc.wantOldAgent {
+						t.Errorf("ifOldAgentInstalled() = %t, want %t", got, tc.wantOldAgent)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestNewOSAgentProbeFilesystem(t *testing.T) {
+	root := t.TempDir()
+	paths := agentPaths{
+		ggactl:           filepath.Join(root, "usr", "bin", "ggactl_plugin"),
+		oldGgactl:        filepath.Join(root, "usr", "bin", "ggactl_plugin_cleanup"),
+		corePluginConfig: filepath.Join(root, "etc", "google-guest-agent", "core-plugin-enabled"),
+		corePluginBinaries: []string{
+			filepath.Join(root, "usr", "lib", "google", "guest_agent", "GuestAgentCorePlugin", "core_plugin"),
+			filepath.Join(root, "usr", "lib", "google", "guest_agent", "core_plugin"),
+		},
+		legacyService:  "google-guest-agent",
+		managerService: "google-guest-agent-manager",
+	}
+	probe := newOSAgentProbe(paths)
+
+	writeFile := func(path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) failed: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0755); err != nil {
+			t.Fatalf("os.WriteFile(%q) failed: %v", path, err)
+		}
+	}
+
+	// Stage-1 layout with ggactl_plugin installed and a directory where the
+	// legacy core_plugin path would be must still select google-guest-agent.
+	writeFile(paths.ggactl, "")
+	if err := os.MkdirAll(paths.corePluginBinaries[1], 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) failed: %v", paths.corePluginBinaries[1], err)
+	}
+	if got := probe.hasCorePlugin(); got {
+		t.Errorf("hasCorePlugin() with directory at binary path = true, want false")
+	}
+	if got := probe.agentServiceName(); got != paths.legacyService {
+		t.Errorf("agentServiceName() on Stage-1 layout = %q, want %q", got, paths.legacyService)
+	}
+
+	// Installing GuestAgentCorePlugin/core_plugin switches to the manager.
+	writeFile(paths.corePluginBinaries[0], "")
+	if got := probe.agentServiceName(); got != paths.managerService {
+		t.Errorf("agentServiceName() with core_plugin = %q, want %q", got, paths.managerService)
+	}
+
+	// Disabling core plugin via compat manager config switches back to legacy.
+	writeFile(paths.corePluginConfig, "enabled=false\n")
+	if got := probe.agentServiceName(); got != paths.legacyService {
+		t.Errorf("agentServiceName() with enabled=false = %q, want %q", got, paths.legacyService)
+	}
+}
+
+func TestRestartAgentCommandLinux(t *testing.T) {
+	for _, svc := range []string{"google-guest-agent", "google-guest-agent-manager"} {
+		cmd := restartAgentCommand(t.Context(), false, svc)
+		wantArgs := []string{"systemctl", "restart", svc}
+		if diff := cmp.Diff(wantArgs, cmd.Args); diff != "" {
+			t.Errorf("restartAgentCommand(linux, %q) args mismatch (-want +got):\n%s", svc, diff)
+		}
+	}
+}
+
+func TestRestartAgentCommandWindows(t *testing.T) {
+	tests := []struct {
+		name        string
+		service     string
+		wantQuoted  string
+		dontWantSvc string
+	}{
+		{
+			name:        "legacy_service",
+			service:     "GCEAgent",
+			wantQuoted:  "GCEAgent",
+			dontWantSvc: "GCEAgentManager",
+		},
+		{
+			name:        "manager_service",
+			service:     "GCEAgentManager",
+			wantQuoted:  "GCEAgentManager",
+			dontWantSvc: "GCEAgent",
+		},
+		{
+			name:       "single_quote_escaped",
+			service:    "GCE'Agent",
+			wantQuoted: "GCE''Agent",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := restartAgentCommand(t.Context(), true, tc.service)
+			if len(cmd.Args) != 4 {
+				t.Fatalf("restartAgentCommand(windows, %q) got %d args (%v), want 4", tc.service, len(cmd.Args), cmd.Args)
+			}
+			wantPrefix := []string{"powershell.exe", "-NonInteractive", "-Command"}
+			if diff := cmp.Diff(wantPrefix, cmd.Args[:3]); diff != "" {
+				t.Errorf("restartAgentCommand(windows, %q) prefix mismatch (-want +got):\n%s", tc.service, diff)
+			}
+			script := cmd.Args[3]
+			for _, wantSub := range []string{
+				fmt.Sprintf("Stop-Service -Name '%s' -Force", tc.wantQuoted),
+				fmt.Sprintf("Start-Service -Name '%s'", tc.wantQuoted),
+			} {
+				if !strings.Contains(script, wantSub) {
+					t.Errorf("restartAgentCommand(windows, %q) script missing %q:\n%s", tc.service, wantSub, script)
+				}
+			}
+			if tc.dontWantSvc != "" {
+				dontWant := fmt.Sprintf("'%s'", tc.dontWantSvc)
+				if strings.Contains(script, dontWant) {
+					t.Errorf("restartAgentCommand(windows, %q) script unexpectedly contains %s:\n%s", tc.service, dontWant, script)
+				}
+			}
+		})
+	}
+}
+
+func TestAgentRestarterSuccess(t *testing.T) {
+	var gotSvc string
+	var gotWindows bool
+	r := agentRestarter{
+		probe: newFakeAgentProbe(linuxAgentPaths, map[string]string{
+			linuxAgentPaths.ggactl: "",
+		}),
+		isWindows: false,
+		runCmd: func(_ context.Context, isWindows bool, svc string) ([]byte, error) {
+			gotWindows = isWindows
+			gotSvc = svc
+			return []byte("restarted ok\n"), nil
+		},
+	}
+
+	if err := r.restart(t.Context()); err != nil {
+		t.Fatalf("restart() returned error %v, want nil", err)
+	}
+	if gotWindows {
+		t.Errorf("restart() passed isWindows = true, want false")
+	}
+	if gotSvc != "google-guest-agent" {
+		t.Errorf("restart() service = %q, want %q", gotSvc, "google-guest-agent")
+	}
+}
+
+func TestAgentRestarterCommandError(t *testing.T) {
+	boom := errors.New("exit status 5")
+	r := agentRestarter{
+		probe: newFakeAgentProbe(windowsAgentPaths, map[string]string{
+			windowsAgentPaths.ggactl:                "",
+			windowsAgentPaths.corePluginBinaries[0]: "",
+		}),
+		isWindows: true,
+		runCmd: func(_ context.Context, isWindows bool, svc string) ([]byte, error) {
+			if !isWindows || svc != "GCEAgentManager" {
+				t.Errorf("runCmd(%t, %q), want (true, %q)", isWindows, svc, "GCEAgentManager")
+			}
+			return []byte("Stop-Service failed"), boom
+		},
+	}
+
+	err := r.restart(t.Context())
+	if !errors.Is(err, boom) {
+		t.Fatalf("restart() err = %v, want wrapped %v", err, boom)
+	}
+	for _, wantSub := range []string{"GCEAgentManager", "Stop-Service failed"} {
+		if !strings.Contains(err.Error(), wantSub) {
+			t.Errorf("restart() err = %q, want substring %q", err.Error(), wantSub)
+		}
+	}
+}
+
+func TestAgentRestarterCanceledContext(t *testing.T) {
+	invoked := false
+	r := agentRestarter{
+		probe: newFakeAgentProbe(linuxAgentPaths, map[string]string{
+			linuxAgentPaths.ggactl: "",
+		}),
+		runCmd: func(context.Context, bool, string) ([]byte, error) {
+			invoked = true
+			return nil, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := r.restart(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("restart(canceledCtx) = %v, want %v", err, context.Canceled)
+	}
+	if invoked {
+		t.Errorf("restart(canceledCtx) invoked runCmd = true, want false")
+	}
+	if err := RestartAgent(ctx); !errors.Is(err, context.Canceled) {
+		t.Errorf("RestartAgent(canceledCtx) = %v, want %v", err, context.Canceled)
+	}
+}

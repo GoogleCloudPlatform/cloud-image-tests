@@ -54,7 +54,7 @@ func testDhclient(t *testing.T, nic EthernetInterface, exist bool) {
 	// We check if core plugin is enabled. On versions of the guest agent that
 	// don't have core plugin enabled, there is a bug where multiple dhclient
 	// processes can be running for the same NIC.
-	coreDisabled := utils.IsCoreDisabled()
+	coreDisabled := !utils.IsCorePluginEnabled()
 	if coreDisabled {
 		t.Logf("Core plugin disabled, skipping dhclient duplicate process check.")
 	}
