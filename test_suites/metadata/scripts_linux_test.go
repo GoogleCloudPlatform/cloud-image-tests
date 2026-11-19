@@ -26,19 +26,23 @@ import (
 
 // TestShutdownURLScripts verifies that the shutdown script URL metadata works as expected.
 func TestShutdownURLScripts(t *testing.T) {
-	testScripts(t, "shutdown", true)
+	testScriptResult(t, "shutdown-url", "shutdown-url-result", "shutdown_url_success", true)
 }
 
 // testScripts tests the scripts for the given stage and type.
 // stage is one of "startup" or "shutdown".
 func testScripts(t *testing.T, stage string, success bool) {
 	t.Helper()
+	testScriptResult(t, stage, "result", fmt.Sprintf("%s_success", stage), success)
+}
+
+func testScriptResult(t *testing.T, stage, attrKey, expectedContent string, success bool) {
+	t.Helper()
 
 	ctx := utils.Context(t)
-	expectedContent := fmt.Sprintf("%s_success", stage)
-	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", "result")
+	result, err := utils.GetMetadata(ctx, "instance", "guest-attributes", "testing", attrKey)
 	if err != nil {
-		t.Fatalf("failed to read %s script result key: %v", stage, err)
+		t.Fatalf("failed to read %s script result key %q: %v", stage, attrKey, err)
 	}
 	if (result == expectedContent) != success {
 		t.Fatalf(`%s script output expected to be success: %t, got %s`, stage, success, result)
@@ -54,8 +58,8 @@ func testScripts(t *testing.T, stage string, success bool) {
 	}
 
 	// Clear the guest attribute for the next test.
-	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", "result"), "")
+	err = utils.PutMetadata(ctx, path.Join("instance", "guest-attributes", "testing", attrKey), "")
 	if err != nil {
-		t.Fatalf("failed to clear %s script result: %s", stage, err)
+		t.Fatalf("failed to clear %s script result key %q: %s", stage, attrKey, err)
 	}
 }

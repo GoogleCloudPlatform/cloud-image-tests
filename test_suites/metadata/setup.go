@@ -34,11 +34,12 @@ const (
 	// metadataMaxLength = 256 * 1024
 	// TODO(hopkiw): above is commented out until error handler is added to
 	// output scanner in the script runner. Use smaller size for now.
-	metadataMaxLength      = 32768
-	shutdownScriptLinuxURL = "scripts/shutdownScriptLinux.sh"
-	startupScriptLinuxURL  = "scripts/startupScriptLinux.sh"
-	daemonScriptLinuxURL   = "scripts/daemonScriptLinux.sh"
-	daemonScriptWindowsURL = "scripts/daemonScriptWindows.ps1"
+	metadataMaxLength         = 32768
+	shutdownScriptLinuxURL    = "scripts/shutdownScriptLinux.sh"
+	shutdownURLScriptLinuxURL = "scripts/shutdownURLScriptLinux.sh"
+	startupScriptLinuxURL     = "scripts/startupScriptLinux.sh"
+	daemonScriptLinuxURL      = "scripts/daemonScriptLinux.sh"
+	daemonScriptWindowsURL    = "scripts/daemonScriptWindows.ps1"
 
 	// The following scripts are used to test the scripts on Windows.
 	ps1Cmd = `Invoke-RestMethod -Method Put -Body %[1]s-success -Headers @{'Metadata-Flavor' = 'Google'} -Uri 'http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/testing/%[1]s-result' -ContentType 'application/json; charset=utf-8' -UseBasicParsing`
@@ -51,141 +52,175 @@ var scripts embed.FS
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	isWindows := utils.HasFeature(t.Image, "WINDOWS")
+
+	if err := setupBootVM(t, isWindows); err != nil {
+		return err
+	}
+	if err := setupShutdownVM(t, isWindows); err != nil {
+		return err
+	}
+	return setupShutdownFailedVM(t, isWindows)
+}
+
+func readScript(scriptPath string) (string, error) {
+	b, err := scripts.ReadFile(scriptPath)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func bootTestList(isWindows, isComputeStaging bool) string {
+	tests := "TestTokenFetch|TestGetMetaDataUsingIP"
+	if !isComputeStaging {
+		// Skip TestMetaDataResponseHeaders in staging until MDS issue is resolved.
+		// These additional headers are not seen in prod.
+		// TODO(b/431975346): Re-enable test once MDS issue is resolved.
+		tests += "|TestMetaDataResponseHeaders"
+	}
+	tests += "|TestStartupScripts|TestDaemonScripts"
+	if isWindows {
+		tests += "|TestSysprepSpecialize"
+	}
+	return tests
+}
+
+func shutdownTestList(isWindows bool) string {
+	if isWindows {
+		return "TestShutdownScripts|TestStartupScriptsFailed"
+	}
+	return "TestShutdownScripts|TestShutdownURLScripts|TestStartupScriptsFailed"
+}
+
+// anchorTestRegex wraps a "|"-separated list of exact test names so Go's
+// -test.run regexp does not also match tests with shared prefixes (such as
+// TestStartupScripts matching TestStartupScriptsFailed).
+func anchorTestRegex(tests string) string {
+	return fmt.Sprintf("^(%s)$", tests)
+}
+
+func createRebootTestVM(t *imagetest.TestWorkflow, name string) (*imagetest.TestVM, error) {
+	inst := &daisy.Instance{
+		Metadata: map[string]string{imagetest.ShouldRebootDuringTest: "true"},
+	}
+	vm, err := t.CreateTestVMFromInstance(inst, []*compute.Disk{{Name: name}})
+	if err != nil {
+		return nil, err
+	}
+	vm.AddMetadata("enable-guest-attributes", "TRUE")
+	if err := vm.Reboot(); err != nil {
+		return nil, err
+	}
+	return vm, nil
+}
+
+func setupBootVM(t *imagetest.TestWorkflow, isWindows bool) error {
+	tests := bootTestList(isWindows, t.IsComputeStaging())
+	if !t.ShouldRunTests(tests) {
+		return nil
+	}
 
 	vm, err := t.CreateTestVM("mdscommunication")
 	if err != nil {
 		return err
 	}
+	vm.AddMetadata("enable-guest-attributes", "TRUE")
 
-	vm2Inst := &daisy.Instance{}
-	vm2Inst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	shutdownScriptsVM, err := t.CreateTestVMFromInstance(vm2Inst, []*compute.Disk{{Name: "shutdownscripts"}})
-	if err != nil {
-		return err
-	}
-	shutdownScriptsVM.AddMetadata("enable-guest-attributes", "TRUE")
-	if err := shutdownScriptsVM.Reboot(); err != nil {
-		return err
-	}
-
-	vm3Inst := &daisy.Instance{}
-	vm3Inst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-	shutdownScriptsMaxLengthVM, err := t.CreateTestVMFromInstance(vm3Inst, []*compute.Disk{{Name: "shutdownscriptsfailed"}})
-	if err != nil {
-		return err
-	}
-	shutdownScriptsMaxLengthVM.AddMetadata("enable-guest-attributes", "TRUE")
-	if err := shutdownScriptsMaxLengthVM.Reboot(); err != nil {
-		return err
-	}
-
-	startupScriptsVM, err := t.CreateTestVM("startupscripts")
-	if err != nil {
-		return err
-	}
-	startupScriptsVM.AddMetadata("enable-guest-attributes", "TRUE")
-
-	startupScriptsMaxLengthVM, err := t.CreateTestVM("startupscriptsfailed")
-	if err != nil {
-		return err
-	}
-	startupScriptsMaxLengthVM.AddMetadata("enable-guest-attributes", "TRUE")
-
-	startupScriptsDaemonVM, err := t.CreateTestVM("daemonscripts")
-	if err != nil {
-		return err
-	}
-	startupScriptsDaemonVM.AddMetadata("enable-guest-attributes", "TRUE")
-
-	var startupByteArr []byte
-	var shutdownByteArr []byte
-	var daemonByteArr []byte
-
-	// Determine if the OS is Windows or Linux and set the appropriate script metadata.
-	if utils.HasFeature(t.Image, "WINDOWS") {
-		daemonByteArr, err = scripts.ReadFile(daemonScriptWindowsURL)
+	if isWindows {
+		daemonScript, err := readScript(daemonScriptWindowsURL)
 		if err != nil {
 			return err
 		}
-		daemonScript := string(daemonByteArr)
+		vm.SetWindowsStartupScript(fmt.Sprintf(ps1Cmd, "startup-ps1") + "\n" + daemonScript)
+		vm.AddMetadata("windows-startup-script-cmd", fmt.Sprintf(cmdCmd, "startup-cmd"))
+		vm.AddMetadata("windows-startup-script-bat", fmt.Sprintf(batCmd, "startup-bat"))
 
-		// Windows shutdown scripts.
-		shutdownScriptsVM.SetWindowsShutdownScript(fmt.Sprintf(ps1Cmd, "shutdown-ps1"))
-		shutdownScriptsVM.AddMetadata("windows-shutdown-script-cmd", fmt.Sprintf(cmdCmd, "shutdown-cmd"))
-		shutdownScriptsVM.AddMetadata("windows-shutdown-script-bat", fmt.Sprintf(batCmd, "shutdown-bat"))
-		shutdownScriptsVM.SetWindowsShutdownScriptURL(fmt.Sprintf(ps1Cmd, "shutdown-url"))
-		shutdownScriptsMaxLengthVM.SetWindowsShutdownScript(strings.Repeat("a", metadataMaxLength))
-
-		// Windows startup scripts.
-		startupScriptsVM.SetWindowsStartupScript(fmt.Sprintf(ps1Cmd, "startup-ps1"))
-		startupScriptsVM.AddMetadata("windows-startup-script-cmd", fmt.Sprintf(cmdCmd, "startup-cmd"))
-		startupScriptsVM.AddMetadata("windows-startup-script-bat", fmt.Sprintf(batCmd, "startup-bat"))
-		startupScriptsMaxLengthVM.SetWindowsStartupScript(strings.Repeat("a", metadataMaxLength))
-		startupScriptsDaemonVM.SetWindowsStartupScript(daemonScript)
-
-		// Windows sysprep scripts.
-		sysprepspecialize, err := t.CreateTestVM("sysprepspecialize")
-		if err != nil {
+		sysprepPS1 := fmt.Sprintf(ps1Cmd, "sysprep-ps1")
+		if t.IsComputeStaging() {
+			// Preserve skipWindowsStagingKMS when sysprep-specialize-script-ps1 is customized.
+			sysprepPS1 = `New-Item -Path "C:\Program Files\Google\Compute Engine\sysprep\byol_image" -ItemType directory` + "\n" + sysprepPS1
+		}
+		vm.AddMetadata("sysprep-specialize-script-ps1", sysprepPS1)
+		vm.AddMetadata("sysprep-specialize-script-cmd", fmt.Sprintf(cmdCmd, "sysprep-cmd"))
+		vm.AddMetadata("sysprep-specialize-script-bat", fmt.Sprintf(batCmd, "sysprep-bat"))
+		if err := vm.SetWindowsSysprepScriptURL(fmt.Sprintf(ps1Cmd, "sysprep-url")); err != nil {
 			return err
 		}
-		sysprepspecialize.AddMetadata("enable-guest-attributes", "TRUE")
-		sysprepspecialize.AddMetadata("sysprep-specialize-script-ps1", fmt.Sprintf(ps1Cmd, "sysprep-ps1", "sysprep-ps1"))
-		sysprepspecialize.AddMetadata("sysprep-specialize-script-cmd", fmt.Sprintf(cmdCmd, "sysprep-cmd"))
-		sysprepspecialize.AddMetadata("sysprep-specialize-script-bat", fmt.Sprintf(batCmd, "sysprep-bat"))
-		sysprepspecialize.SetWindowsSysprepScriptURL(fmt.Sprintf(ps1Cmd, "sysprep-url", "sysprep-url"))
-		sysprepspecialize.RunTests("TestSysprepSpecialize")
 	} else {
-		startupByteArr, err = scripts.ReadFile(startupScriptLinuxURL)
+		startupScript, err := readScript(startupScriptLinuxURL)
 		if err != nil {
 			return err
 		}
-		shutdownByteArr, err = scripts.ReadFile(shutdownScriptLinuxURL)
+		daemonScript, err := readScript(daemonScriptLinuxURL)
 		if err != nil {
 			return err
 		}
-		daemonByteArr, err = scripts.ReadFile(daemonScriptLinuxURL)
-		if err != nil {
-			return err
-		}
-		startupScript := string(startupByteArr)
-		shutdownScript := string(shutdownByteArr)
-		daemonScript := string(daemonByteArr)
-
-		// For Linux, create a dedicated VM to test the shutdown script URL.
-		shutdownScriptURLInst := &daisy.Instance{}
-		shutdownScriptURLInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
-		shutdownScriptURL, err := t.CreateTestVMFromInstance(shutdownScriptURLInst, []*compute.Disk{{Name: "shutdownurlscripts"}})
-		if err != nil {
-			return err
-		}
-		if err := shutdownScriptURL.Reboot(); err != nil {
-			return err
-		}
-		shutdownScriptURL.AddMetadata("enable-guest-attributes", "TRUE")
-		shutdownScriptURL.RunTests("TestShutdownURLScripts")
-
-		shutdownScriptsVM.SetShutdownScript(shutdownScript)
-		shutdownScriptsMaxLengthVM.SetShutdownScript(strings.Repeat("a", metadataMaxLength))
-		shutdownScriptURL.SetShutdownScriptURL(shutdownScript)
-		startupScriptsVM.SetStartupScript(startupScript)
-		startupScriptsMaxLengthVM.SetStartupScript(strings.Repeat("a", metadataMaxLength))
-		startupScriptsDaemonVM.SetStartupScript(daemonScript)
+		vm.SetStartupScript(startupScript + "\n" + daemonScript)
 	}
 
-	tests := "TestTokenFetch|TestGetMetaDataUsingIP"
-	if !t.IsComputeStaging() {
-		// Skip TestMetaDataResponseHeaders in staging until MDS issue is resolved.
-		// These additional headers are not seen in prod.
-		// TODO(b/431975346): Re-enable test once MDS issue is resolved.
-		tests = tests + "|TestMetaDataResponseHeaders"
-	}
-	// Run the tests after setup is complete.
-	vm.RunTests(tests)
-	shutdownScriptsVM.RunTests("TestShutdownScripts")
-	shutdownScriptsMaxLengthVM.RunTests("TestShutdownScriptsFailed")
-	startupScriptsVM.RunTests("TestStartupScripts")
-	startupScriptsMaxLengthVM.RunTests("TestStartupScriptsFailed")
-	startupScriptsDaemonVM.RunTests("TestDaemonScripts")
+	vm.RunTests(anchorTestRegex(tests))
+	return nil
+}
 
+func setupShutdownVM(t *imagetest.TestWorkflow, isWindows bool) error {
+	tests := shutdownTestList(isWindows)
+	if !t.ShouldRunTests(tests) {
+		return nil
+	}
+
+	vm, err := createRebootTestVM(t, "shutdownscripts")
+	if err != nil {
+		return err
+	}
+
+	maxLenScript := strings.Repeat("a", metadataMaxLength)
+	if isWindows {
+		vm.SetWindowsShutdownScript(fmt.Sprintf(ps1Cmd, "shutdown-ps1"))
+		vm.AddMetadata("windows-shutdown-script-cmd", fmt.Sprintf(cmdCmd, "shutdown-cmd"))
+		vm.AddMetadata("windows-shutdown-script-bat", fmt.Sprintf(batCmd, "shutdown-bat"))
+		if err := vm.SetWindowsShutdownScriptURL(fmt.Sprintf(ps1Cmd, "shutdown-url")); err != nil {
+			return err
+		}
+		vm.SetWindowsStartupScript(maxLenScript)
+	} else {
+		shutdownScript, err := readScript(shutdownScriptLinuxURL)
+		if err != nil {
+			return err
+		}
+		shutdownURLScript, err := readScript(shutdownURLScriptLinuxURL)
+		if err != nil {
+			return err
+		}
+		vm.SetShutdownScript(shutdownScript)
+		if err := vm.SetShutdownScriptURL(shutdownURLScript); err != nil {
+			return err
+		}
+		vm.SetStartupScript(maxLenScript)
+	}
+
+	vm.RunTests(anchorTestRegex(tests))
+	return nil
+}
+
+func setupShutdownFailedVM(t *imagetest.TestWorkflow, isWindows bool) error {
+	const tests = "TestShutdownScriptsFailed"
+	if !t.ShouldRunTests(tests) {
+		return nil
+	}
+
+	vm, err := createRebootTestVM(t, "shutdownscriptsfailed")
+	if err != nil {
+		return err
+	}
+
+	maxLenScript := strings.Repeat("a", metadataMaxLength)
+	if isWindows {
+		vm.SetWindowsShutdownScript(maxLenScript)
+	} else {
+		vm.SetShutdownScript(maxLenScript)
+	}
+
+	vm.RunTests(anchorTestRegex(tests))
 	return nil
 }
