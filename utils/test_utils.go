@@ -1106,6 +1106,18 @@ func IsCoreDisabled() bool {
 	return strings.Contains(string(content), "enabled=false")
 }
 
+// linuxAgentService returns the systemd service that RestartAgent restarts on
+// Linux. The legacy agent and the core plugin never run at the same time, so
+// an active legacy agent wins over corePluginEnabled. That value comes from
+// installed files, which also exist on images that install the plugin manager
+// but keep running the legacy agent.
+func linuxAgentService(legacyActive, corePluginEnabled bool) string {
+	if corePluginEnabled && !legacyActive {
+		return "google-guest-agent-manager"
+	}
+	return "google-guest-agent"
+}
+
 // RestartAgent restarts the guest agent on the instance.
 func RestartAgent(ctx context.Context) error {
 	var cmd *exec.Cmd
@@ -1146,12 +1158,10 @@ func RestartAgent(ctx context.Context) error {
 
 	} else { // Linux
 		ggactl = "/usr/bin/ggactl_plugin"
-
-		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
-		} else {
-			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
-		}
+		legacyActive := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "google-guest-agent").Run() == nil
+		service := linuxAgentService(legacyActive, Exists(ggactl, TypeFile) && !IsCoreDisabled())
+		log.Printf("Restarting guest agent service %q (legacy agent active: %t)", service, legacyActive)
+		cmd = exec.CommandContext(ctx, "systemctl", "restart", service)
 	}
 
 	output, err := cmd.CombinedOutput()

@@ -394,6 +394,28 @@ func TestDeleteMetadataWithClient(t *testing.T) {
 	}
 }
 
+func TestLinuxAgentService(t *testing.T) {
+	tests := []struct {
+		name              string
+		legacyActive      bool
+		corePluginEnabled bool
+		want              string
+	}{
+		{name: "core_plugin_running", legacyActive: false, corePluginEnabled: true, want: "google-guest-agent-manager"},
+		{name: "legacy_agent_running_with_plugin_manager_installed", legacyActive: true, corePluginEnabled: true, want: "google-guest-agent"},
+		{name: "legacy_agent_running", legacyActive: true, corePluginEnabled: false, want: "google-guest-agent"},
+		{name: "legacy_agent_stopped", legacyActive: false, corePluginEnabled: false, want: "google-guest-agent"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := linuxAgentService(tc.legacyActive, tc.corePluginEnabled); got != tc.want {
+				t.Errorf("linuxAgentService(%t, %t) = %q, want %q", tc.legacyActive, tc.corePluginEnabled, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPSSingleQuote(t *testing.T) {
 	tests := []struct {
 		name string
