@@ -17,13 +17,26 @@
 package pluginmanager
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
+	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	daisy "github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
 var Name = "pluginmanager"
+
+const (
+	// vmExtLabelKey is the instance label the lifecycle test's policy selects
+	// on; vmExtLabelMetadataKey tells the guest the value it was given.
+	vmExtLabelKey         = "cit-vmext"
+	vmExtLabelMetadataKey = "cit-vmext-label"
+	vmExtExtension        = "ops-agent"
+)
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
@@ -55,6 +68,28 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 			return err
 		}
 		disableACSVM.RunTests("TestACSDisabled")
+	}
+
+	// The Ops Agent does not support COS.
+	if !utils.HasFeature(t.Image, "WINDOWS") && !utils.IsCOS(t.Image.Name) {
+		// A label only this VM carries, so policies from other runs in the zone
+		// never select it.
+		label := fmt.Sprintf("%x", rand.Uint64())
+		inst := &daisy.Instance{}
+		inst.Labels = map[string]string{vmExtLabelKey: label}
+		inst.Metadata = map[string]string{
+			imagetest.ShouldRebootDuringTest: "true",
+			vmExtLabelMetadataKey:            label,
+		}
+		lifecycleVM, err := t.CreateTestVMFromInstance(inst, []*compute.Disk{{Name: "vmextlifecycle"}})
+		if err != nil {
+			return err
+		}
+		lifecycleVM.AddScope("https://www.googleapis.com/auth/cloud-platform")
+		lifecycleVM.RunTests("TestVMExtensionLifecycle")
+		if err := lifecycleVM.Reboot(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
