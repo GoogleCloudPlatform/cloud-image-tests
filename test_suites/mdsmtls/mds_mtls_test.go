@@ -215,7 +215,7 @@ func TestCredsExistsInOSTrustStore(t *testing.T) {
 func TestMTLSJobScheduled(t *testing.T) {
 	ctx := utils.Context(t)
 	var cmd *exec.Cmd
-	coreDisabled := utils.IsCoreDisabled()
+	coreDisabled := !utils.IsCorePluginEnabled()
 	if utils.IsWindows() {
 		cmd = exec.CommandContext(ctx, "powershell.exe", "(Get-WinEvent -Providername GCEGuestAgentManager).Message")
 		if coreDisabled {

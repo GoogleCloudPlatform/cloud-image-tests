@@ -238,7 +238,7 @@ func TestServicesState(t *testing.T) {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
 	var services []string
-	if utils.IsCoreDisabled() {
+	if !utils.IsCorePluginEnabled() {
 		services = append(services, "GCEAgent")
 	} else {
 		services = append(services, "GCEAgentManager")

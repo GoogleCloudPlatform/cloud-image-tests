@@ -139,6 +139,9 @@ func TestGgactlCommand(t *testing.T) {
 	if !utils.CheckLinuxCmdExists("ggactl_plugin") {
 		t.Skipf("ggactl_plugin executable not found, skipping test")
 	}
+	if !utils.IsCorePluginEnabled() {
+		t.Skipf("Core plugin is not enabled, skipping test")
+	}
 
 	iface := readNic(ctx, t, 0)
 	beforeTrigger, err := utils.GetGoogleRoutes(ctx, t, iface)

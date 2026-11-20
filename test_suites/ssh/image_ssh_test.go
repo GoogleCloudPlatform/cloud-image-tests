@@ -191,7 +191,9 @@ func TestSwitchDefaultConfig(t *testing.T) {
 	if err := os.WriteFile("/etc/default/instance_configs.cfg", []byte(newCfg), 0644); err != nil {
 		t.Fatalf("failed to write instance configs: %v", err)
 	}
-	utils.RestartAgent(utils.Context(t))
+	if err := utils.RestartAgent(utils.Context(t)); err != nil {
+		t.Fatalf("failed to restart guest agent: %v", err)
+	}
 	time.Sleep(60 * time.Second)
 }
 

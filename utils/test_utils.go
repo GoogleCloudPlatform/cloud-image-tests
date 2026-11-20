@@ -1079,53 +1079,145 @@ func DeleteMetadata(ctx context.Context, keys ...string) error {
 	return deleteMetadataWithClient(ctx, client, keys...)
 }
 
+type agentPaths struct {
+	ggactl             string
+	oldGgactl          string
+	corePluginConfig   string
+	corePluginBinaries []string
+	legacyService      string
+	managerService     string
+}
+
+var (
+	corePluginEnabledRe = regexp.MustCompile(`enabled=(\w+)`)
+
+	linuxAgentPaths = agentPaths{
+		ggactl:           "/usr/bin/ggactl_plugin",
+		oldGgactl:        "/usr/bin/ggactl_plugin_cleanup",
+		corePluginConfig: "/etc/google-guest-agent/core-plugin-enabled",
+		corePluginBinaries: []string{
+			"/usr/lib/google/guest_agent/GuestAgentCorePlugin/core_plugin",
+			"/usr/lib/google/guest_agent/core_plugin",
+		},
+		legacyService:  "google-guest-agent",
+		managerService: "google-guest-agent-manager",
+	}
+
+	windowsAgentPaths = agentPaths{
+		ggactl:           `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`,
+		oldGgactl:        `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin_cleanup.exe`,
+		corePluginConfig: `C:\ProgramData\Google\Compute Engine\google-guest-agent\core-plugin-enabled`,
+		corePluginBinaries: []string{
+			`C:\Program Files\Google\Compute Engine\agent\GuestAgentCorePlugin\CorePlugin.exe`,
+			`C:\Program Files\Google\Compute Engine\agent\CorePlugin.exe`,
+		},
+		legacyService:  "GCEAgent",
+		managerService: "GCEAgentManager",
+	}
+)
+
+// agentProbe inspects guest agent binaries and config files on a host.
+type agentProbe struct {
+	paths      agentPaths
+	fileExists func(string) bool
+	readFile   func(string) ([]byte, error)
+}
+
+func hostAgentProbe() agentProbe {
+	paths := linuxAgentPaths
+	if IsWindows() {
+		paths = windowsAgentPaths
+	}
+	return newOSAgentProbe(paths)
+}
+
+func newOSAgentProbe(paths agentPaths) agentProbe {
+	return agentProbe{
+		paths: paths,
+		fileExists: func(path string) bool {
+			return Exists(path, TypeFile)
+		},
+		readFile: os.ReadFile,
+	}
+}
+
+func (p agentProbe) ifOldAgentInstalled() bool {
+	return p.fileExists(p.paths.oldGgactl)
+}
+
+func (p agentProbe) hasCorePlugin() bool {
+	for _, path := range p.paths.corePluginBinaries {
+		if p.fileExists(path) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p agentProbe) isCoreDisabled() bool {
+	content, err := p.readFile(p.paths.corePluginConfig)
+	if err != nil {
+		// This file was absent by default on pre-config-file agent builds where
+		// core plugin was disabled unless explicitly enabled.
+		return p.ifOldAgentInstalled()
+	}
+	matches := corePluginEnabledRe.FindStringSubmatch(string(content))
+	if len(matches) != 2 {
+		return false
+	}
+	enabled, err := strconv.ParseBool(matches[1])
+	if err != nil {
+		return false
+	}
+	return !enabled
+}
+
+func (p agentProbe) isCorePluginEnabled() bool {
+	return p.hasCorePlugin() && !p.isCoreDisabled()
+}
+
+func (p agentProbe) agentServiceName() string {
+	if p.fileExists(p.paths.ggactl) && p.isCorePluginEnabled() {
+		return p.paths.managerService
+	}
+	return p.paths.legacyService
+}
+
 // IfOldAgentInstalled returns true if the old agent is installed.
 func IfOldAgentInstalled() bool {
-	var oldggactl string
-	if IsWindows() {
-		oldggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin_cleanup.exe`
-	} else {
-		oldggactl = "/usr/bin/ggactl_plugin_cleanup"
-	}
-	return Exists(oldggactl, TypeFile)
+	return hostAgentProbe().ifOldAgentInstalled()
 }
 
-// IsCoreDisabled returns true if the core plugin is disabled by the config file.
+// HasCorePlugin returns true if a guest agent core plugin binary is installed
+// on the instance, regardless of whether it is enabled in config.
+func HasCorePlugin() bool {
+	return hostAgentProbe().hasCorePlugin()
+}
+
+// IsCoreDisabled returns true if the core plugin is disabled by the config
+// file (or implicitly on pre-config-file agent builds). It does not check
+// whether the core plugin binary is installed; use IsCorePluginEnabled to
+// check whether core functionality is handled by the core plugin.
 func IsCoreDisabled() bool {
-	var file string
-	if IsWindows() {
-		file = `C:\ProgramData\Google\Compute Engine\google-guest-agent\core-plugin-enabled`
-	} else {
-		file = "/etc/google-guest-agent/core-plugin-enabled"
-	}
-	content, err := os.ReadFile(file)
-	if err != nil {
-		// This file was present only when core plugin was disabled.
-		return IfOldAgentInstalled()
-	}
-	return strings.Contains(string(content), "enabled=false")
+	return hostAgentProbe().isCoreDisabled()
 }
 
-// RestartAgent restarts the guest agent on the instance.
-func RestartAgent(ctx context.Context) error {
-	var cmd *exec.Cmd
-	var ggactl string
-	if IsWindows() {
-		ggactl = `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
-		serviceName := "GCEAgent"
+// IsCorePluginEnabled returns true if a guest agent core plugin binary is
+// installed and not disabled by the config file.
+func IsCorePluginEnabled() bool {
+	return hostAgentProbe().isCorePluginEnabled()
+}
 
-		// Determine if we need to escalate to the Manager service
-		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-			serviceName = "GCEAgentManager"
-		}
-
-		// %[1]s reuses the first argument (serviceName) so we don't have to pass it three times
-
-		// The `Get-CimInstance` block starts an explicit command to kill any existing plugin processes.
-		// Windows does not automatically kill all child processes when the service stops, so the plugin
-		// processes are left running across a stop/restart in some cases. Because of this, the
-		// manager reconnects to the stale plugins with old configurations, causing the test fo fail.
-		// TODO(b/567956441): Remove the Get-CimInstance block once this bug is resolved.
+func restartAgentCommand(ctx context.Context, isWindows bool, serviceName string) *exec.Cmd {
+	if isWindows {
+		// %[1]s reuses the quoted serviceName across stop, poll, and start.
+		//
+		// The `Get-CimInstance` block explicitly kills existing plugin
+		// processes. Windows does not automatically kill all child processes
+		// when the service stops, so plugin processes can survive a restart
+		// and cause the manager to reconnect to stale plugins with old
+		// configurations.
+		// TODO(b/567956441): Remove Get-CimInstance once this bug is fixed.
 		psScript := fmt.Sprintf(`
       Stop-Service -Name '%[1]s' -Force
       while ((Get-Service '%[1]s').Status -ne 'Stopped') {
@@ -1140,32 +1232,50 @@ func RestartAgent(ctx context.Context) error {
 					}
 
       Start-Service -Name '%[1]s'
-    `, serviceName)
+    `, PSSingleQuote(serviceName))
+		return exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "-Command", psScript)
+	}
+	return exec.CommandContext(ctx, "systemctl", "restart", serviceName)
+}
 
-		cmd = exec.CommandContext(ctx, "powershell.exe", "-NonInteractive", "-Command", psScript)
+type agentRestarter struct {
+	probe          agentProbe
+	isWindows      bool
+	runCmd         func(ctx context.Context, isWindows bool, serviceName string) ([]byte, error)
+	stabilizeDelay time.Duration
+}
 
-	} else { // Linux
-		ggactl = "/usr/bin/ggactl_plugin"
-
-		if Exists(ggactl, TypeFile) && !IsCoreDisabled() {
-			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent-manager")
-		} else {
-			cmd = exec.CommandContext(ctx, "systemctl", "restart", "google-guest-agent")
-		}
+func (r agentRestarter) restart(ctx context.Context) error {
+	serviceName := r.probe.agentServiceName()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("restarting agent %s: %w", serviceName, err)
 	}
 
-	output, err := cmd.CombinedOutput()
+	output, err := r.runCmd(ctx, r.isWindows, serviceName)
 	if len(output) > 0 {
 		log.Printf("Restart command output:\n%s", string(output))
 	}
 	if err != nil {
-		return fmt.Errorf("could not restart agent: %w, output: %s", err, string(output))
+		return fmt.Errorf("restarting agent %s (output: %s): %w", serviceName, string(output), err)
 	}
 
-	log.Printf("Applying final 1-second stabilization buffer...")
-	time.Sleep(time.Second)
+	log.Printf("Applying final %v stabilization buffer...", r.stabilizeDelay)
+	time.Sleep(r.stabilizeDelay)
 
 	return nil
+}
+
+// RestartAgent restarts the guest agent on the instance.
+func RestartAgent(ctx context.Context) error {
+	r := agentRestarter{
+		probe:     hostAgentProbe(),
+		isWindows: IsWindows(),
+		runCmd: func(ctx context.Context, isWindows bool, serviceName string) ([]byte, error) {
+			return restartAgentCommand(ctx, isWindows, serviceName).CombinedOutput()
+		},
+		stabilizeDelay: time.Second,
+	}
+	return r.restart(ctx)
 }
 
 // InstallPackage installs the given packages on the instance.
