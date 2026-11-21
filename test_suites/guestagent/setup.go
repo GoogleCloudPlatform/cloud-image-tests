@@ -25,10 +25,98 @@ import (
 // Name is the name of the test package. It must match the directory name.
 const (
 	Name                = "guestagent"
+	cloudPlatformScope  = "https://www.googleapis.com/auth/cloud-platform"
 	mwlidVMName         = "mwlid" // Name of the VM used for mwlid tests.
+	mwlidTestName       = "TestMWLIDCredentials"
+	linuxHostKeyTests   = "TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady"
 	windowsAccountTests = "TestWindowsPasswordReset|TestWindowsPasswordResetDifferentLocale|TestWindowsPasswordResetLegacyAgent|TestDiagnostic"
 	windowsDCTestName   = "TestWindowsDomainControllerAccounts"
 )
+
+// TestSetup sets up the test workflow.
+func TestSetup(t *imagetest.TestWorkflow) error {
+	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
+	isWindows := utils.HasFeature(t.Image, "WINDOWS")
+
+	if err := setupTelemetryDisabledVM(t, diskType); err != nil {
+		return err
+	}
+	if err := setupTelemetryEnabledVM(t, diskType, isWindows); err != nil {
+		return err
+	}
+	if err := setupWindowsDCVM(t, diskType); err != nil {
+		return err
+	}
+	return setupMWLIDVM(t, diskType)
+}
+
+func createScopedVM(t *imagetest.TestWorkflow, name, diskType string) (*imagetest.TestVM, error) {
+	inst := &daisy.Instance{}
+	inst.Scopes = []string{cloudPlatformScope}
+	inst.Name = name
+	return t.CreateTestVMFromInstance(inst, []*compute.Disk{{Name: name, Type: diskType}})
+}
+
+// anchorTestRegex wraps a "|"-separated list of exact test names so Go's
+// -test.run regexp does not also match tests with shared prefixes (such as
+// TestWindowsPasswordReset matching TestWindowsPasswordResetLegacyAgent).
+func anchorTestRegex(tests string) string {
+	return fmt.Sprintf("^(%s)$", tests)
+}
+
+func telemetryDisabledTests(t *imagetest.TestWorkflow, diskType string) string {
+	tests := "TestTelemetryDisabled"
+	// Skip the snapshot tests on Windows client images, and any images using
+	// hyperdisk. Run snapshot scripts here rather than on telemetryEnabled so
+	// its Linux agent restart does not disturb boot-time readiness checks;
+	// disable-guest-telemetry=true persists across the restart.
+	if !utils.IsWindowsClient(t.Image.Name) && !strings.Contains(diskType, "hyperdisk") {
+		tests += "|TestSnapshotScripts"
+	}
+	return tests
+}
+
+func telemetryEnabledTests(isWindows bool) string {
+	tests := "TestTelemetryEnabled|TestServiceConfig"
+	if isWindows {
+		return tests + "|" + windowsAccountTests
+	}
+	return tests + "|" + linuxHostKeyTests
+}
+
+func setupTelemetryDisabledVM(t *imagetest.TestWorkflow, diskType string) error {
+	tests := telemetryDisabledTests(t, diskType)
+	if !t.ShouldRunTests(tests) {
+		return nil
+	}
+
+	vm, err := createScopedVM(t, "telemetryDisabled", diskType)
+	if err != nil {
+		return err
+	}
+	vm.AddMetadata("disable-guest-telemetry", "true")
+	vm.RunTests(anchorTestRegex(tests))
+	return nil
+}
+
+func setupTelemetryEnabledVM(t *imagetest.TestWorkflow, diskType string, isWindows bool) error {
+	tests := telemetryEnabledTests(isWindows)
+	if !t.ShouldRunTests(tests) {
+		return nil
+	}
+
+	vm, err := createScopedVM(t, "telemetryEnabled", diskType)
+	if err != nil {
+		return err
+	}
+	vm.AddMetadata("disable-guest-telemetry", "false")
+	if isWindows {
+		vm.AddMetadata("enable-diagnostics", "true")
+		vm.AddMetadata("enable-guest-attributes", "true")
+	}
+	vm.RunTests(anchorTestRegex(tests))
+	return nil
+}
 
 func supportsWindowsDomainControllerRole(img *compute.Image) bool {
 	return utils.HasFeature(img, "WINDOWS") &&
@@ -41,7 +129,7 @@ func supportsWindowsDomainControllerRole(img *compute.Image) bool {
 // pipeline that installs pre-release guest-agent packages. Domain Controller
 // account refusal only exists in candidate and unstable package builds until
 // the updated google-compute-engine-windows package rolls out to public Windows
-// Server images (see TODO(b/507998440) in TestSetup):
+// Server images (see TODO(b/507998440) in setupWindowsDCVM):
 //   - "guest-agent" in img.Name matches throwaway derivative images baked by
 //     the guest-package-build/build-guest-agent Concourse job.
 //   - "gce-unstable-pkg-test-images" in img.SelfLink matches pre-release test
@@ -57,149 +145,97 @@ func shouldRunWindowsDomainControllerTests(t *imagetest.TestWorkflow) bool {
 		t.ShouldRunTests(windowsDCTestName)
 }
 
-// TestSetup sets up the test workflow.
-func TestSetup(t *imagetest.TestWorkflow) error {
-	diskType := imagetest.DiskTypeNeeded(t.MachineType.Name)
+func setupWindowsDCVM(t *imagetest.TestWorkflow, diskType string) error {
+	// Active Directory Domain Controller account tests require the
+	// AD-Domain-Services server role (not available on client, container, or
+	// SQL Server images).
+	// TODO(b/507998440): drop the guest-agent / gce-unstable-pkg-test-images
+	// image filter once the updated google-compute-engine-windows package
+	// reaches public Windows Server images.
+	if !shouldRunWindowsDomainControllerTests(t) {
+		return nil
+	}
 
-	telemetrydisabledinst := &daisy.Instance{}
-	telemetrydisabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
-	telemetrydisabledinst.Name = "telemetryDisabled"
-	telemetrydisabledvm, err := t.CreateTestVMFromInstance(telemetrydisabledinst, []*compute.Disk{{Name: telemetrydisabledinst.Name, Type: diskType}})
+	dcInst := &daisy.Instance{
+		InstanceBase: daisy.InstanceBase{
+			Scopes: []string{cloudPlatformScope},
+		},
+		Metadata: map[string]string{
+			imagetest.ShouldRebootDuringTest: "true",
+		},
+	}
+	windowsDCVM, err := t.CreateTestVMFromInstance(dcInst, []*compute.Disk{{Name: "windowsdc", Type: diskType}})
 	if err != nil {
 		return err
 	}
-	telemetrydisabledvm.AddMetadata("disable-guest-telemetry", "true")
-	telemetrydisabledvm.RunTests("TestTelemetryDisabled")
-
-	telemetryenabledinst := &daisy.Instance{}
-	telemetryenabledinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
-	telemetryenabledinst.Name = "telemetryEnabled"
-	telemetryenabledvm, err := t.CreateTestVMFromInstance(telemetryenabledinst, []*compute.Disk{{Name: telemetryenabledinst.Name, Type: diskType}})
-	if err != nil {
+	if t.MachineType.Name == imagetest.DefaultMachineType {
+		windowsDCVM.ForceMachineType("n1-standard-2")
+	}
+	windowsDCVM.AddMetadata("enable-guest-attributes", "true")
+	windowsDCVM.AddMetadata("enable-windows-ssh", "true")
+	windowsDCVM.AddMetadata("block-project-ssh-keys", "true")
+	if err := windowsDCVM.Reboot(); err != nil {
 		return err
 	}
-	telemetryenabledvm.AddMetadata("disable-guest-telemetry", "false")
-	telemetryenabledvm.RunTests("TestTelemetryEnabled|TestServiceConfig")
+	windowsDCVM.RunTests(anchorTestRegex(windowsDCTestName))
+	return nil
+}
 
-	// Skip the snapshot tests on Windows client images, and any images using hyperdisk.
-	if !utils.IsWindowsClient(t.Image.Name) && !strings.Contains(diskType, "hyperdisk") {
-		snapshotinst := &daisy.Instance{}
-		snapshotinst.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
-		snapshotinst.Name = "snapshotScripts"
-		snapshotvm, err := t.CreateTestVMFromInstance(snapshotinst, []*compute.Disk{{Name: snapshotinst.Name, Type: diskType}})
-		if err != nil {
-			return err
-		}
-		snapshotvm.RunTests("TestSnapshotScripts")
+func setupMWLIDVM(t *imagetest.TestWorkflow, diskType string) error {
+	// MWLID tests only run on guest-agent derived images and pre-release images
+	// with the updated guest-agent.
+	if !isGuestAgentCandidateOrUnstablePkgImage(t.Image) || !t.ShouldRunTests(mwlidTestName) {
+		return nil
 	}
 
-	if utils.HasFeature(t.Image, "WINDOWS") && t.ShouldRunTests(windowsAccountTests) {
-		passwordInst := &daisy.Instance{}
-		passwordInst.Scopes = append(passwordInst.Scopes, "https://www.googleapis.com/auth/cloud-platform")
-		windowsaccountVM, err := t.CreateTestVMFromInstance(passwordInst, []*compute.Disk{{Name: "windowsaccount", Type: diskType}})
-		if err != nil {
-			return err
-		}
-		windowsaccountVM.AddMetadata("enable-diagnostics", "true")
-		windowsaccountVM.AddMetadata("enable-guest-attributes", "true")
-		windowsaccountVM.RunTests(windowsAccountTests)
+	projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
+	poolID := "cic-pool1"
+	namespaceID := "cic-ns"
+	managedIdentityID := "cic-mi-sa-email1"
+
+	workloadIdentity := strings.Join([]string{
+		poolID, ".global.", projectNumber, ".workload.id.goog/ns/", namespaceID, "/sa/", managedIdentityID,
+	}, "")
+
+	mwlidInst := &daisy.Instance{}
+	mwlidInst.Name = mwlidVMName // Use the constant name.
+	mwlidInst.MachineType = t.MachineType.Name
+	mwlidInst.WorkloadIdentityConfig = &compute.WorkloadIdentityConfig{
+		Identity:                   workloadIdentity,
+		IdentityCertificateEnabled: true,
 	}
-
-	// Active Directory Domain Controller account tests require the AD-Domain-Services
-	// server role (not available on client, container, or SQL Server images).
-	// TODO(b/507998440): drop the guest-agent / gce-unstable-pkg-test-images image
-	// filter once the updated google-compute-engine-windows package reaches public
-	// Windows Server images.
-	if shouldRunWindowsDomainControllerTests(t) {
-		dcInst := &daisy.Instance{
-			InstanceBase: daisy.InstanceBase{
-				Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
-			},
-			Metadata: map[string]string{
-				imagetest.ShouldRebootDuringTest: "true",
-			},
-		}
-		windowsDCVM, err := t.CreateTestVMFromInstance(dcInst, []*compute.Disk{{Name: "windowsdc", Type: diskType}})
-		if err != nil {
-			return err
-		}
-		if t.MachineType.Name == imagetest.DefaultMachineType {
-			windowsDCVM.ForceMachineType("n1-standard-2")
-		}
-		windowsDCVM.AddMetadata("enable-guest-attributes", "true")
-		windowsDCVM.AddMetadata("enable-windows-ssh", "true")
-		windowsDCVM.AddMetadata("block-project-ssh-keys", "true")
-		if err := windowsDCVM.Reboot(); err != nil {
-			return err
-		}
-		windowsDCVM.RunTests(windowsDCTestName)
+	mwlidInst.ServiceAccounts = []*compute.ServiceAccount{
+		{
+			Email:  "default",
+			Scopes: []string{cloudPlatformScope},
+		},
 	}
-
-	if !utils.IsWindowsImage(t.Image.Name) {
-		// Only test SSH host keys on non-Windows images.
-		vm, err := t.CreateTestVM("sshkeytest")
-		if err != nil {
-			return fmt.Errorf("failed to create test VM: %w", err)
-		}
-		vm.AddScope("https://www.googleapis.com/auth/cloud-platform")
-		vm.RunTests("TestSSHHostKeyExistence|TestSSHHostKeyTimingVsAgent|TestNetworkSetupCompletesBeforeAgentReady")
+	mwlidInst.Tags = &compute.Tags{
+		Items: []string{
+			"vmexp-enable-shared-centralized-issuance-configs",
+			"vmexp-enable-s2a",
+		},
 	}
-
-	// This section is for testing MWLID. It is only run on guest-agent derived
-	// images and pre-release images with the updated guest-agent.
-	if strings.Contains(t.Image.Name, "guest-agent") || strings.Contains(t.Image.SelfLink, "gce-unstable-pkg-test-images") {
-		projectNumber := "281997379984" // compute-image-test-pool-001 (where the CA pool was created)
-		machineType := t.MachineType.Name
-
-		poolID := "cic-pool1"
-		namespaceID := "cic-ns"
-		managedIdentityID := "cic-mi-sa-email1"
-
-		workloadIdentity := strings.Join([]string{
-			poolID, ".global.", projectNumber, ".workload.id.goog/ns/", namespaceID, "/sa/", managedIdentityID,
-		}, "")
-
-		mwlidInst := &daisy.Instance{}
-		mwlidInst.Name = mwlidVMName // Use the constant name
-		mwlidInst.MachineType = machineType
-		mwlidInst.WorkloadIdentityConfig = &compute.WorkloadIdentityConfig{
-			Identity:                   workloadIdentity,
-			IdentityCertificateEnabled: true,
-		}
-		mwlidInst.ServiceAccounts = []*compute.ServiceAccount{
-			{
-				Email:  "default",
-				Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
-			},
-		}
-		mwlidInst.Tags = &compute.Tags{
-			Items: []string{
-				"vmexp-enable-shared-centralized-issuance-configs",
-				"vmexp-enable-s2a",
-			},
-		}
-		mwlidInst.Metadata = map[string]string{
-			"vmDnsSetting": "ZonalOnly",
-		}
-		mwlidInst.NetworkInterfaces = []*compute.NetworkInterface{
-			{
-				// Relative partial URL; daisy extends it with the workflow's project.
-				Network: "global/networks/default",
-				AccessConfigs: []*compute.AccessConfig{
-					{
-						Type: "ONE_TO_ONE_NAT",
-						Name: "External NAT",
-					},
+	mwlidInst.Metadata = map[string]string{
+		"vmDnsSetting": "ZonalOnly",
+	}
+	mwlidInst.NetworkInterfaces = []*compute.NetworkInterface{
+		{
+			// Relative partial URL; daisy extends it with the workflow's project.
+			Network: "global/networks/default",
+			AccessConfigs: []*compute.AccessConfig{
+				{
+					Type: "ONE_TO_ONE_NAT",
+					Name: "External NAT",
 				},
 			},
-		}
-
-		mwlidVM, err := t.CreateTestVMFromInstance(mwlidInst, []*compute.Disk{{Name: mwlidVMName, Type: diskType}})
-		if err != nil {
-			return fmt.Errorf("failed to create MWLID test VM: %v", err)
-		}
-
-		mwlidVM.RunTests("TestMWLIDCredentials")
+		},
 	}
+
+	mwlidVM, err := t.CreateTestVMFromInstance(mwlidInst, []*compute.Disk{{Name: mwlidVMName, Type: diskType}})
+	if err != nil {
+		return fmt.Errorf("creating MWLID test VM: %v", err)
+	}
+	mwlidVM.RunTests(anchorTestRegex(mwlidTestName))
 	return nil
 }
