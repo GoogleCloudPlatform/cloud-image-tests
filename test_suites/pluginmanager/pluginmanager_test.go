@@ -720,6 +720,38 @@ func TestPluginManagerNoCorePlugin(t *testing.T) {
 
 	// Make sure the old guest agent is running.
 	utils.VerifyProcessExistsLinux(t, true, "/usr/bin/google_guest_agent")
+
+	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	if err != nil {
+		t.Fatalf("Failed to get image from metadata: %v", err)
+	}
+	if utils.IsUbuntu(image) {
+		verifyHybridUnits(t)
+	}
+}
+
+// verifyHybridUnits checks the legacy agent plus manager layout that ships
+// without a core plugin.
+func verifyHybridUnits(t *testing.T) {
+	t.Helper()
+	systemctl := func(args ...string) string {
+		out, _ := exec.Command("systemctl", args...).CombinedOutput()
+		return strings.TrimSpace(string(out))
+	}
+	for _, unit := range []string{"google-guest-agent.service", "google-guest-agent-manager.service"} {
+		if got := systemctl("is-active", unit); got != "active" {
+			t.Errorf("%s is %q, want active", unit, got)
+		}
+		if got := systemctl("is-enabled", unit); got != "enabled" {
+			t.Errorf("%s is %q, want enabled", unit, got)
+		}
+	}
+	if got := systemctl("is-active", "gce-workload-cert-refresh.timer"); got != "active" {
+		t.Errorf("gce-workload-cert-refresh.timer is %q, want active", got)
+	}
+	if got := systemctl("show", "-p", "NRestarts", "--value", "google-guest-agent-manager.service"); got != "0" {
+		t.Errorf("google-guest-agent-manager.service restarted %s times, want 0", got)
+	}
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {
