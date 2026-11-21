@@ -57,6 +57,8 @@ const (
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-uptime?view=powershell-7.4#example-2-show-the-time-of-the-last-boot
 	windowsTimeFormat  = "Monday, January 2, 2006 3:04:05 PM"
 	markerFile         = "/var/boot-marker"
+	bootTimeMarkerFile = "/var/boot-time-result"
+	bootTimePending    = "pending"
 	secureBootFile     = "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 	setupModeFile      = "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 	defaultMaxBootTime = 20 // In seconds
@@ -93,13 +95,11 @@ func TestGuestBoot(t *testing.T) {
 func TestGuestReboot(t *testing.T) {
 	_, err := os.Stat(markerFile)
 	if os.IsNotExist(err) {
-		// first boot
-		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
-			t.Fatalf("[FAILED] unable to create marker file directory: %v", err)
+		// First boot: persist the marker and fail so this test only passes after reboot.
+		if err := writeFile(markerFile, nil); err != nil {
+			t.Fatalf("[FAILED] unable to create marker file %q: %v", markerFile, err)
 		}
-		if _, err := os.Create(markerFile); err != nil {
-			t.Fatalf("[FAILED] unable to create marker file: %v", err)
-		}
+		t.Fatal("[FAILED] marker file created on first boot; waiting for reboot")
 	} else if err != nil {
 		t.Fatalf("[FAILED] unable to stat marker file: %+v", err)
 	}
@@ -111,11 +111,8 @@ func TestGuestRebootOnHost(t *testing.T) {
 	_, err := os.Stat(markerFile)
 	if os.IsNotExist(err) {
 		// first boot
-		if err := os.MkdirAll(filepath.Dir(markerFile), 0755); err != nil {
-			t.Fatalf("[FAILED] unable to create marker file directory: %v", err)
-		}
-		if _, err := os.Create(markerFile); err != nil {
-			t.Fatalf("[FAILED] unable to create marker file: %v", err)
+		if err := writeFile(markerFile, nil); err != nil {
+			t.Fatalf("[FAILED] unable to create marker file %q: %v", markerFile, err)
 		}
 		var cmd *exec.Cmd
 		if utils.IsWindows() {
@@ -199,18 +196,16 @@ func testWindowsGuestSecureBoot() error {
 
 func TestBootTime(t *testing.T) {
 	ctx := utils.Context(t)
-	image, err := utils.GetMetadata(ctx, "instance", "image")
-	if err != nil {
-		t.Errorf("[FAILED] unable to get image from metadata with equivalent command %q: %v", metadataCurlCmd, err)
-	}
-	startTime := findInstanceStartTime(ctx, t)
-	essentialServiceStartTime := findEssentialServiceStartTime(ctx, t, image)
+	// The boot VM reboots for TestGuestReboot and CIT reads Boot 2's results, so
+	// persist Boot 1's cold-boot timestamps and re-check them after reboot.
+	startTime, essentialServiceStartTime := loadOrMeasureBootTimes(ctx, t)
 	bootTime := int(essentialServiceStartTime.Sub(startTime).Seconds())
 	t.Logf("Instance start time: %s", startTime.Format(time.ANSIC))
 	t.Logf("Service start time: %s", essentialServiceStartTime.Format(time.ANSIC))
 	if bootTime < 0 {
 		t.Fatalf("[FAILED] Invalid boot time, services started before boot.")
 	}
+	image := instanceImage(ctx, t)
 	maxBootTime := defaultMaxBootTime
 	for _, threshold := range imageBootTimeThresholds {
 		if strings.Contains(image, threshold.Image) {
@@ -224,6 +219,62 @@ func TestBootTime(t *testing.T) {
 	if bootTime+10 < maxBootTime {
 		t.Logf("Boot time of %d is more than 10 seconds below limit of %d. Consider lowering the limit if this is consistent.", bootTime, maxBootTime)
 	}
+}
+
+func writeFile(filePath string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, data, 0o644)
+}
+
+func instanceImage(ctx context.Context, t *testing.T) string {
+	t.Helper()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("[FAILED] unable to get image from metadata with equivalent command %q: %v", metadataCurlCmd, err)
+	}
+	return image
+}
+
+func loadOrMeasureBootTimes(ctx context.Context, t *testing.T) (time.Time, time.Time) {
+	t.Helper()
+	data, err := os.ReadFile(bootTimeMarkerFile)
+	if err == nil { // if NO error
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) == 1 && lines[0] == bootTimePending {
+			t.Fatal("[FAILED] first-boot TestBootTime did not finish before reboot; check first-boot console log")
+		}
+		if len(lines) != 2 {
+			t.Fatalf("[FAILED] malformed boot time file %q: %q", bootTimeMarkerFile, string(data))
+		}
+		startTime, err := time.Parse(time.RFC3339Nano, lines[0])
+		if err != nil {
+			t.Fatalf("[FAILED] unable to parse stored instance start time %q: %v", lines[0], err)
+		}
+		serviceStartTime, err := time.Parse(time.RFC3339Nano, lines[1])
+		if err != nil {
+			t.Fatalf("[FAILED] unable to parse stored service start time %q: %v", lines[1], err)
+		}
+		return startTime, serviceStartTime
+	}
+	if !os.IsNotExist(err) {
+		t.Fatalf("[FAILED] unable to read boot time file %q: %v", bootTimeMarkerFile, err)
+	}
+
+	// Write a pending marker first so Boot 2 fails if Boot 1 aborts before finishing.
+	if err := writeFile(bootTimeMarkerFile, []byte(bootTimePending)); err != nil {
+		t.Fatalf("[FAILED] unable to write pending boot time file %q: %v", bootTimeMarkerFile, err)
+	}
+
+	image := instanceImage(ctx, t)
+	startTime := findInstanceStartTime(ctx, t)
+	serviceStartTime := findEssentialServiceStartTime(ctx, t, image)
+	content := fmt.Sprintf("%s\n%s\n", startTime.Format(time.RFC3339Nano), serviceStartTime.Format(time.RFC3339Nano))
+	if err := writeFile(bootTimeMarkerFile, []byte(content)); err != nil {
+		t.Fatalf("[FAILED] unable to save boot time file %q: %v", bootTimeMarkerFile, err)
+	}
+	return startTime, serviceStartTime
 }
 
 func findInstanceStartTime(ctx context.Context, t *testing.T) time.Time {

@@ -21,6 +21,8 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests"
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
+	"github.com/GoogleCloudPlatform/compute-daisy"
+	"google.golang.org/api/compute/v1"
 )
 
 // Name is the name of the test package. It must match the directory name.
@@ -44,40 +46,43 @@ var sbUnsupported = []*regexp.Regexp{
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
-	vm, err := t.CreateTestVM("boot")
+	// ShouldRebootDuringTest makes Boot 1 write first-boot-key instead of
+	// test-complete so Daisy waits for Boot 2 after vm.Reboot().
+	bootInst := &daisy.Instance{
+		Metadata: map[string]string{imagetest.ShouldRebootDuringTest: "true"},
+	}
+	vm, err := t.CreateTestVMFromInstance(bootInst, []*compute.Disk{{Name: "boot"}})
 	if err != nil {
 		return err
 	}
 	if err := vm.Reboot(); err != nil {
 		return err
 	}
-	vm.RunTests("TestGuestBoot|TestGuestReboot$")
+	vm.RunTests("^(TestGuestBoot|TestGuestReboot|TestBootTime)$")
 
 	vm2, err := t.CreateTestVM("guestreboot")
 	if err != nil {
 		return err
 	}
-	vm2.RunTests("TestGuestRebootOnHost")
-
-	vm3, err := t.CreateTestVM("boottime")
-	if err != nil {
-		return err
+	if supportsSecureBoot(t.Image) {
+		// TestGuestRebootOnHost reboots on Boot 1; Boot 2 checks both the reboot
+		// marker and persistent UEFI Secure Boot state.
+		vm2.EnableSecureBoot()
+		vm2.RunTests("^(TestGuestRebootOnHost|TestGuestSecureBoot)$")
+	} else {
+		vm2.RunTests("^TestGuestRebootOnHost$")
 	}
-	vm3.RunTests("TestBootTime")
+	return nil
+}
 
+func supportsSecureBoot(image *compute.Image) bool {
+	if !utils.HasFeature(image, "UEFI_COMPATIBLE") {
+		return false
+	}
 	for _, r := range sbUnsupported {
-		if r.MatchString(t.Image.Name) {
-			return nil
+		if r.MatchString(image.Name) {
+			return false
 		}
 	}
-	if !utils.HasFeature(t.Image, "UEFI_COMPATIBLE") {
-		return nil
-	}
-	vm4, err := t.CreateTestVM("secureboot")
-	if err != nil {
-		return err
-	}
-	vm4.EnableSecureBoot()
-	vm4.RunTests("TestGuestSecureBoot")
-	return nil
+	return true
 }
