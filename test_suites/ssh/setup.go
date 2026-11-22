@@ -65,7 +65,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 		// Windows does not remove the local users.
 		runTests += "|TestSSHServiceStartsAfterGuestAgent|TestDeleteLocalUser|TestDeleteUserDefault"
 	}
-
 	vm.RunTests(runTests)
 
 	vm4, err := t.CreateTestVM("server2")
@@ -84,10 +83,6 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	vm4.AddMetadata("enable-windows-ssh", "true")
 	vm4.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
 	server2Tests := "TestSSHChangeKey"
-	if !utils.IsWindowsImage(t.Image.Name) {
-		// Windows does not remove the local users.
-		server2Tests += "|TestSwitchDefaultConfig"
-	}
 	vm4.RunTests(server2Tests)
 
 	vm2, err := t.CreateTestVM("server")
