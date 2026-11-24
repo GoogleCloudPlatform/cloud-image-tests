@@ -173,7 +173,7 @@ func (t *TestWorkflow) waitForQuotaStep(qa *daisy.QuotaAvailable, stepname strin
 
 // IsMetal returns whether the machine type is a metal machine type.
 func IsMetal(machineType string) bool {
-	return strings.HasSuffix(machineType, "-metal")
+	return strings.HasSuffix(machineType, "-metal") || strings.Contains(machineType, "-metal-")
 }
 
 // DiskTypeNeeded returns disk type needed for the machine type. Default is hyperdisk Balanced.

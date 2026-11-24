@@ -1104,6 +1104,18 @@ func TestIsMetal(t *testing.T) {
 			machineType: "hypothetical-new-machine-metal",
 			want:        true,
 		},
+		{
+			machineType: "a4-highgpu-8g-metal-cc",
+			want:        true,
+		},
+		{
+			machineType: "hypothetical-new-machine-metal-cc",
+			want:        true,
+		},
+		{
+			machineType: "a4-highgpu-8g",
+			want:        false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.machineType, func(t *testing.T) {
