@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
 	"golang.org/x/crypto/ssh"
@@ -66,35 +65,49 @@ func TestMatchingKeysInGuestAttributes(t *testing.T) {
 
 // TestHostKeysAreUnique validate that host keys from disk is unique between instances.
 func TestHostKeysAreUnique(t *testing.T) {
-	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
+	ctx := utils.Context(t)
+	vmname, err := utils.GetRealVMName(ctx, "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
-	time.Sleep(60 * time.Second)
-	t.Logf("connect to remote host at %d", time.Now().UnixNano())
-	client, err := utils.CreateClient(user, fmt.Sprintf("%s:22", vmname), pembytes)
+	var localDiskEntries map[string]string
+	err = utils.PollUntil(ctx, "local host keys", pollInterval, actuationTimeout, func() (bool, string) {
+		var localErr error
+		localDiskEntries, localErr = utils.GetHostKeysFromDisk()
+		if localErr != nil {
+			return false, localErr.Error()
+		}
+		return true, ""
+	})
 	if err != nil {
-		t.Fatalf("user %s failed ssh to target host, %s, err %v", user, vmname, err)
+		t.Fatalf("failed to get host key from disk: %v", err)
 	}
-	remoteDiskEntries, err := getRemoteHostKeys(client)
+
+	client := dialSSH(ctx, t, user, fmt.Sprintf("%s:22", vmname), pembytes)
+	var remoteDiskEntries map[string]string
+	err = utils.PollUntil(ctx, "remote host keys on "+vmname, pollInterval, actuationTimeout, func() (bool, string) {
+		entries, remoteErr := getRemoteHostKeys(client)
+		if remoteErr != nil {
+			return false, remoteErr.Error()
+		}
+		for keyType := range localDiskEntries {
+			if _, found := entries[keyType]; !found {
+				return false, fmt.Sprintf("ssh key %s not found on remote disk entries", keyType)
+			}
+		}
+		remoteDiskEntries = entries
+		return true, ""
+	})
 	if err != nil {
 		t.Fatalf("failed to get host key from remote, err: %v", err)
 	}
 
-	localDiskEntries, err := utils.GetHostKeysFromDisk()
-	if err != nil {
-		t.Fatalf("failed to get host key from disk %v", err)
-	}
 	for keyType, localValue := range localDiskEntries {
-		remoteValue, found := remoteDiskEntries[keyType]
-		if !found {
-			t.Fatalf("ssh key %s not found on remote disk entries", keyType)
-		}
-		if localValue == remoteValue {
+		if localValue == remoteDiskEntries[keyType] {
 			t.Fatal("host key value is not unique")
 		}
 	}

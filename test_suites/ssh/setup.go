@@ -24,14 +24,28 @@ import (
 var Name = "ssh"
 
 const (
-	user  = "test-user"
+	user  = "test-user1"
 	user2 = "test-user2"
 	user3 = "test-user3"
 	user4 = "test-user4"
+	user5 = "test-user5"
 )
 
 // TestSetup sets up the test workflow.
 func TestSetup(t *imagetest.TestWorkflow) error {
+	clientTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes"
+	serverTests := "TestHostKeysNotOverrideAfterAgentRestart|TestSSHChangeKey"
+	if !utils.IsWindowsImage(t.Image.Name) {
+		// Windows does not remove the local users.
+		clientTests += "|TestSSHServiceStartsAfterGuestAgent"
+		serverTests += "|TestDeleteLocalUser|TestDeleteUserDefault"
+	}
+	runClient := t.ShouldRunTests(clientTests)
+	// TestSSHInstanceKey and TestHostKeysAreUnique on the client connect to the server.
+	runServer := t.ShouldRunTests(serverTests + "|TestSSHInstanceKey|TestHostKeysAreUnique")
+	if !runClient && !runServer {
+		return nil
+	}
 	// adds the private key to the t.wf.Sources
 	publicKey, err := t.AddSSHKey(user)
 	if err != nil {
@@ -51,44 +65,24 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err != nil {
 		return err
 	}
-	vm, err := t.CreateTestVM("client")
+	publicKey5, err := t.AddSSHKey(user5)
 	if err != nil {
 		return err
 	}
-	vm.AddScope("https://www.googleapis.com/auth/cloud-platform")
-	vm.AddMetadata("block-project-ssh-keys", "true")
-	vm.AddMetadata("enable-guest-attributes", "true")
-	vm.AddMetadata("enable-windows-ssh", "true")
-	vm.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
-	runTests := "TestSSHInstanceKey|TestHostKeysAreUnique|TestMatchingKeysInGuestAttributes"
-	if !utils.IsWindowsImage(t.Image.Name) {
-		// Windows does not remove the local users.
-		runTests += "|TestSSHServiceStartsAfterGuestAgent|TestDeleteLocalUser|TestDeleteUserDefault"
+	if runClient {
+		vm, err := t.CreateTestVM("client")
+		if err != nil {
+			return err
+		}
+		vm.AddMetadata("block-project-ssh-keys", "true")
+		vm.AddMetadata("enable-guest-attributes", "true")
+		vm.AddMetadata("enable-windows-ssh", "true")
+		vm.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
+		vm.RunTests("^(" + clientTests + ")$")
 	}
-
-	vm.RunTests(runTests)
-
-	vm4, err := t.CreateTestVM("server2")
-	if err != nil {
-		return err
+	if !runServer {
+		return nil
 	}
-	vm4.AddUser(user, publicKey)
-	vm4.AddUser(user2, publicKey2)
-	vm4.AddUser(user3, publicKey3)
-
-	vm4.AddMetadata("target-public-key", publicKey4)
-
-	vm4.AddScope("https://www.googleapis.com/auth/cloud-platform")
-	vm4.AddMetadata("enable-guest-attributes", "true")
-	vm4.AddMetadata("enable-oslogin", "false")
-	vm4.AddMetadata("enable-windows-ssh", "true")
-	vm4.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
-	server2Tests := "TestSSHChangeKey"
-	if !utils.IsWindowsImage(t.Image.Name) {
-		// Windows does not remove the local users.
-		server2Tests += "|TestSwitchDefaultConfig"
-	}
-	vm4.RunTests(server2Tests)
 
 	vm2, err := t.CreateTestVM("server")
 	if err != nil {
@@ -96,17 +90,15 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	}
 	vm2.AddUser(user, publicKey)
 	vm2.AddUser(user2, publicKey2)
+	vm2.AddUser(user3, publicKey3)
+	vm2.AddUser(user5, publicKey5)
 
+	vm2.AddMetadata("target-public-key", publicKey4)
+	vm2.AddScope("https://www.googleapis.com/auth/cloud-platform")
 	vm2.AddMetadata("enable-guest-attributes", "true")
 	vm2.AddMetadata("enable-oslogin", "false")
 	vm2.AddMetadata("enable-windows-ssh", "true")
 	vm2.AddMetadata("sysprep-specialize-script-cmd", "googet -noconfirm=true install google-compute-engine-ssh")
-	vm2.RunTests("TestEmptyTest")
-
-	vm3, err := t.CreateTestVM("hostkeysafteragentrestart")
-	if err != nil {
-		return err
-	}
-	vm3.RunTests("TestHostKeysNotOverrideAfterAgentRestart")
+	vm2.RunTests("^(" + serverTests + ")$")
 	return nil
 }

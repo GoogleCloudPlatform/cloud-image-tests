@@ -15,6 +15,7 @@
 package ssh
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -26,14 +27,12 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func TestEmptyTest(t *testing.T) {
-	_, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "ssh-keys")
-	if err != nil {
-		t.Fatalf("couldn't get ssh public key from metadata")
-	}
-	t.Logf("ssh target boot succesfully at %d", time.Now().UnixNano())
-	time.Sleep(60 * time.Second)
-}
+const (
+	pollInterval        = 2 * time.Second
+	connectTimeout      = 3 * time.Minute
+	actuationTimeout    = 2 * time.Minute
+	instanceConfigsPath = "/etc/default/instance_configs.cfg"
+)
 
 // TestSSHChangeKey test that given a user and a new key, guest agent will
 // update the user's key in $HOME/.ssh/authorized_keys.
@@ -46,272 +45,250 @@ func TestEmptyTest(t *testing.T) {
 // and use the new key to attempt a connection, which should succeed. An attempt
 // to connect with the old key should fail at this point.
 func TestSSHChangeKey(t *testing.T) {
-	vmname, err := utils.GetRealVMName(utils.Context(t), "server2")
+	ctx := utils.Context(t)
+	vmname, err := utils.GetInstanceName(ctx)
 	if err != nil {
-		t.Fatalf("failed to get real vm name: %v", err)
+		t.Fatalf("failed to get instance name: %v", err)
 	}
+	addr := fmt.Sprintf("%s:22", vmname)
 
-	// Private key for user3, this is the original key that will be used for the
-	// initial test.
-	user3PemBytes, err := utils.DownloadPrivateKey(utils.Context(t), user3)
+	user3PemBytes, err := utils.DownloadPrivateKey(ctx, user3)
+	if err != nil {
+		t.Fatalf("failed to download private key: %v", err)
+	}
+	user4PemBytes, err := utils.DownloadPrivateKey(ctx, user4)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
 
-	// Private key for user4, this is the new key that will be used to change
-	// user3 key to and test the connection.
-	user4PemBytes, err := utils.DownloadPrivateKey(utils.Context(t), user4)
-	if err != nil {
-		t.Fatalf("failed to download private key: %v", err)
-	}
-
-	closeClient := func(c *ssh.Client) {
-		if c != nil {
-			c.Close()
-		}
-	}
-
-	// Initial success case, with user3 and user3PemBytes.
-	t.Logf("connect to remote host at %d, with valid key, should succeed", time.Now().UnixNano())
-	c1, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user3PemBytes)
-	if err != nil {
-		t.Fatalf("user %s failed ssh to target host, %s, err %v", user3, vmname, err)
-	}
-	t.Cleanup(func() {
-		closeClient(c1)
-	})
-
-	// Initial failure case, with user3 and user4PemBytes (we haven't changed the
-	// user's key yet, it must fail).
-	t.Logf("connect to remote host at %d, with invalid key, should fail", time.Now().UnixNano())
-	c2, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user4PemBytes)
-	if err == nil {
+	dialSSH(ctx, t, user3, addr, user3PemBytes)
+	if c, err := utils.CreateClient(user3, addr, user4PemBytes); err == nil { // if NO error
+		c.Close()
 		t.Fatalf("user %s succeeded ssh to target host with invalid key, %s", user3, vmname)
 	}
-	t.Cleanup(func() {
-		closeClient(c2)
-	})
 
-	// Change the user's key to the new key.
-	newKey, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "target-public-key")
+	newKey, err := utils.GetMetadata(ctx, "instance", "attributes", "target-public-key")
 	if err != nil {
 		t.Fatalf("couldn't get ssh target public key from metadata: %v", err)
 	}
+	updateUserSSHKey(t, vmname, user3, newKey)
 
-	metadata := utils.GetInstanceMetadata(t, vmname)
-
-	for _, item := range metadata.Items {
-		var updateKeys []string
-		if item.Key == "ssh-keys" {
-			splitKeys := strings.Split(*item.Value, "\n")
-			for _, key := range splitKeys {
-				if strings.Contains(key, user3) {
-					key = fmt.Sprintf("%s:%s", user3, newKey)
-				}
-				updateKeys = append(updateKeys, key)
-			}
-			res := strings.Join(updateKeys, "\n")
-			item.Value = &res
+	err = utils.PollUntil(ctx, "rotated SSH key actuation", pollInterval, actuationTimeout, func() (bool, string) {
+		cNew, newErr := utils.CreateClient(user3, addr, user4PemBytes)
+		if newErr != nil {
+			return false, newErr.Error()
 		}
-	}
-
-	utils.SetInstanceMetadata(t, vmname, metadata)
-
-	// Wait for the metadata to be updated and guest-agent to actuate and update
-	// the user's key.
-	t.Logf("waiting for metadata to be updated and guest-agent to actuate and update the user's key")
-	time.Sleep(60 * time.Second)
-
-	// Success case, with user3 and user4PemBytes (it should succeed).
-	t.Logf("connect to remote host at %d, with valid key, should succeed", time.Now().UnixNano())
-	c3, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user4PemBytes)
+		cNew.Close()
+		if cOld, oldErr := utils.CreateClient(user3, addr, user3PemBytes); oldErr == nil { // if NO error
+			cOld.Close()
+			return false, "old key still accepted"
+		}
+		return true, ""
+	})
 	if err != nil {
-		t.Fatalf("user %s failed ssh to target host with new key, %s, err %v", user3, vmname, err)
+		t.Fatalf("key rotation for %s on %s failed: %v", user3, vmname, err)
 	}
-	t.Cleanup(func() {
-		closeClient(c3)
-	})
-
-	// Failure case, with user3 and user3PemBytes (it should fail).
-	t.Logf("connect to remote host at %d, with invalid key, should fail", time.Now().UnixNano())
-	c4, err := utils.CreateClient(user3, fmt.Sprintf("%s:22", vmname), user3PemBytes)
-	if err == nil {
-		t.Fatalf("user %s succeeded ssh to target host with invalid key, %s", user3, vmname)
-	}
-	t.Cleanup(func() {
-		closeClient(c4)
-	})
 }
 
 // TestSSHInstanceKey test SSH completes successfully for an instance metadata key.
 func TestSSHInstanceKey(t *testing.T) {
-	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
+	ctx := utils.Context(t)
+	vmname, err := utils.GetRealVMName(ctx, "server")
 	if err != nil {
 		t.Fatalf("failed to get real vm name: %v", err)
 	}
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
-	time.Sleep(60 * time.Second)
-	t.Logf("connect to remote host at %d", time.Now().UnixNano())
-	client, err := utils.CreateClient(user, fmt.Sprintf("%s:22", vmname), pembytes)
+	client := dialSSH(ctx, t, user, fmt.Sprintf("%s:22", vmname), pembytes)
+	// Poll because the guest agent writes authorized_keys / creates the account
+	// just before adding google-sudoers or Administrators membership.
+	err = utils.PollUntil(ctx, user+" account and privilege group on "+vmname, pollInterval, actuationTimeout, func() (bool, string) {
+		if userErr := checkLocalUser(client, user); userErr != nil {
+			return false, userErr.Error()
+		}
+		if grpErr := checkSudoGroup(client, user); grpErr != nil {
+			return false, grpErr.Error()
+		}
+		return true, ""
+	})
 	if err != nil {
-		t.Fatalf("user %s failed ssh to target host, %s, err %v", user, vmname, err)
+		t.Fatalf("failed to verify %s on %s: %v", user, vmname, err)
 	}
-	if err := checkLocalUser(client, user); err != nil {
-		t.Fatalf("failed to check local user: %v", err)
-	}
-
-	if err := checkSudoGroup(client, user); err != nil {
-		t.Fatalf("failed to check sudo group: %v", err)
-	}
-	if err := client.Close(); err != nil {
-		t.Logf("failed to close client: %v", err)
-	}
-}
-
-func TestSwitchDefaultConfig(t *testing.T) {
-	_, err := utils.GetMetadata(utils.Context(t), "instance", "attributes", "ssh-keys")
-	if err != nil {
-		t.Fatalf("couldn't get ssh public key from metadata")
-	}
-	t.Logf("ssh target boot succesfully at %d", time.Now().UnixNano())
-	cfg, err := os.ReadFile("/etc/default/instance_configs.cfg")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("failed to read instance configs: %v", err)
-	}
-	currentCfg := string(cfg)
-	var newCfg string
-	if strings.Contains(currentCfg, "deprovision_remove = false") {
-		newCfg = strings.Replace(string(cfg), "deprovision_remove = false", "deprovision_remove = true", 1)
-	} else {
-		newCfg = fmt.Sprintf("%s\n[Accounts]\ndeprovision_remove = true", currentCfg)
-	}
-	if err := os.WriteFile("/etc/default/instance_configs.cfg", []byte(newCfg), 0644); err != nil {
-		t.Fatalf("failed to write instance configs: %v", err)
-	}
-	utils.RestartAgent(utils.Context(t))
-	time.Sleep(60 * time.Second)
 }
 
 func TestDeleteLocalUser(t *testing.T) {
-	vmname, err := utils.GetRealVMName(utils.Context(t), "server2")
+	utils.LinuxOnly(t)
+	ctx := utils.Context(t)
+	vmname, err := utils.GetInstanceName(ctx)
 	if err != nil {
-		t.Fatalf("failed to get real vm name: %v", err)
+		t.Fatalf("failed to get instance name: %v", err)
 	}
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
-
-	time.Sleep(60 * time.Second)
-	t.Logf("connect to remote host at %d", time.Now().UnixNano())
-
-	client, err := utils.CreateClient(user, fmt.Sprintf("%s:22", vmname), pembytes)
-	if err != nil {
-		t.Fatalf("user %s failed ssh to target host, %s, err %v", user, vmname, err)
-	}
-	t.Cleanup(func() {
-		if client != nil {
-			client.Close()
+	// Connect as user (not user5) so no active login session blocks userdel -r on user5.
+	client := dialSSH(ctx, t, user, fmt.Sprintf("%s:22", vmname), pembytes)
+	err = utils.PollUntil(ctx, user5+" initial provisioning", pollInterval, actuationTimeout, func() (bool, string) {
+		if err := checkSudoGroup(client, user5); err != nil {
+			return false, err.Error()
 		}
+		return true, ""
 	})
-
-	if err := checkSudoGroup(client, user2); err != nil {
-		t.Fatalf("failed to check local user %s: %v", user2, err)
+	if err != nil {
+		t.Fatalf("failed to check local user %s: %v", user5, err)
 	}
-	metadata := utils.GetInstanceMetadata(t, vmname)
 
-	// Remove the user2's public key from the ssh-keys metadata.
-	for _, item := range metadata.Items {
-		var updateKeys []string
-		if item.Key == "ssh-keys" {
-			splitKeys := strings.Split(*item.Value, "\n")
-			for _, key := range splitKeys {
-				if strings.Contains(key, user2) {
-					continue
-				}
-				updateKeys = append(updateKeys, key)
-			}
-			res := strings.Join(updateKeys, "\n")
-			item.Value = &res
+	enableDeprovisionRemove(ctx, t)
+	updateUserSSHKey(t, vmname, user5, "")
+
+	err = utils.PollUntil(ctx, user5+" account deletion", pollInterval, actuationTimeout, func() (bool, string) {
+		if checkSudoGroup(client, user5) == nil { // if NO error
+			return false, "still in google-sudoers"
 		}
-	}
-
-	utils.SetInstanceMetadata(t, vmname, metadata)
-	time.Sleep(60 * time.Second)
-
-	if err := checkSudoGroup(client, user2); err == nil {
-		t.Fatalf("user %s still exists in sudo group on target host, %s", user2, vmname)
-	}
-	if err := checkLocalUser(client, user2); err == nil {
-		t.Fatalf("user %s still exists on target host, %s, err: %v", user2, vmname, err)
+		if checkLocalUser(client, user5) == nil { // if NO error
+			return false, "still in /etc/passwd"
+		}
+		return true, ""
+	})
+	if err != nil {
+		t.Fatalf("user %s still exists on target host %s: %v", user5, vmname, err)
 	}
 }
 
 func TestDeleteUserDefault(t *testing.T) {
-	vmname, err := utils.GetRealVMName(utils.Context(t), "server")
+	utils.LinuxOnly(t)
+	ctx := utils.Context(t)
+	vmname, err := utils.GetInstanceName(ctx)
 	if err != nil {
-		t.Fatalf("failed to get real vm name: %v", err)
+		t.Fatalf("failed to get instance name: %v", err)
 	}
-	t.Logf("vmname: %s", vmname)
-	pembytes, err := utils.DownloadPrivateKey(utils.Context(t), user2)
+	addr := fmt.Sprintf("%s:22", vmname)
+	pembytes, err := utils.DownloadPrivateKey(ctx, user2)
 	if err != nil {
 		t.Fatalf("failed to download private key: %v", err)
 	}
-	time.Sleep(60 * time.Second)
-	t.Logf("connect to remote host at %d", time.Now().UnixNano())
-	client, err := utils.CreateClient(user2, fmt.Sprintf("%s:22", vmname), pembytes)
-	if err != nil {
-		t.Fatalf("user %s failed ssh to target host, %s, err %v", user2, vmname, err)
-	}
-	t.Cleanup(func() {
-		if client != nil {
-			client.Close()
+	client := dialSSH(ctx, t, user2, addr, pembytes)
+	err = utils.PollUntil(ctx, user2+" initial provisioning", pollInterval, actuationTimeout, func() (bool, string) {
+		if err := checkSudoGroup(client, user2); err != nil {
+			return false, err.Error()
 		}
+		return true, ""
 	})
-	if err := checkSudoGroup(client, user2); err != nil {
+	if err != nil {
 		t.Fatalf("failed to check local user %s: %v", user2, err)
 	}
-	metadata := utils.GetInstanceMetadata(t, vmname)
 
-	// Remove the user2's public key from the ssh-keys metadata.
-	for _, item := range metadata.Items {
-		var updateKeys []string
-		if item.Key == "ssh-keys" {
-			splitKeys := strings.Split(*item.Value, "\n")
-			for _, key := range splitKeys {
-				if strings.Contains(key, user2) {
-					continue
-				}
-				updateKeys = append(updateKeys, key)
-			}
-			res := strings.Join(updateKeys, "\n")
-			item.Value = &res
+	updateUserSSHKey(t, vmname, user2, "")
+
+	err = utils.PollUntil(ctx, user2+" key and group revocation", pollInterval, actuationTimeout, func() (bool, string) {
+		if checkSudoGroup(client, user2) == nil { // if NO error
+			return false, "still in google-sudoers"
 		}
-	}
-
-	utils.SetInstanceMetadata(t, vmname, metadata)
-	time.Sleep(60 * time.Second)
-
-	client2, err := utils.CreateClient(user2, fmt.Sprintf("%s:22", vmname), pembytes)
-	t.Cleanup(func() {
-		if client2 != nil {
-			client2.Close()
+		if c2, sshErr := utils.CreateClient(user2, addr, pembytes); sshErr == nil { // if NO error
+			c2.Close()
+			return false, "SSH with removed key still succeeded"
 		}
+		return true, ""
 	})
-	if err == nil {
-		t.Fatalf("user %s successfully ssh to target host, %s", user2, vmname)
-	}
-
-	if err := checkSudoGroup(client, user2); err == nil {
-		t.Fatalf("user %s still exists in sudo group on target host, %s", user2, vmname)
+	if err != nil {
+		t.Fatalf("default deprovisioning for %s on %s failed: %v", user2, vmname, err)
 	}
 	// Default config is to keep the user in /etc/passwd
 	if err := checkLocalUser(client, user2); err != nil {
 		t.Fatalf("user %s does not exist on target host, %s, err: %v", user2, vmname, err)
 	}
+}
+
+func enableDeprovisionRemove(ctx context.Context, t *testing.T) {
+	t.Helper()
+	origCfg, err := os.ReadFile(instanceConfigsPath)
+	existed := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed to read instance configs: %v", err)
+	}
+	currentCfg := string(origCfg)
+	var newCfg string
+	if strings.Contains(currentCfg, "deprovision_remove = false") {
+		newCfg = strings.Replace(currentCfg, "deprovision_remove = false", "deprovision_remove = true", 1)
+	} else {
+		newCfg = fmt.Sprintf("%s\n[Accounts]\ndeprovision_remove = true\n", currentCfg)
+	}
+	if err := os.WriteFile(instanceConfigsPath, []byte(newCfg), 0644); err != nil {
+		t.Fatalf("failed to write instance configs: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if existed {
+			if err := os.WriteFile(instanceConfigsPath, origCfg, 0644); err != nil {
+				t.Logf("failed to restore instance configs: %v", err)
+			}
+		} else if err := os.Remove(instanceConfigsPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Logf("failed to remove instance configs: %v", err)
+		}
+		if err := utils.RestartAgent(cleanupCtx); err != nil {
+			t.Logf("failed to restart agent during cleanup: %v", err)
+		}
+	})
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatalf("failed to restart agent after enabling deprovision_remove: %v", err)
+	}
+}
+
+func dialSSH(ctx context.Context, t *testing.T, username, addr string, pemBytes []byte) *ssh.Client {
+	t.Helper()
+	var client *ssh.Client
+	err := utils.PollUntil(ctx, "SSH connection for "+username+"@"+addr, pollInterval, connectTimeout, func() (bool, string) {
+		c, dialErr := utils.CreateClient(username, addr, pemBytes)
+		if dialErr != nil {
+			return false, dialErr.Error()
+		}
+		client = c
+		return true, ""
+	})
+	if err != nil {
+		t.Fatalf("user %s failed ssh to %s: %v", username, addr, err)
+	}
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Logf("failed to close client: %v", err)
+		}
+	})
+	return client
+}
+
+// updateUserSSHKey replaces username's entry in ssh-keys metadata with
+// newPublicKey, or removes username's entry when newPublicKey is empty.
+func updateUserSSHKey(t *testing.T, vmname, username, newPublicKey string) {
+	t.Helper()
+	metadata := utils.GetInstanceMetadata(t, vmname)
+	prefix := username + ":"
+	found := false
+	for _, item := range metadata.Items {
+		if item == nil || item.Key != "ssh-keys" || item.Value == nil {
+			continue
+		}
+		var updateKeys []string
+		for _, key := range strings.Split(*item.Value, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(key), prefix) {
+				found = true
+				if newPublicKey == "" {
+					continue
+				}
+				key = fmt.Sprintf("%s:%s", username, newPublicKey)
+			}
+			updateKeys = append(updateKeys, key)
+		}
+		res := strings.Join(updateKeys, "\n")
+		item.Value = &res
+	}
+	if !found {
+		t.Fatalf("user %s not found in ssh-keys metadata on %s", username, vmname)
+	}
+	utils.SetInstanceMetadata(t, vmname, metadata)
 }
 
 // checkLocalUser test that the user account exists in /etc/passwd on linux
