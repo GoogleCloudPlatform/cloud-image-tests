@@ -4368,22 +4368,70 @@ config_expectations: {
     type: "GVNIC"
     tx_ring_size: 1024
     rx_ring_size: 1024
-    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-13" }
-    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "14-27" }
-    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "112-125" }
-    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "126-139" }
-    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "28-41" }
-    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "42-55" }
-    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "140-153" }
-    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "154-167" }
-    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "56-69" }
-    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "70-83" }
-    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "168-181" }
-    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "182-195" }
-    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "84-97" }
-    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "98-111" }
-    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "196-209" }
-    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "210-223" }
+    tx_queues: { index: 0 irq_cpulist: "1" xps_cpulist: "0-2" }
+    tx_queues: { index: 1 irq_cpulist: "2" xps_cpulist: "3-5" }
+    tx_queues: { index: 2 irq_cpulist: "3" xps_cpulist: "6-8" }
+    tx_queues: { index: 3 irq_cpulist: "4" xps_cpulist: "9-11" }
+    tx_queues: { index: 4 irq_cpulist: "5" xps_cpulist: "12-14" }
+    tx_queues: { index: 5 irq_cpulist: "6" xps_cpulist: "15-17" }
+    tx_queues: { index: 6 irq_cpulist: "7" xps_cpulist: "18-20" }
+    tx_queues: { index: 7 irq_cpulist: "8" xps_cpulist: "21-23" }
+    tx_queues: { index: 8 irq_cpulist: "9" xps_cpulist: "24-26" }
+    tx_queues: { index: 9 irq_cpulist: "10" xps_cpulist: "27,112-113" }
+    tx_queues: { index: 10 irq_cpulist: "11" xps_cpulist: "114-116" }
+    tx_queues: { index: 11 irq_cpulist: "12" xps_cpulist: "117-119" }
+    tx_queues: { index: 12 irq_cpulist: "13" xps_cpulist: "120-122" }
+    tx_queues: { index: 13 irq_cpulist: "14" xps_cpulist: "123-125" }
+    tx_queues: { index: 14 irq_cpulist: "15" xps_cpulist: "126-128" }
+    tx_queues: { index: 15 irq_cpulist: "16" xps_cpulist: "129-139" }
+    tx_queues: { index: 16 irq_cpulist: "17" xps_cpulist: "28-30" }
+    tx_queues: { index: 17 irq_cpulist: "18" xps_cpulist: "31-33" }
+    tx_queues: { index: 18 irq_cpulist: "19" xps_cpulist: "34-36" }
+    tx_queues: { index: 19 irq_cpulist: "20" xps_cpulist: "37-39" }
+    tx_queues: { index: 20 irq_cpulist: "21" xps_cpulist: "40-42" }
+    tx_queues: { index: 21 irq_cpulist: "22" xps_cpulist: "43-45" }
+    tx_queues: { index: 22 irq_cpulist: "23" xps_cpulist: "46-48" }
+    tx_queues: { index: 23 irq_cpulist: "24" xps_cpulist: "49-51" }
+    tx_queues: { index: 24 irq_cpulist: "25" xps_cpulist: "52-54" }
+    tx_queues: { index: 25 irq_cpulist: "26" xps_cpulist: "55,140-141" }
+    tx_queues: { index: 26 irq_cpulist: "27" xps_cpulist: "142-144" }
+    tx_queues: { index: 27 irq_cpulist: "112" xps_cpulist: "145-147" }
+    tx_queues: { index: 28 irq_cpulist: "113" xps_cpulist: "148-150" }
+    tx_queues: { index: 29 irq_cpulist: "114" xps_cpulist: "151-153" }
+    tx_queues: { index: 30 irq_cpulist: "115" xps_cpulist: "154-156" }
+    tx_queues: { index: 31 irq_cpulist: "116" xps_cpulist: "157-167" }
+    tx_queues: { index: 32 irq_cpulist: "117" xps_cpulist: "56-58" }
+    tx_queues: { index: 33 irq_cpulist: "118" xps_cpulist: "59-61" }
+    tx_queues: { index: 34 irq_cpulist: "119" xps_cpulist: "62-64" }
+    tx_queues: { index: 35 irq_cpulist: "120" xps_cpulist: "65-67" }
+    tx_queues: { index: 36 irq_cpulist: "121" xps_cpulist: "68-70" }
+    tx_queues: { index: 37 irq_cpulist: "122" xps_cpulist: "71-73" }
+    tx_queues: { index: 38 irq_cpulist: "123" xps_cpulist: "74-76" }
+    tx_queues: { index: 39 irq_cpulist: "124" xps_cpulist: "77-79" }
+    tx_queues: { index: 40 irq_cpulist: "125" xps_cpulist: "80-82" }
+    tx_queues: { index: 41 irq_cpulist: "126" xps_cpulist: "83,168-169" }
+    tx_queues: { index: 42 irq_cpulist: "127" xps_cpulist: "170-172" }
+    tx_queues: { index: 43 irq_cpulist: "128" xps_cpulist: "173-175" }
+    tx_queues: { index: 44 irq_cpulist: "129" xps_cpulist: "176-178" }
+    tx_queues: { index: 45 irq_cpulist: "130" xps_cpulist: "179-181" }
+    tx_queues: { index: 46 irq_cpulist: "131" xps_cpulist: "182-184" }
+    tx_queues: { index: 47 irq_cpulist: "132" xps_cpulist: "185-195" }
+    tx_queues: { index: 48 irq_cpulist: "133" xps_cpulist: "84-86" }
+    tx_queues: { index: 49 irq_cpulist: "134" xps_cpulist: "87-89" }
+    tx_queues: { index: 50 irq_cpulist: "135" xps_cpulist: "90-92" }
+    tx_queues: { index: 51 irq_cpulist: "136" xps_cpulist: "93-95" }
+    tx_queues: { index: 52 irq_cpulist: "137" xps_cpulist: "96-98" }
+    tx_queues: { index: 53 irq_cpulist: "138" xps_cpulist: "99-101" }
+    tx_queues: { index: 54 irq_cpulist: "139" xps_cpulist: "102-104" }
+    tx_queues: { index: 55 irq_cpulist: "1" xps_cpulist: "105-107" }
+    tx_queues: { index: 56 irq_cpulist: "2" xps_cpulist: "108-110" }
+    tx_queues: { index: 57 irq_cpulist: "3" xps_cpulist: "111,196-197" }
+    tx_queues: { index: 58 irq_cpulist: "4" xps_cpulist: "198-200" }
+    tx_queues: { index: 59 irq_cpulist: "5" xps_cpulist: "201-203" }
+    tx_queues: { index: 60 irq_cpulist: "6" xps_cpulist: "204-206" }
+    tx_queues: { index: 61 irq_cpulist: "7" xps_cpulist: "207-209" }
+    tx_queues: { index: 62 irq_cpulist: "8" xps_cpulist: "210-212" }
+    tx_queues: { index: 63 irq_cpulist: "9" xps_cpulist: "213-223" }
     rx_queues: { index: 0 irq_cpulist: "1" }
     rx_queues: { index: 1 irq_cpulist: "2" }
     rx_queues: { index: 2 irq_cpulist: "3" }
@@ -4400,27 +4448,123 @@ config_expectations: {
     rx_queues: { index: 13 irq_cpulist: "14" }
     rx_queues: { index: 14 irq_cpulist: "15" }
     rx_queues: { index: 15 irq_cpulist: "16" }
+    rx_queues: { index: 16 irq_cpulist: "17" }
+    rx_queues: { index: 17 irq_cpulist: "18" }
+    rx_queues: { index: 18 irq_cpulist: "19" }
+    rx_queues: { index: 19 irq_cpulist: "20" }
+    rx_queues: { index: 20 irq_cpulist: "21" }
+    rx_queues: { index: 21 irq_cpulist: "22" }
+    rx_queues: { index: 22 irq_cpulist: "23" }
+    rx_queues: { index: 23 irq_cpulist: "24" }
+    rx_queues: { index: 24 irq_cpulist: "25" }
+    rx_queues: { index: 25 irq_cpulist: "26" }
+    rx_queues: { index: 26 irq_cpulist: "27" }
+    rx_queues: { index: 27 irq_cpulist: "112" }
+    rx_queues: { index: 28 irq_cpulist: "113" }
+    rx_queues: { index: 29 irq_cpulist: "114" }
+    rx_queues: { index: 30 irq_cpulist: "115" }
+    rx_queues: { index: 31 irq_cpulist: "116" }
+    rx_queues: { index: 32 irq_cpulist: "117" }
+    rx_queues: { index: 33 irq_cpulist: "118" }
+    rx_queues: { index: 34 irq_cpulist: "119" }
+    rx_queues: { index: 35 irq_cpulist: "120" }
+    rx_queues: { index: 36 irq_cpulist: "121" }
+    rx_queues: { index: 37 irq_cpulist: "122" }
+    rx_queues: { index: 38 irq_cpulist: "123" }
+    rx_queues: { index: 39 irq_cpulist: "124" }
+    rx_queues: { index: 40 irq_cpulist: "125" }
+    rx_queues: { index: 41 irq_cpulist: "126" }
+    rx_queues: { index: 42 irq_cpulist: "127" }
+    rx_queues: { index: 43 irq_cpulist: "128" }
+    rx_queues: { index: 44 irq_cpulist: "129" }
+    rx_queues: { index: 45 irq_cpulist: "130" }
+    rx_queues: { index: 46 irq_cpulist: "131" }
+    rx_queues: { index: 47 irq_cpulist: "132" }
+    rx_queues: { index: 48 irq_cpulist: "133" }
+    rx_queues: { index: 49 irq_cpulist: "134" }
+    rx_queues: { index: 50 irq_cpulist: "135" }
+    rx_queues: { index: 51 irq_cpulist: "136" }
+    rx_queues: { index: 52 irq_cpulist: "137" }
+    rx_queues: { index: 53 irq_cpulist: "138" }
+    rx_queues: { index: 54 irq_cpulist: "139" }
+    rx_queues: { index: 55 irq_cpulist: "1" }
+    rx_queues: { index: 56 irq_cpulist: "2" }
+    rx_queues: { index: 57 irq_cpulist: "3" }
+    rx_queues: { index: 58 irq_cpulist: "4" }
+    rx_queues: { index: 59 irq_cpulist: "5" }
+    rx_queues: { index: 60 irq_cpulist: "6" }
+    rx_queues: { index: 61 irq_cpulist: "7" }
+    rx_queues: { index: 62 irq_cpulist: "8" }
+    rx_queues: { index: 63 irq_cpulist: "9" }
   }
   nics: {
     type: "GVNIC"
     tx_ring_size: 1024
     rx_ring_size: 1024
-    tx_queues: { index: 0 irq_cpulist: "56" xps_cpulist: "0-13" }
-    tx_queues: { index: 1 irq_cpulist: "57" xps_cpulist: "14-27" }
-    tx_queues: { index: 2 irq_cpulist: "58" xps_cpulist: "112-125" }
-    tx_queues: { index: 3 irq_cpulist: "59" xps_cpulist: "126-139" }
-    tx_queues: { index: 4 irq_cpulist: "60" xps_cpulist: "28-41" }
-    tx_queues: { index: 5 irq_cpulist: "61" xps_cpulist: "42-55" }
-    tx_queues: { index: 6 irq_cpulist: "62" xps_cpulist: "140-153" }
-    tx_queues: { index: 7 irq_cpulist: "63" xps_cpulist: "154-167" }
-    tx_queues: { index: 8 irq_cpulist: "64" xps_cpulist: "56-69" }
-    tx_queues: { index: 9 irq_cpulist: "65" xps_cpulist: "70-83" }
-    tx_queues: { index: 10 irq_cpulist: "66" xps_cpulist: "168-181" }
-    tx_queues: { index: 11 irq_cpulist: "67" xps_cpulist: "182-195" }
-    tx_queues: { index: 12 irq_cpulist: "68" xps_cpulist: "84-97" }
-    tx_queues: { index: 13 irq_cpulist: "69" xps_cpulist: "98-111" }
-    tx_queues: { index: 14 irq_cpulist: "70" xps_cpulist: "196-209" }
-    tx_queues: { index: 15 irq_cpulist: "71" xps_cpulist: "210-223" }
+    tx_queues: { index: 0 irq_cpulist: "56" xps_cpulist: "0-2" }
+    tx_queues: { index: 1 irq_cpulist: "57" xps_cpulist: "3-5" }
+    tx_queues: { index: 2 irq_cpulist: "58" xps_cpulist: "6-8" }
+    tx_queues: { index: 3 irq_cpulist: "59" xps_cpulist: "9-11" }
+    tx_queues: { index: 4 irq_cpulist: "60" xps_cpulist: "12-14" }
+    tx_queues: { index: 5 irq_cpulist: "61" xps_cpulist: "15-17" }
+    tx_queues: { index: 6 irq_cpulist: "62" xps_cpulist: "18-20" }
+    tx_queues: { index: 7 irq_cpulist: "63" xps_cpulist: "21-23" }
+    tx_queues: { index: 8 irq_cpulist: "64" xps_cpulist: "24-26" }
+    tx_queues: { index: 9 irq_cpulist: "65" xps_cpulist: "27,112-113" }
+    tx_queues: { index: 10 irq_cpulist: "66" xps_cpulist: "114-116" }
+    tx_queues: { index: 11 irq_cpulist: "67" xps_cpulist: "117-119" }
+    tx_queues: { index: 12 irq_cpulist: "68" xps_cpulist: "120-122" }
+    tx_queues: { index: 13 irq_cpulist: "69" xps_cpulist: "123-125" }
+    tx_queues: { index: 14 irq_cpulist: "70" xps_cpulist: "126-128" }
+    tx_queues: { index: 15 irq_cpulist: "71" xps_cpulist: "129-139" }
+    tx_queues: { index: 16 irq_cpulist: "72" xps_cpulist: "28-30" }
+    tx_queues: { index: 17 irq_cpulist: "73" xps_cpulist: "31-33" }
+    tx_queues: { index: 18 irq_cpulist: "74" xps_cpulist: "34-36" }
+    tx_queues: { index: 19 irq_cpulist: "75" xps_cpulist: "37-39" }
+    tx_queues: { index: 20 irq_cpulist: "76" xps_cpulist: "40-42" }
+    tx_queues: { index: 21 irq_cpulist: "77" xps_cpulist: "43-45" }
+    tx_queues: { index: 22 irq_cpulist: "78" xps_cpulist: "46-48" }
+    tx_queues: { index: 23 irq_cpulist: "79" xps_cpulist: "49-51" }
+    tx_queues: { index: 24 irq_cpulist: "80" xps_cpulist: "52-54" }
+    tx_queues: { index: 25 irq_cpulist: "81" xps_cpulist: "55,140-141" }
+    tx_queues: { index: 26 irq_cpulist: "82" xps_cpulist: "142-144" }
+    tx_queues: { index: 27 irq_cpulist: "83" xps_cpulist: "145-147" }
+    tx_queues: { index: 28 irq_cpulist: "168" xps_cpulist: "148-150" }
+    tx_queues: { index: 29 irq_cpulist: "169" xps_cpulist: "151-153" }
+    tx_queues: { index: 30 irq_cpulist: "170" xps_cpulist: "154-156" }
+    tx_queues: { index: 31 irq_cpulist: "171" xps_cpulist: "157-167" }
+    tx_queues: { index: 32 irq_cpulist: "172" xps_cpulist: "56-58" }
+    tx_queues: { index: 33 irq_cpulist: "173" xps_cpulist: "59-61" }
+    tx_queues: { index: 34 irq_cpulist: "174" xps_cpulist: "62-64" }
+    tx_queues: { index: 35 irq_cpulist: "175" xps_cpulist: "65-67" }
+    tx_queues: { index: 36 irq_cpulist: "176" xps_cpulist: "68-70" }
+    tx_queues: { index: 37 irq_cpulist: "177" xps_cpulist: "71-73" }
+    tx_queues: { index: 38 irq_cpulist: "178" xps_cpulist: "74-76" }
+    tx_queues: { index: 39 irq_cpulist: "179" xps_cpulist: "77-79" }
+    tx_queues: { index: 40 irq_cpulist: "180" xps_cpulist: "80-82" }
+    tx_queues: { index: 41 irq_cpulist: "181" xps_cpulist: "83,168-169" }
+    tx_queues: { index: 42 irq_cpulist: "182" xps_cpulist: "170-172" }
+    tx_queues: { index: 43 irq_cpulist: "183" xps_cpulist: "173-175" }
+    tx_queues: { index: 44 irq_cpulist: "184" xps_cpulist: "176-178" }
+    tx_queues: { index: 45 irq_cpulist: "185" xps_cpulist: "179-181" }
+    tx_queues: { index: 46 irq_cpulist: "186" xps_cpulist: "182-184" }
+    tx_queues: { index: 47 irq_cpulist: "187" xps_cpulist: "185-195" }
+    tx_queues: { index: 48 irq_cpulist: "188" xps_cpulist: "84-86" }
+    tx_queues: { index: 49 irq_cpulist: "189" xps_cpulist: "87-89" }
+    tx_queues: { index: 50 irq_cpulist: "190" xps_cpulist: "90-92" }
+    tx_queues: { index: 51 irq_cpulist: "191" xps_cpulist: "93-95" }
+    tx_queues: { index: 52 irq_cpulist: "192" xps_cpulist: "96-98" }
+    tx_queues: { index: 53 irq_cpulist: "193" xps_cpulist: "99-101" }
+    tx_queues: { index: 54 irq_cpulist: "194" xps_cpulist: "102-104" }
+    tx_queues: { index: 55 irq_cpulist: "195" xps_cpulist: "105-107" }
+    tx_queues: { index: 56 irq_cpulist: "56" xps_cpulist: "108-110" }
+    tx_queues: { index: 57 irq_cpulist: "57" xps_cpulist: "111,196-197" }
+    tx_queues: { index: 58 irq_cpulist: "58" xps_cpulist: "198-200" }
+    tx_queues: { index: 59 irq_cpulist: "59" xps_cpulist: "201-203" }
+    tx_queues: { index: 60 irq_cpulist: "60" xps_cpulist: "204-206" }
+    tx_queues: { index: 61 irq_cpulist: "61" xps_cpulist: "207-209" }
+    tx_queues: { index: 62 irq_cpulist: "62" xps_cpulist: "210-212" }
+    tx_queues: { index: 63 irq_cpulist: "63" xps_cpulist: "213-223" }
     rx_queues: { index: 0 irq_cpulist: "56" }
     rx_queues: { index: 1 irq_cpulist: "57" }
     rx_queues: { index: 2 irq_cpulist: "58" }
@@ -4437,6 +4581,54 @@ config_expectations: {
     rx_queues: { index: 13 irq_cpulist: "69" }
     rx_queues: { index: 14 irq_cpulist: "70" }
     rx_queues: { index: 15 irq_cpulist: "71" }
+    rx_queues: { index: 16 irq_cpulist: "72" }
+    rx_queues: { index: 17 irq_cpulist: "73" }
+    rx_queues: { index: 18 irq_cpulist: "74" }
+    rx_queues: { index: 19 irq_cpulist: "75" }
+    rx_queues: { index: 20 irq_cpulist: "76" }
+    rx_queues: { index: 21 irq_cpulist: "77" }
+    rx_queues: { index: 22 irq_cpulist: "78" }
+    rx_queues: { index: 23 irq_cpulist: "79" }
+    rx_queues: { index: 24 irq_cpulist: "80" }
+    rx_queues: { index: 25 irq_cpulist: "81" }
+    rx_queues: { index: 26 irq_cpulist: "82" }
+    rx_queues: { index: 27 irq_cpulist: "83" }
+    rx_queues: { index: 28 irq_cpulist: "168" }
+    rx_queues: { index: 29 irq_cpulist: "169" }
+    rx_queues: { index: 30 irq_cpulist: "170" }
+    rx_queues: { index: 31 irq_cpulist: "171" }
+    rx_queues: { index: 32 irq_cpulist: "172" }
+    rx_queues: { index: 33 irq_cpulist: "173" }
+    rx_queues: { index: 34 irq_cpulist: "174" }
+    rx_queues: { index: 35 irq_cpulist: "175" }
+    rx_queues: { index: 36 irq_cpulist: "176" }
+    rx_queues: { index: 37 irq_cpulist: "177" }
+    rx_queues: { index: 38 irq_cpulist: "178" }
+    rx_queues: { index: 39 irq_cpulist: "179" }
+    rx_queues: { index: 40 irq_cpulist: "180" }
+    rx_queues: { index: 41 irq_cpulist: "181" }
+    rx_queues: { index: 42 irq_cpulist: "182" }
+    rx_queues: { index: 43 irq_cpulist: "183" }
+    rx_queues: { index: 44 irq_cpulist: "184" }
+    rx_queues: { index: 45 irq_cpulist: "185" }
+    rx_queues: { index: 46 irq_cpulist: "186" }
+    rx_queues: { index: 47 irq_cpulist: "187" }
+    rx_queues: { index: 48 irq_cpulist: "188" }
+    rx_queues: { index: 49 irq_cpulist: "189" }
+    rx_queues: { index: 50 irq_cpulist: "190" }
+    rx_queues: { index: 51 irq_cpulist: "191" }
+    rx_queues: { index: 52 irq_cpulist: "192" }
+    rx_queues: { index: 53 irq_cpulist: "193" }
+    rx_queues: { index: 54 irq_cpulist: "194" }
+    rx_queues: { index: 55 irq_cpulist: "195" }
+    rx_queues: { index: 56 irq_cpulist: "56" }
+    rx_queues: { index: 57 irq_cpulist: "57" }
+    rx_queues: { index: 58 irq_cpulist: "58" }
+    rx_queues: { index: 59 irq_cpulist: "59" }
+    rx_queues: { index: 60 irq_cpulist: "60" }
+    rx_queues: { index: 61 irq_cpulist: "61" }
+    rx_queues: { index: 62 irq_cpulist: "62" }
+    rx_queues: { index: 63 irq_cpulist: "63" }
   }
 }
 config_expectations: {
