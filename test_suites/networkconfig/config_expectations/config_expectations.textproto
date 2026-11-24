@@ -5253,8 +5253,6 @@ config_expectations: {
   }
   nics: {
     type: "IRDMA"
-    tx_ring_size: 4096
-    rx_ring_size: 4096
     tx_queues: { index: 0 xps_cpulist: "" }
     tx_queues: { index: 1 xps_cpulist: "" }
     tx_queues: { index: 2 xps_cpulist: "" }
@@ -5266,8 +5264,6 @@ config_expectations: {
   }
   nics: {
     type: "IRDMA"
-    tx_ring_size: 4096
-    rx_ring_size: 4096
     tx_queues: { index: 0 xps_cpulist: "" }
     tx_queues: { index: 1 xps_cpulist: "" }
     tx_queues: { index: 2 xps_cpulist: "" }
