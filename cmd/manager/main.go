@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -213,14 +214,16 @@ func init() {
 }
 
 // rotatedZones returns a slice of zones rotated such that the zone at
-// zonesRoundRobinIdx is first.
+// zonesRoundRobinIdx is first. On the first call in a process, the starting
+// index is chosen at random so reruns do not always start in zones[0].
 func rotatedZones() []string {
 	if len(zones) == 0 {
 		return []string{*zone}
 	}
-	zonesRoundRobinIdx++
-	if zonesRoundRobinIdx >= len(zones) {
-		zonesRoundRobinIdx = 0
+	if zonesRoundRobinIdx < 0 {
+		zonesRoundRobinIdx = rand.IntN(len(zones))
+	} else {
+		zonesRoundRobinIdx = (zonesRoundRobinIdx + 1) % len(zones)
 	}
 	rotated := make([]string, len(zones))
 	for i := 0; i < len(zones); i++ {

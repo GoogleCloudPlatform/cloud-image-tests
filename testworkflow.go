@@ -943,7 +943,7 @@ func getTestResults(ctx context.Context, ts *TestWorkflow) ([]string, error) {
 
 // NewTestWorkflow returns a new TestWorkflow.
 func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error) (*TestWorkflow, error) {
-	if len(opts.Zones) == 0 && opts.Zone != "" {
+	if len(opts.Zones) == 0 {
 		opts.Zones = []string{opts.Zone}
 	}
 	t := &TestWorkflow{}
@@ -975,10 +975,6 @@ func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error
 	if err != nil {
 		return nil, err
 	}
-	t.Zone, err = t.Client.GetZone(t.Project.Name, opts.Zone)
-	if err != nil {
-		return nil, err
-	}
 
 	// Initializing Image inside the TestWorkflow
 	split := strings.Split(opts.Image, "/")
@@ -986,6 +982,9 @@ func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error
 		t.Image, err = t.Client.GetImageFromFamily(split[1], split[len(split)-1])
 	} else {
 		t.Image, err = t.Client.GetImage(split[1], split[len(split)-1])
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// Initializing ImageBeta inside the TestWorkflow, this is required to provide Beta support to cvm testsuite
@@ -997,10 +996,23 @@ func NewTestWorkflow(opts *TestWorkflowOpts, setupFunc func(*TestWorkflow) error
 	if err != nil {
 		return nil, err
 	}
+	shape := opts.X86Shape
 	if t.Image.Architecture == "ARM64" {
-		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, opts.ARM64Shape)
-	} else {
-		t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, opts.X86Shape)
+		shape = opts.ARM64Shape
+	}
+	// Use the first zone that offers the machine type, so one zone without it
+	// does not stop the whole run. Zones checked before it are dropped.
+	for i, zone := range opts.Zones {
+		t.Zone, err = t.Client.GetZone(t.Project.Name, zone)
+		if err == nil {
+			t.MachineType, err = t.Client.GetMachineType(t.Project.Name, t.Zone.Name, shape)
+		}
+		if err == nil {
+			opts.Zone = zone
+			opts.Zones = opts.Zones[i:]
+			break
+		}
+		log.Printf("Skipping zone %s for test %s: %v", zone, opts.Name, err)
 	}
 	if err != nil {
 		return nil, err
@@ -1133,6 +1145,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 	}
 
 	metrics := newTestMetrics(len(testWorkflows))
+	stockouts := newZoneStockouts()
 	finalizeWorkflows(ctx, testWorkflows, gcsPrefix, localPath)
 
 	testResults := make(chan testResult, len(testWorkflows))
@@ -1184,7 +1197,7 @@ func RunTests(ctx context.Context, storageClient *storage.Client, testWorkflows 
 				} else {
 					test.wf.Project = <-projects
 				}
-				testResults <- runTestWorkflow(ctx, metrics, test, gcsPrefix, localPath)
+				testResults <- runTestWorkflow(ctx, metrics, stockouts, test, gcsPrefix, localPath)
 				if test.lockProject {
 					// "unlock" the project.
 					exclusiveProjects <- test.wf.Project
@@ -1223,7 +1236,79 @@ func formatTimeDelta(format string, t time.Duration) string {
 	return z.Add(time.Duration(t)).Format(format)
 }
 
-func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkflow, gcsPrefix, localPath string) testResult {
+// zoneStockouts records zones where workflows in one run hit a stockout or
+// quota error, per project and machine type. Workflows running at the same
+// time share it, so they try zones that have not run out first.
+type zoneStockouts struct {
+	mu sync.Mutex
+	// seen holds when the last stockout happened for each key.
+	seen map[stockoutKey]time.Time
+}
+
+type stockoutKey struct {
+	project, zone, machineType string
+}
+
+func newZoneStockouts() *zoneStockouts {
+	return &zoneStockouts{seen: make(map[stockoutKey]time.Time)}
+}
+
+// add records a stockout or quota error that just happened.
+func (s *zoneStockouts) add(k stockoutKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seen[k] = time.Now()
+}
+
+// clear forgets a stockout recorded at or before start. It is called when a run
+// that began at start passed, which shows the zone had room again.
+func (s *zoneStockouts) clear(k stockoutKey, start time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if t, ok := s.seen[k]; ok && !t.After(start) {
+		delete(s.seen, k)
+	}
+}
+
+// nextZone returns the first zone in zones that is not in tried and has no
+// recorded stockout for project and machineType. If every untried zone has
+// one, it returns the first untried zone. It returns "" once all zones have
+// been tried.
+func (s *zoneStockouts) nextZone(project, machineType string, zones []string, tried map[string]bool) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := ""
+	for _, zone := range zones {
+		if tried[zone] {
+			continue
+		}
+		if _, ok := s.seen[stockoutKey{project, zone, machineType}]; !ok {
+			return zone
+		}
+		if next == "" {
+			next = zone
+		}
+	}
+	return next
+}
+
+// stockoutMachineType returns the machine type that stockouts of test are
+// recorded under: the type of its first VM. A suite that asks for its own
+// machine type then does not change the zone order for suites that use the
+// default one.
+func stockoutMachineType(test *TestWorkflow) string {
+	if step, ok := test.wf.Steps[createVMsStepName]; ok {
+		if vms := step.CreateInstances.Instances; len(vms) > 0 && vms[0].MachineType != "" {
+			return vms[0].MachineType
+		}
+		if vms := step.CreateInstances.InstancesBeta; len(vms) > 0 && vms[0].MachineType != "" {
+			return vms[0].MachineType
+		}
+	}
+	return test.MachineType.Name
+}
+
+func runTestWorkflow(ctx context.Context, metrics *testMetrics, stockouts *zoneStockouts, test *TestWorkflow, gcsPrefix, localPath string) testResult {
 	metrics.started()
 
 	res := testResult{testWorkflow: test}
@@ -1239,7 +1324,9 @@ func runTestWorkflow(ctx context.Context, metrics *testMetrics, test *TestWorkfl
 
 	var start time.Time
 	var err error
-	test, start, err = runTestWorkflowWithRetries(ctx, test, metrics, gcsPrefix, localPath)
+	test, start, err = runTestWorkflowWithRetries(ctx, test, metrics, stockouts, gcsPrefix, localPath, func(ctx context.Context, wf *daisy.Workflow) error {
+		return wf.Run(ctx)
+	})
 	res.testWorkflow = test
 	if err != nil {
 		res.err = err
@@ -1275,38 +1362,51 @@ func cleanupTestWorkflowProgress(test *TestWorkflow, metrics *testMetrics) {
 	}
 }
 
-func runTestWorkflowWithRetries(ctx context.Context, test *TestWorkflow, metrics *testMetrics, gcsPrefix, localPath string) (*TestWorkflow, time.Time, error) {
+// runTestWorkflowWithRetries runs test with run. After a stockout or quota
+// error it builds the workflow again in the next zone from test.opts.Zones and
+// reruns it. Zones where another workflow recently ran out for the same
+// machine type are tried last, and zones where the workflow cannot be built
+// are skipped.
+func runTestWorkflowWithRetries(ctx context.Context, test *TestWorkflow, metrics *testMetrics, stockouts *zoneStockouts, gcsPrefix, localPath string, run func(context.Context, *daisy.Workflow) error) (*TestWorkflow, time.Time, error) {
 	var err error
 	var start time.Time
-	for zoneIdx, zone := range test.opts.Zones {
-		if zoneIdx > 0 {
-			log.Printf("Retrying test %s in zone %s due to previous stockout/quota error", test.Name, zone)
-
-			// Clean up resources of the failed run before retrying
-			cleanTestWorkflow(test)
-
-			newTest, err := recreateTestWorkflow(test, zone)
-			if err != nil {
-				return test, start, fmt.Errorf("failed to recreate workflow for retry: %v", err)
+	zones := test.opts.Zones
+	tried := make(map[string]bool)
+	for {
+		zone := stockouts.nextZone(test.wf.Project, stockoutMachineType(test), zones, tried)
+		if zone == "" {
+			break
+		}
+		tried[zone] = true
+		if zone != test.opts.Zone {
+			log.Printf("Moving test %s from zone %s to %s after a stockout or quota error", test.Name, test.opts.Zone, zone)
+			newTest, setupErr := recreateTestWorkflow(test, zone)
+			if setupErr == nil {
+				setupErr = finalizeWorkflows(ctx, []*TestWorkflow{newTest}, gcsPrefix, localPath)
 			}
-
-			// Finalize the new workflow
-			if err := finalizeWorkflows(ctx, []*TestWorkflow{newTest}, gcsPrefix, localPath); err != nil {
-				return newTest, start, fmt.Errorf("failed to finalize workflow for retry: %v", err)
+			if setupErr != nil {
+				log.Printf("Skipping zone %s for test %s: %v", zone, test.Name, setupErr)
+				continue
 			}
-
+			if !start.IsZero() {
+				// Delete what the failed run left behind before running again.
+				cleanTestWorkflow(test)
+			}
 			test = newTest
 		}
 
 		start = time.Now()
 		log.Printf("running test %s/%s (ID %s) in project: %s, zone: %s, progress: %s\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, metrics.progress())
-		err = test.wf.Run(ctx)
+		err = run(ctx, test.wf)
+		key := stockoutKey{test.wf.Project, zone, stockoutMachineType(test)}
 		if err == nil {
-			break // Success
+			stockouts.clear(key, start)
+			break
 		}
 		if !isStockoutOrQuotaError(err) {
-			break // Non-stockout error, don't retry
+			break
 		}
+		stockouts.add(key)
 		log.Printf("stockout/quota error in test %s/%s (ID %s) in project: %s, zone: %s, error: %v\n", test.Name, test.Image.Name, test.wf.ID(), test.wf.Project, test.wf.Zone, err)
 	}
 	return test, start, err
@@ -1537,9 +1637,15 @@ func isStockoutOrQuotaError(err error) bool {
 		strings.Contains(errStr, "QUOTA_EXCEEDED")
 }
 
+// recreateTestWorkflow builds a new copy of old in zone, keeps the project old
+// was given, and runs the setup function again. It fails if zone does not offer
+// the workflow's machine type.
 func recreateTestWorkflow(old *TestWorkflow, zone string) (*TestWorkflow, error) {
 	opts := *old.opts
 	opts.Zone = zone // Update the zone in options
+	// List only this zone, so NewTestWorkflow fails here instead of moving on
+	// to another zone when this one lacks the machine type.
+	opts.Zones = []string{zone}
 
 	newTest, err := NewTestWorkflow(&opts, old.SetupFunc)
 	if err != nil {
