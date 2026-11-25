@@ -427,7 +427,7 @@ func TestLSSDPartitionSymlinks(t *testing.T) {
 	})
 
 	cmd := exec.Command("sfdisk", "--wipe=always", targetDev)
-	cmd.Stdin = strings.NewReader("size=64M, type=linux\n")
+	cmd.Stdin = strings.NewReader("size=64M\n")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("sfdisk failed on %s: %v, output: %s", targetDev, err, string(out))
 	}
