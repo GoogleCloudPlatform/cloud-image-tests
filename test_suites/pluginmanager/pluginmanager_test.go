@@ -166,23 +166,26 @@ func createTestPlugin(t *testing.T) *Plugin {
 	return testplugin
 }
 
-func ggactlCleanupPath(t *testing.T) string {
-	t.Helper()
-
+// ggactlPluginPath returns the plugin manager's ggactl_plugin binary. Images
+// whose guest agent has no plugin manager return an error.
+func ggactlPluginPath() (string, error) {
 	if utils.IsWindows() {
 		execPath := `C:\Program Files\Google\Compute Engine\agent\ggactl_plugin.exe`
 		if !utils.Exists(execPath, utils.TypeFile) {
-			t.Skipf("ggactl_plugin executable not found at %q", execPath)
+			return "", fmt.Errorf("%s not found", execPath)
 		}
-		return execPath
+		return execPath, nil
 	}
-
 	// On Linux the binary must be found in the PATH.
-	execPath, err := exec.LookPath("ggactl_plugin")
+	return exec.LookPath("ggactl_plugin")
+}
+
+func ggactlCleanupPath(t *testing.T) string {
+	t.Helper()
+	execPath, err := ggactlPluginPath()
 	if err != nil {
 		t.Skipf("Failed to find ggactl_plugin executable: %v", err)
 	}
-
 	return execPath
 }
 
@@ -720,6 +723,32 @@ func TestPluginManagerNoCorePlugin(t *testing.T) {
 
 	// Make sure the old guest agent is running.
 	utils.VerifyProcessExistsLinux(t, true, "/usr/bin/google_guest_agent")
+
+	verifyHybridUnits(t)
+}
+
+// verifyHybridUnits checks the legacy agent plus manager layout that ships
+// without a core plugin.
+func verifyHybridUnits(t *testing.T) {
+	t.Helper()
+	systemctl := func(args ...string) string {
+		out, _ := exec.Command("systemctl", args...).CombinedOutput()
+		return strings.TrimSpace(string(out))
+	}
+	for _, unit := range []string{"google-guest-agent.service", "google-guest-agent-manager.service"} {
+		if got := systemctl("is-active", unit); got != "active" {
+			t.Errorf("%s is %q, want active", unit, got)
+		}
+		if got := systemctl("is-enabled", unit); got != "enabled" {
+			t.Errorf("%s is %q, want enabled", unit, got)
+		}
+	}
+	if got := systemctl("is-active", "gce-workload-cert-refresh.timer"); got != "active" {
+		t.Errorf("gce-workload-cert-refresh.timer is %q, want active", got)
+	}
+	if got := systemctl("show", "-p", "NRestarts", "--value", "google-guest-agent-manager.service"); got != "0" {
+		t.Errorf("google-guest-agent-manager.service restarted %s times, want 0", got)
+	}
 }
 
 func startTestServer(t *testing.T) (*grpc.Server, string) {

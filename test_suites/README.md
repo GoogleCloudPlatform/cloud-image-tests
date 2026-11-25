@@ -471,6 +471,25 @@ Test the functionality of the [GCESysprep](https://cloud.google.com/compute/docs
 * The windows setup script SetupComplete.cmd was written.
 * google_osconfig_agent was disabled
 
+### Test suite: pluginmanager
+
+#### TestVMExtensionLifecycle
+
+Install the ops-agent VM extension through a zonal VM extension policy, check
+that it is still installed after a reboot, then delete the policy and check
+that the extension is removed. Runs on Linux and Windows Server images. The
+test skips on images ops-agent has no build for (the list is
+`vmExtUnsupportedImages` in `pluginmanager/setup.go`) and on images whose
+guest agent has no plugin manager. When an install or removal wait times out,
+the failure points at the VM's `compute.googleapis.com/vm_extension_policies`
+log in Cloud Logging, which carries the VM extension service's reason.
+
+Project requirements: the VM service account needs
+`roles/compute.vmExtensionPolicyAdmin` (the test skips without it), and the
+project needs the Cloud Monitoring or Cloud Logging API enabled for the
+ops-agent extension (without it the extension is reported `SERVICE_DISABLED`
+and never installs).
+
 ### Test suite: rhel
 Validate the RHEL images are set up properly
 
