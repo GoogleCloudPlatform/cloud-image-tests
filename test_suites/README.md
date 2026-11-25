@@ -595,9 +595,10 @@ Validate that host keys from disk are unique between instances.
 
 Test that SSH host keys do not change after restarting the guest agent.
 
-#### TestSSHInstanceKey TestEmptyTest
+#### TestSSHInstanceKey
 
-TestSSHInstanceKey tests that it can add a metadata ssh key to another instance and use it to connect. TestEmptyTest does nothing, and waits to be connected to.
+TestSSHInstanceKey tests that it can add a metadata ssh key to another instance
+and use it to connect.
 
 ### Test suite: storageperf
 
