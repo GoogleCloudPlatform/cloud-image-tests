@@ -26,7 +26,16 @@ import (
 
 // GetGoogleRoutes returns the routes added by the guest agent.
 func GetGoogleRoutes(ctx context.Context, t *testing.T, networkInterface net.Interface) ([]string, error) {
-	status, err := RunPowershellCmd(fmt.Sprintf("Get-NetRoute -InterfaceIndex %d | ForEach-Object { Write-Output $_.DestinationPrefix }", networkInterface.Index))
+	return getGoogleRoutes(ctx, t, fmt.Sprintf("Get-NetRoute -InterfaceIndex %d | ForEach-Object { Write-Output $_.DestinationPrefix }", networkInterface.Index))
+}
+
+// GetGoogleIPv6Routes returns the IPv6 routes added by the guest agent.
+func GetGoogleIPv6Routes(ctx context.Context, t *testing.T, networkInterface net.Interface) ([]string, error) {
+	return getGoogleRoutes(ctx, t, fmt.Sprintf("Get-NetRoute -InterfaceIndex %d -AddressFamily IPv6 | Where-Object { $_.Protocol -eq 66 } | ForEach-Object { Write-Output $_.DestinationPrefix }", networkInterface.Index))
+}
+
+func getGoogleRoutes(ctx context.Context, t *testing.T, psCmd string) ([]string, error) {
+	status, err := RunPowershellCmd(psCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get routes: %v", err)
 	}

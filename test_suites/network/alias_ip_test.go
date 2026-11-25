@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"strings"
@@ -158,6 +159,19 @@ func TestGgactlCommand(t *testing.T) {
 		}
 	}
 
+	beforeTriggerV6, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		t.Fatalf("Failed to get Google IPv6 routes before ggactl trigger: %v", err)
+	}
+	for _, route := range beforeTriggerV6 {
+		args := fmt.Sprintf("-6 route delete to local %s dev %s proto 66", route, iface.Name)
+		cmd := exec.Command("ip", strings.Split(args, " ")...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Failed to delete IPv6 route: %v, output: %q", err, string(out))
+		}
+	}
+
 	out, err := exec.CommandContext(ctx, "ggactl_plugin", "routes", "setup").CombinedOutput()
 	if err != nil {
 		t.Fatalf("Failed to run ggactl_plugin routes setup: %v, output:\n %s", err, string(out))
@@ -170,6 +184,14 @@ func TestGgactlCommand(t *testing.T) {
 
 	if !compare(beforeTrigger, afterTrigger) {
 		t.Fatalf("routes are inconsistent after ggactl trigger, before %v after %v", beforeTrigger, afterTrigger)
+	}
+
+	afterTriggerV6, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		t.Fatalf("Failed to get Google IPv6 routes after ggactl trigger: %v", err)
+	}
+	if !compare(beforeTriggerV6, afterTriggerV6) {
+		t.Fatalf("IPv6 routes are inconsistent after ggactl trigger, before %v after %v", beforeTriggerV6, afterTriggerV6)
 	}
 }
 
@@ -325,6 +347,151 @@ func verifyIPExist(ctx context.Context, routes []string) error {
 		}
 	}
 	return fmt.Errorf("alias ip %s does not exist after reboot, routes: %v", expected, routes)
+}
+
+func TestIPv6Aliases(t *testing.T) {
+	expected := readFirstIPv6AliasOrSkip(utils.Context(t), t)
+	if err := verifyIPv6Aliases(t, expected); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIPv6AliasAfterReboot(t *testing.T) {
+	expected := readFirstIPv6AliasOrSkip(utils.Context(t), t)
+	if err := verifyIPv6Aliases(t, expected); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIPv6AliasAgentRestart(t *testing.T) {
+	ctx := utils.Context(t)
+	expected := readFirstIPv6AliasOrSkip(ctx, t)
+	iface := readNic(ctx, t, 0)
+
+	beforeRestart, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	afterRestart, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !compare(beforeRestart, afterRestart) {
+		t.Fatalf("IPv6 routes are inconsistent after restart, before %v after %v", beforeRestart, afterRestart)
+	}
+	if err := verifyIPv6Exist(expected, afterRestart); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIPv6AliasAgentRestartWithIPv6AliasesConfigFalse(t *testing.T) {
+	utils.LinuxOnly(t)
+	ctx := utils.Context(t)
+	_ = readFirstIPv6AliasOrSkip(ctx, t)
+	iface := readNic(ctx, t, 0)
+
+	configFile := "/etc/default/instance_configs.cfg"
+	origData, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.WriteFile(configFile, origData, 0644); err != nil {
+			t.Fatalf("Failed to restore %s: %v", configFile, err)
+		}
+		if err := utils.RestartAgent(ctx); err != nil {
+			t.Fatalf("Failed to restart agent after restoring config: %v", err)
+		}
+	})
+
+	updated := fmt.Sprintf("%s\n[IpForwarding]\nipv6_aliases = false\n", string(origData))
+	if err := os.WriteFile(configFile, []byte(updated), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatalf("Failed to restart agent after setting ipv6_aliases = false: %v", err)
+	}
+
+	time.Sleep(10 * time.Second)
+
+	afterRestartV6, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		t.Fatalf("Error getting IPv6 routes after restart: %v", err)
+	}
+	if len(afterRestartV6) != 0 {
+		t.Fatalf("IPv6 alias routes %v exist after restart with ipv6_aliases = false, want none", afterRestartV6)
+	}
+
+	afterRestartV4, err := utils.GetGoogleRoutes(ctx, t, iface)
+	if err != nil {
+		t.Fatalf("Error getting IPv4 routes after restart: %v", err)
+	}
+	if err := verifyIPExist(ctx, afterRestartV4); err != nil {
+		t.Fatalf("IPv4 alias routes should remain intact when only ipv6_aliases = false: %v", err)
+	}
+}
+
+func readFirstIPv6AliasOrSkip(ctx context.Context, t *testing.T) string {
+	t.Helper()
+	image, err := utils.GetMetadata(ctx, "instance", "image")
+	if err != nil {
+		t.Fatalf("could not determine image: %v", err)
+	}
+	if utils.IsCOS(image) {
+		t.Skipf("COS does not support IP aliases")
+	}
+	expected, err := utils.GetMetadata(ctx, "instance", "network-interfaces", "0", "ipv6-aliases", "0")
+	if err != nil || strings.TrimSpace(expected) == "" {
+		t.Skipf("no IPv6 alias ranges configured in metadata: %v", err)
+	}
+	return strings.TrimSpace(expected)
+}
+
+func verifyIPv6Aliases(t *testing.T, expected string) error {
+	ctx := utils.Context(t)
+	iface, err := utils.GetInterface(ctx, 0)
+	if err != nil {
+		return fmt.Errorf("couldn't get interface: %v", err)
+	}
+
+	actualIPs, err := utils.GetGoogleIPv6Routes(ctx, t, iface)
+	if err != nil {
+		return err
+	}
+	return verifyIPv6Exist(expected, actualIPs)
+}
+
+func verifyIPv6Exist(expected string, routes []string) error {
+	expectedPrefix, err := parseIPv6Prefix(expected)
+	if err != nil {
+		return fmt.Errorf("failed to parse expected IPv6 alias %q: %v", expected, err)
+	}
+	for _, route := range routes {
+		routePrefix, err := parseIPv6Prefix(route)
+		if err != nil {
+			continue
+		}
+		if routePrefix == expectedPrefix {
+			return nil
+		}
+	}
+	return fmt.Errorf("ipv6 alias %s does not exist, routes: %v", expected, routes)
+}
+
+func parseIPv6Prefix(s string) (netip.Prefix, error) {
+	s = strings.TrimSpace(s)
+	if prefix, err := netip.ParsePrefix(s); err == nil {
+		return prefix.Masked(), nil
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	return netip.PrefixFrom(addr, 128), nil
 }
 
 func compare(a, b []string) bool {
