@@ -85,12 +85,18 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	// The alias IP test currently only checks whether the alias IP route is added by the guest agent,
 	// rather than just checking for whether the route exists
 	if !utils.HasFeature(t.Image, "WINDOWS") && !strings.Contains(t.Image.Name, "sles-15") && !strings.Contains(t.Image.Name, "sles-16") && !strings.Contains(t.Image.Name, "opensuse-leap") && !strings.Contains(t.Image.Name, "ubuntu-1604") && !strings.Contains(t.Image.Name, "ubuntu-pro-1604") && !utils.IsCOS(t.Image.Name) {
-		multinictests += "|TestAlias|TestGgactlCommand|TestNetworkManagerRestart"
+		multinictests += "|TestAlias|TestIPv6Alias|TestGgactlCommand|TestNetworkManagerRestart"
 	}
 
 	// VM2 for multiNIC
 	networkRebootInst := &daisy.Instance{}
 	networkRebootInst.Metadata = map[string]string{imagetest.ShouldRebootDuringTest: "true"}
+	networkRebootInst.Tags = &compute.Tags{
+		Items: []string{
+			"vmexp-select-all-active-experiments",
+			"vmexp-enable-metadata-server-include-ipv6-alias",
+		},
+	}
 	vm2, err := t.CreateTestVMFromInstance(networkRebootInst, []*compute.Disk{{Name: vm2Config.name}})
 	if err != nil {
 		return err
@@ -108,6 +114,9 @@ func TestSetup(t *imagetest.TestWorkflow) error {
 	if err := vm2.AddAliasIPRanges("10.14.8.0/24", "secondary-range"); err != nil {
 		return err
 	}
+	// TODO: Configure subnetwork1 with StackType: "IPV4_IPV6" and attach IPv6
+	// alias ranges on vm2 once google_api/compute exposes NetworkInterface.AliasIpv6Ranges.
+	// Until then, TestIPv6Alias* skips cleanly when ipv6-aliases is absent from MDS.
 	if err := vm2.Reboot(); err != nil {
 		return err
 	}

@@ -25,10 +25,24 @@ import (
 	"testing"
 )
 
-// GetGoogleRoutes returns the routes added by the guest agent.
+// GetGoogleRoutes returns the IPv4 routes added by the guest agent.
 func GetGoogleRoutes(ctx context.Context, t *testing.T, networkInterface net.Interface) ([]string, error) {
-	arguments := strings.Split(fmt.Sprintf("route list table local type local scope host dev %s proto 66", networkInterface.Name), " ")
-	cmd := exec.Command("ip", arguments...)
+	return getGoogleRoutes(ctx, t, networkInterface, false)
+}
+
+// GetGoogleIPv6Routes returns the IPv6 routes added by the guest agent.
+func GetGoogleIPv6Routes(ctx context.Context, t *testing.T, networkInterface net.Interface) ([]string, error) {
+	return getGoogleRoutes(ctx, t, networkInterface, true)
+}
+
+func getGoogleRoutes(ctx context.Context, t *testing.T, networkInterface net.Interface, ipv6 bool) ([]string, error) {
+	var args []string
+	if ipv6 {
+		args = []string{"-6", "route", "list", "table", "local", "type", "local", "dev", networkInterface.Name, "proto", "66"}
+	} else {
+		args = []string{"route", "list", "table", "local", "type", "local", "scope", "host", "dev", networkInterface.Name, "proto", "66"}
+	}
+	cmd := exec.CommandContext(ctx, "ip", args...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("error listing Google routes (%s), err: %v", b, err)
