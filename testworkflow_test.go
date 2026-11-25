@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -1452,4 +1453,181 @@ func TestAppendCreateVMStep_SpecificReservationAndMachineType(t *testing.T) {
 			t.Errorf("instBeta.Scheduling.ProvisioningModel = %q, want empty string after ForceMachineType and finalizeWorkflows", instBeta.Scheduling.ProvisioningModel)
 		}
 	})
+}
+
+func TestNewTestWorkflowSkipsZonesWithoutMachineType(t *testing.T) {
+	// us-central1-f does not offer c4a-standard-4 and us-west1-b does not exist.
+	srv, client, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/fake-project":
+			fmt.Fprint(w, `{"Name":"fake-project"}`)
+		case "/projects/fake-cloud/global/images/fakeos-arm":
+			fmt.Fprint(w, `{"Name":"fakeos-arm", "Architecture":"ARM64"}`)
+		case "/projects/fake-project/zones/us-central1-f", "/projects/fake-project/zones/us-east4-a":
+			fmt.Fprintf(w, `{"Name":%q}`, path.Base(r.URL.Path))
+		case "/projects/fake-project/zones/us-east4-a/machineTypes/c4a-standard-4":
+			fmt.Fprint(w, `{"Name":"c4a-standard-4"}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	tests := []struct {
+		name      string
+		zones     []string
+		wantZones []string // opts.Zones after the call; the workflow uses the first one
+		wantErr   bool
+	}{
+		{
+			name:      "uses_next_zone_with_machine_type",
+			zones:     []string{"us-central1-f", "us-east4-a", "us-west1-b"},
+			wantZones: []string{"us-east4-a", "us-west1-b"},
+		},
+		{
+			name:    "fails_when_no_zone_has_machine_type",
+			zones:   []string{"us-central1-f", "us-west1-b"},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := &TestWorkflowOpts{
+				Client:     client,
+				Name:       "ssh",
+				Image:      "projects/fake-cloud/global/images/fakeos-arm",
+				Timeout:    "20m",
+				Project:    "fake-project",
+				Zone:       tc.zones[0],
+				Zones:      tc.zones,
+				ARM64Shape: "c4a-standard-4",
+			}
+			twf, err := NewTestWorkflow(opts, nil)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("NewTestWorkflow(zones: %v) succeeded, want error", tc.zones)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NewTestWorkflow(zones: %v) failed: %v", tc.zones, err)
+			}
+			if diff := cmp.Diff(tc.wantZones, opts.Zones); diff != "" {
+				t.Errorf("NewTestWorkflow(zones: %v) opts.Zones diff (-want +got):\n%s", tc.zones, diff)
+			}
+			if want := tc.wantZones[0]; twf.wf.Zone != want || twf.Zone.Name != want {
+				t.Errorf("NewTestWorkflow(zones: %v) workflow zone = %q, compute zone = %q, want %q", tc.zones, twf.wf.Zone, twf.Zone.Name, want)
+			}
+		})
+	}
+}
+
+func TestRunTestWorkflowWithRetries(t *testing.T) {
+	// us-central1-f does not offer e2-standard-4.
+	srv, client, err := daisycompute.NewTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects/fake-project":
+			fmt.Fprint(w, `{"Name":"fake-project"}`)
+		case "/projects/fake-cloud/global/images/fakeos":
+			fmt.Fprint(w, `{"Name":"fakeos", "Architecture":"X86_64"}`)
+		case "/projects/fake-project/zones/us-central1-b", "/projects/fake-project/zones/us-central1-f", "/projects/fake-project/zones/us-east4-a":
+			fmt.Fprintf(w, `{"Name":%q}`, path.Base(r.URL.Path))
+		case "/projects/fake-project/zones/us-central1-b/machineTypes/e2-standard-4", "/projects/fake-project/zones/us-east4-a/machineTypes/e2-standard-4":
+			fmt.Fprint(w, `{"Name":"e2-standard-4"}`)
+		case "/projects/fake-project/aggregated/instances", "/projects/fake-project/aggregated/disks", "/projects/fake-project/aggregated/subnetworks":
+			// Lists made by cleanTestWorkflow between runs.
+			fmt.Fprint(w, `{"items":{}}`)
+		case "/projects/fake-project/global/networks", "/projects/fake-project/global/firewalls", "/projects/fake-project/global/routes":
+			fmt.Fprint(w, `{"items":[]}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	// The workflows below run one after another and share stockouts, the same
+	// way workflows running in parallel in RunTests do.
+	stockouts := newZoneStockouts()
+	metrics := newTestMetrics(3)
+	steps := []struct {
+		name  string
+		zones []string
+		full  []string // zones that report a stockout
+		want  []string // zones the workflow ran in, in order
+	}{
+		{
+			// Runs out in us-central1-b, skips us-central1-f because it lacks
+			// e2-standard-4, and passes in us-east4-a.
+			name:  "ssh",
+			zones: []string{"us-central1-b", "us-central1-f", "us-east4-a"},
+			full:  []string{"us-central1-b"},
+			want:  []string{"us-central1-b", "us-east4-a"},
+		},
+		{
+			// Does not try us-central1-b, where ssh just ran out.
+			name:  "metadata",
+			zones: []string{"us-central1-b", "us-central1-f", "us-east4-a"},
+			want:  []string{"us-east4-a"},
+		},
+		{
+			// Runs out in us-east4-a. us-central1-b is the only zone left, so it
+			// is tried even though ssh ran out there, and it passes.
+			name:  "network",
+			zones: []string{"us-east4-a", "us-central1-b"},
+			full:  []string{"us-east4-a"},
+			want:  []string{"us-east4-a", "us-central1-b"},
+		},
+	}
+	for _, step := range steps {
+		twf, err := NewTestWorkflow(&TestWorkflowOpts{
+			Client:   client,
+			Name:     step.name,
+			Image:    "projects/fake-cloud/global/images/fakeos",
+			Timeout:  "20m",
+			Project:  "fake-project",
+			Zone:     step.zones[0],
+			Zones:    step.zones,
+			X86Shape: "e2-standard-4",
+		}, func(w *TestWorkflow) error {
+			_, err := w.CreateTestVM("vm")
+			return err
+		})
+		if err != nil {
+			t.Fatalf("NewTestWorkflow(%s) failed: %v", step.name, err)
+		}
+		if err := twf.SetupFunc(twf); err != nil {
+			t.Fatalf("SetupFunc(%s) failed: %v", step.name, err)
+		}
+		twf.wf.Project = "fake-project"
+		if err := finalizeWorkflows(t.Context(), []*TestWorkflow{twf}, "gs://bucket", "/tmp"); err != nil {
+			t.Fatalf("finalizeWorkflows(%s) failed: %v", step.name, err)
+		}
+
+		var ran []string
+		run := func(_ context.Context, wf *daisy.Workflow) error {
+			ran = append(ran, wf.Zone)
+			if slices.Contains(step.full, wf.Zone) {
+				return fmt.Errorf("ZONE_RESOURCE_POOL_EXHAUSTED in %s", wf.Zone)
+			}
+			return nil
+		}
+		if _, _, err := runTestWorkflowWithRetries(t.Context(), twf, metrics, stockouts, "gs://bucket", "/tmp", run); err != nil {
+			t.Fatalf("runTestWorkflowWithRetries(%s) failed: %v", step.name, err)
+		}
+		if diff := cmp.Diff(step.want, ran); diff != "" {
+			t.Errorf("runTestWorkflowWithRetries(%s) zones run (-want +got):\n%s", step.name, diff)
+		}
+	}
+
+	// network passed in us-central1-b after the ssh stockout there, so that
+	// stockout is cleared. The network stockout in us-east4-a is kept.
+	if got := stockouts.nextZone("fake-project", "e2-standard-4", []string{"us-east4-a", "us-central1-b"}, nil); got != "us-central1-b" {
+		t.Errorf("stockouts.nextZone() after all steps = %q, want us-central1-b", got)
+	}
 }

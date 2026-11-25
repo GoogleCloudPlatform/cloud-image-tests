@@ -16,6 +16,7 @@ package main
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -130,5 +131,66 @@ func TestSafeJoin(t *testing.T) {
 				t.Fatalf("safeJoin(%q, %q) = %q, want %q", dir, tc.objName, got, tc.wantPath)
 			}
 		})
+	}
+}
+
+func TestRotatedZones(t *testing.T) {
+	origZones, origZone, origIdx := zones, *zone, zonesRoundRobinIdx
+	t.Cleanup(func() {
+		zones, *zone, zonesRoundRobinIdx = origZones, origZone, origIdx
+	})
+
+	tests := []struct {
+		name     string
+		zones    StringSlice
+		zoneFlag string
+		lastIdx  int        // zonesRoundRobinIdx before the first call
+		want     [][]string // what each call returns, in order
+	}{
+		{
+			name:     "uses_zone_flag_when_zones_is_empty",
+			zoneFlag: "us-west1-a",
+			lastIdx:  -1,
+			want:     [][]string{{"us-west1-a"}, {"us-west1-a"}},
+		},
+		{
+			name:    "moves_one_zone_per_call_and_wraps",
+			zones:   StringSlice{"us-central1-a", "us-central1-b", "us-east4-a"},
+			lastIdx: 0,
+			want: [][]string{
+				{"us-central1-b", "us-east4-a", "us-central1-a"},
+				{"us-east4-a", "us-central1-a", "us-central1-b"},
+				{"us-central1-a", "us-central1-b", "us-east4-a"},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			zones, *zone, zonesRoundRobinIdx = tc.zones, tc.zoneFlag, tc.lastIdx
+			for i, want := range tc.want {
+				if got := rotatedZones(); !slices.Equal(got, want) {
+					t.Errorf("rotatedZones() call %d = %v, want %v", i+1, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestRotatedZonesStartsAtRandomZone(t *testing.T) {
+	origZones, origIdx := zones, zonesRoundRobinIdx
+	t.Cleanup(func() {
+		zones, zonesRoundRobinIdx = origZones, origIdx
+	})
+
+	// With four zones, the chance that all 64 first calls pick the same zone is
+	// 4^-63.
+	zones = StringSlice{"us-central1-a", "us-central1-b", "us-east4-a", "us-west1-a"}
+	starts := make(map[string]bool)
+	for range 64 {
+		zonesRoundRobinIdx = -1
+		starts[rotatedZones()[0]] = true
+	}
+	if len(starts) < 2 {
+		t.Errorf("rotatedZones() started at the same zone in all 64 runs (%v), want a random start", starts)
 	}
 }
