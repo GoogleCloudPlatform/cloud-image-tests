@@ -24,6 +24,15 @@ import (
 
 func TestNICNames(t *testing.T) {
 	ctx := utils.Context(t)
+	configExpectations, err := parseConfigExpectations()
+	if err != nil {
+		t.Fatalf("parseConfigExpectations() = err %v want nil", err)
+	}
+	constraints, err := guestOSConstraints(ctx, configExpectations.GetGuestOsConstraints())
+	if err != nil {
+		t.Fatalf("guestOSConstraints(ctx, ...) = err %v want nil", err)
+	}
+
 	mdsIfaces, err := networkutils.ListMDSIfaces(ctx)
 	if err != nil {
 		t.Fatalf("ListMDSIfaces(ctx) = err %v want nil", err)
@@ -46,16 +55,20 @@ func TestNICNames(t *testing.T) {
 		seenIfaceNames[systemIface.Name] = true
 
 		t.Run(systemIface.Name, func(t *testing.T) {
-			regex, err := networkutils.ExpectedNICRegex(mdsIface.NICType)
+			nicType := mdsIface.NICType
+			if nicType == networkutils.NICTypeIRDMA && !constraints.GetIncludesIrdmaDriver() {
+				nicType = networkutils.NICTypeIDPF
+			}
+			regex, err := networkutils.ExpectedNICRegex(nicType)
 			if err != nil {
-				t.Errorf("ExpectedNICRegex(%q) = err %v want nil", mdsIface.NICType, err)
+				t.Errorf("ExpectedNICRegex(%q) = err %v want nil", nicType, err)
 				return
 			}
 
 			if regex.MatchString(systemIface.Name) {
-				t.Logf("NIC name %q matches naming expectations for NIC type %q", systemIface.Name, mdsIface.NICType)
+				t.Logf("NIC name %q matches naming expectations for NIC type %q", systemIface.Name, nicType)
 			} else {
-				t.Errorf("NIC name %q does not match expected regex %q for NIC type %q", systemIface.Name, regex.String(), mdsIface.NICType)
+				t.Errorf("NIC name %q does not match expected regex %q for NIC type %q", systemIface.Name, regex.String(), nicType)
 			}
 		})
 	}
