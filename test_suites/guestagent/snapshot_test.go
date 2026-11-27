@@ -12,8 +12,8 @@
 package guestagent
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"strings"
@@ -21,91 +21,89 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/cloud-image-tests/utils"
-	"google.golang.org/api/compute/v1"
 )
 
-func snapshotTestPrep(t *testing.T) {
+func snapshotTestPrep(ctx context.Context, t *testing.T, runner *snapshotRunner) {
 	t.Helper()
-	if !utils.IsWindows() {
-		// Make snapshots directory and write pre and post snapshot scripts
-		err := os.MkdirAll("/etc/google/snapshots", 0770)
-		if err != nil {
-			t.Fatal(err)
+	if runner.isWindows {
+		if err := runner.prepareWindowsSnapshot(ctx, t.Logf); err != nil {
+			t.Fatalf("Windows snapshot preparation failed: %v", err)
 		}
-		err = os.WriteFile("/etc/google/snapshots/pre.sh", []byte("#!/bin/bash\ndate>>/etc/google/snapshots/pre-snapshot-write\n"), 0770)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = os.WriteFile("/etc/google/snapshots/post.sh", []byte("#!/bin/bash\ndate>>/etc/google/snapshots/post-snapshot-write\n"), 0770)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Enable snapshot scripts in the agent and restart it.
-		// Wait 5 seconds for connection to snapshot service
-		agentcfg, err := os.ReadFile("/etc/default/instance_configs.cfg")
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			t.Fatal(err)
-		}
-		// File may not end with a newline, so prepend one to make sure config is
-		// valid.
-		agentcfg = append(agentcfg, []byte("\n\n[Snapshots]\nenabled = true\ntimeout_in_seconds = 300\n")...)
-		err = os.WriteFile("/etc/default/instance_configs.cfg", agentcfg, 0640)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := utils.RestartAgent(utils.Context(t)); err != nil {
-			t.Fatal(err)
-		}
-		// Adds arbitrary buffer time for the agent to run late stage snapshot
-		// module that runs after systemd-notify --ready.
-		time.Sleep(time.Duration(30) * time.Second)
+		return
 	}
+
+	// Make snapshots directory and write pre and post snapshot scripts.
+	err := os.MkdirAll("/etc/google/snapshots", 0770)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile("/etc/google/snapshots/pre.sh", []byte("#!/bin/bash\ndate>>/etc/google/snapshots/pre-snapshot-write\n"), 0770)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile("/etc/google/snapshots/post.sh", []byte("#!/bin/bash\ndate>>/etc/google/snapshots/post-snapshot-write\n"), 0770)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Enable snapshot scripts in the agent and restart it.
+	// Wait for connection to snapshot service.
+	agentcfg, err := os.ReadFile("/etc/default/instance_configs.cfg")
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal(err)
+	}
+	// File may not end with a newline, so prepend one to make sure config is
+	// valid.
+	agentcfg = append(agentcfg, []byte("\n\n[Snapshots]\nenabled = true\ntimeout_in_seconds = 300\n")...)
+	err = os.WriteFile("/etc/default/instance_configs.cfg", agentcfg, 0640)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := utils.RestartAgent(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Adds arbitrary buffer time for the agent to run late stage snapshot
+	// module that runs after systemd-notify --ready.
+	time.Sleep(30 * time.Second)
 }
 
-func verifySnapshotSuccess(t *testing.T) {
+func verifySnapshotSuccess(ctx context.Context, t *testing.T, runner *snapshotRunner, sinceUTC string) {
 	t.Helper()
-	if utils.IsWindows() {
-		// We have no way to communicate with VSSAgent, and polling for the existence
-		// of shadows is flakier than just checking its logs.
-		//
-		res, err := utils.RunPowershellCmd("Get-WinEvent -LogName GCE-VSS-Agent/Operational | Format-List -Property Message")
+	if runner.isWindows {
+		// We have no way to communicate with VSSAgent, and polling for the
+		// existence of shadows is flakier than checking its operational logs for
+		// the winning snapshot attempt.
+		missing, err := runner.verifyWindowsSnapshotLogs(ctx, sinceUTC, t.Logf)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, msg := range []string{
-			"DoSnapshotSet aysnc operation completed.",
-			"Creating the shadow in DoSnapshotSet.",
-			"PrepareVolumes return status 0",
-			"CheckSelectedWriterStatus returned with 0",
-		} {
-			if !strings.Contains(res.Stdout, msg) {
-				t.Errorf("Could not find message %s in GCE-VSS-Agent logs", msg)
-			}
+		for _, msg := range missing {
+			t.Errorf("Could not find message %q in GCE-VSS-Agent logs (since %q)", msg, sinceUTC)
 		}
-		t.Logf("GCE-VSS-Agent Output: %s", res.Stdout)
-	} else {
-		// Read pre and post snapshot files, if they don't exist or weren't written to once then the script execution did something we don't expect.
-		pre, err := os.ReadFile("/etc/google/snapshots/pre-snapshot-write")
-		if err != nil {
-			t.Fatal(err)
-		}
-		post, err := os.ReadFile("/etc/google/snapshots/post-snapshot-write")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.Count(string(pre), "\n") != 1 {
-			t.Errorf("Unexpected number of exections of /etc/google/snapshots/pre.sh, want 1 got %d", strings.Count(string(pre), "\n"))
-		}
-		if strings.Count(string(post), "\n") != 1 {
-			t.Errorf("Unexpected number of exections of /etc/google/snapshots/post.sh, want 1 got %d", strings.Count(string(post), "\n"))
-		}
+		return
+	}
+
+	// Read pre and post snapshot files; if they don't exist or weren't written
+	// to once then the script execution did something unexpected.
+	pre, err := os.ReadFile("/etc/google/snapshots/pre-snapshot-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	post, err := os.ReadFile("/etc/google/snapshots/post-snapshot-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(pre), "\n"); got != 1 {
+		t.Errorf("Unexpected number of executions of /etc/google/snapshots/pre.sh: got %d, want 1", got)
+	}
+	if got := strings.Count(string(post), "\n"); got != 1 {
+		t.Errorf("Unexpected number of executions of /etc/google/snapshots/post.sh: got %d, want 1", got)
 	}
 }
 
 func TestSnapshotScripts(t *testing.T) {
 	ctx := utils.Context(t)
-	image, err := utils.GetMetadata(utils.Context(t), "instance", "image")
+	image, err := utils.GetMetadata(ctx, "instance", "image")
 	if err != nil {
 		t.Fatalf("Couldn't get image from metadata %v", err)
 	}
@@ -114,7 +112,8 @@ func TestSnapshotScripts(t *testing.T) {
 		t.Skip("Skipping test on Windows client")
 	}
 
-	snapshotTestPrep(t)
+	runner := newSnapshotRunner()
+	snapshotTestPrep(ctx, t, runner)
 
 	prj, zone, err := utils.GetProjectZone(ctx)
 	if err != nil {
@@ -125,17 +124,13 @@ func TestSnapshotScripts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Make a snapshot request for the boot disk of this instance
+	// Make a snapshot request for the boot disk of this instance.
 	client, err := utils.GetDaisyClient(ctx)
 	if err != nil {
 		t.Fatalf("could not make compute api client: %v", err)
 	}
 
-	snapshot := &compute.Snapshot{
-		Name:       "snapshot-" + inst,
-		SourceDisk: fmt.Sprintf("projects/%s/zones/%s/disks/%s", prj, zone, inst),
-	}
-	err = client.CreateSnapshotWithGuestFlush(prj, zone, inst, snapshot)
+	attemptStartUTC, _, err := runner.createSnapshotWithRetry(ctx, client, prj, zone, inst, t.Logf)
 	if err != nil {
 		t.Fatalf("unable to create snapshot: %v", err)
 	}
@@ -145,5 +140,5 @@ func TestSnapshotScripts(t *testing.T) {
 		t.Errorf("unable to delete snapshot: %v", err)
 	}
 
-	verifySnapshotSuccess(t)
+	verifySnapshotSuccess(ctx, t, runner, attemptStartUTC)
 }
